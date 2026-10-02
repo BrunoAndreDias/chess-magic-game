@@ -143,12 +143,12 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 #selinfo .mv { color: var(--muted); margin-top: 2px }
 #actions { display: flex; gap: 6px; align-items: stretch; min-width: 0; flex: 1 }
 #actions .wait { align-self: center; padding: 0 8px; color: var(--muted) }
-.spbtn { position: relative; flex: 1 1 0; max-width: 124px; min-width: 0; overflow: hidden; text-align: left; background: #1c1724; border: 1px solid var(--line); border-left: 4px solid var(--el); border-radius: 10px; padding: 6px 8px 6px 22px }
+.spbtn { position: relative; flex: 1 1 0; max-width: 124px; min-width: 88px; overflow: hidden; text-align: left; background: #1c1724; border: 1px solid var(--line); border-left: 4px solid var(--el); border-radius: 10px; padding: 6px 8px 6px 22px }
 .spbtn:hover:not(:disabled) { border-color: var(--el); background: #251f2e }
 .spbtn.on { background: #30283b; box-shadow: 0 0 0 1px var(--el) }
 .spbtn:disabled { opacity: .4; cursor: not-allowed }
 .spbtn .key { position: absolute; left: 6px; top: 6px; font: 700 11px ui-monospace, Menlo, monospace; color: var(--muted) }
-.spbtn .nm { font-weight: 700; display: block; font-size: 12.5px; line-height: 1.2; overflow-wrap: anywhere }
+.spbtn .nm { font-weight: 700; display: block; font-size: 12.5px; line-height: 1.2; hyphens: auto }
 .spbtn .st { font-size: 10.5px; color: var(--muted); display: block }
 .spbtn .cb { font-size: 10.5px; display: block }
 .spbtn .cdb { position: absolute; right: 6px; top: 5px; background: #000a; border-radius: 6px; padding: 0 6px; font-weight: 700 }
