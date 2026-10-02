@@ -659,7 +659,7 @@ function damage(s,o,amt,ev,kind,src){
     checkWinner(s); return 0;
   }
   amt=Math.round(amt);
-  if(o.st.guard){
+  if(o.st.guard&&kind!=='guard'){
     var g=getUnit(s,o.st.guard.by);
     if(g&&standing(g)&&g!==o){ var half=Math.round(amt/2); amt-=half; ev.push({type:'guarded', id:o.id, by:g.id}); damage(s,g,half,ev,'guard',null); }
   }
@@ -690,7 +690,7 @@ function addStatus(s,o,key,val,ev,by){
   if(!o.alive||o.downed) return;
   if((key==='stun'||key==='root')&&o.m.stunImmune){ ev.push({type:'resist', id:o.id, msg:o.name+' is Unbreakable.'}); return; }
   if(key==='burn'&&o.st.wet){ ev.push({type:'steam', id:o.id}); return; }
-  val.by=by||''; o.st[key]=val;
+  if(val.by===undefined) val.by=by||''; o.st[key]=val;
   if(key==='wet'&&o.st.burn) delete o.st.burn;
   if(key==='poison'&&val.venom) o.st.expose={t:val.t, by:by};
   ev.push({type:'status', id:o.id, key:key});
