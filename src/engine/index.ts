@@ -10,3 +10,4 @@ export {
 export type { Target } from './board';
 export { buildQueue } from './turns';
 export { createBattle, apply, predict } from './battle';
+export { aiDeploy, aiOrder, aiTurn } from './ai';
