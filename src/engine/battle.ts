@@ -44,6 +44,7 @@ function check(state: BattleState, cmd: Command): string | null {
   if (cmd.kind === 'order') {
     if (ph.kind !== 'order') return `not the order phase (${ph.kind})`;
     if (ph.orders[cmd.team]) return `team ${cmd.team} already submitted its order`;
+    if (new Set(cmd.order).size !== cmd.order.length) return 'an order lists a unit more than once';
     return null;
   }
   if (ph.kind !== 'act') return `not the act phase (${ph.kind})`;

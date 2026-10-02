@@ -98,6 +98,11 @@ describe('combos and life', () => {
 });
 
 describe('apply', () => {
+  test('an order that lists a unit twice is rejected', () => {
+    const s0 = stage({ a: trio(), b: trio() });
+    expect(apply(s0, { kind: 'order', team: 0, order: [uid(1), uid(1), uid(1)] })).toEqual({ ok: false, error: 'an order lists a unit more than once' });
+  });
+
   test('a stale command for a unit whose turn ended is rejected and changes nothing', () => {
     const s0 = stage({ a: trio(), b: trio() });
     const after = run(s0, ...orders([1, 2, 3], [4, 5, 6]), end(1)).state;
