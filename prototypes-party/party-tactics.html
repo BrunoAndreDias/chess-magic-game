@@ -937,7 +937,7 @@ function performCast(s,id,tx,tz){
   cast.msg=u.name+' uses '+sk.name+(target?' on '+(target===u?'themself':target.name):'')+(emp?' (empowered)':'')+'.';
   if(!sk.free&&!c.refund) u.acted=true;
   if(cdOf(u,id)>0) u.cd[id]=cdOf(u,id);
-  if(u.m.hitrun&&DAMAGING[key]&&u.moved&&!sk.free){ u.moved=false; u.moveCap=u.m.hitrun; }
+  if(u.m.hitrun&&DAMAGING[key]&&u.moved&&!u.st.root&&!sk.free){ u.moved=false; u.moveCap=u.m.hitrun; }
   checkWinner(s);
   return ev;
 }

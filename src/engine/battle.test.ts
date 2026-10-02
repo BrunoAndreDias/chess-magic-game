@@ -103,6 +103,16 @@ describe('apply', () => {
     expect(apply(s0, { kind: 'order', team: 0, order: [uid(1), uid(1), uid(1)] })).toEqual({ ok: false, error: 'an order lists a unit more than once' });
   });
 
+  test('Hit & Run gives no second move while Rooted', () => {
+    const hitAndRun = { ...bare('ranger'), tree: ['r_ls', 'r_qd', 'r_hr'] } as const;
+    const s0 = stage({ a: [hitAndRun], b: [bare('ranger')], starter: 1, place: { 1: [2, 2], 2: [2, 6] } });
+    const pinned = run(s0, ...orders([1], [2]), cast(2, 'pinshot', 2, 2), end(2));
+    expect(unit(pinned.state, 1).st.root).toEqual({ t: 1, by: 2 });
+    const shot = run(pinned.state, cast(1, 'basic_ranger', 2, 6));
+    expect([unit(shot.state, 1).moved, unit(shot.state, 1).moveCap]).toEqual([true, 0]);
+    expect(apply(shot.state, move(1, 3, 2))).toEqual({ ok: false, error: 'already moved' });
+  });
+
   test('a stale command for a unit whose turn ended is rejected and changes nothing', () => {
     const s0 = stage({ a: trio(), b: trio() });
     const after = run(s0, ...orders([1, 2, 3], [4, 5, 6]), end(1)).state;

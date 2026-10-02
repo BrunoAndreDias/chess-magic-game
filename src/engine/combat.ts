@@ -390,7 +390,7 @@ export function performCast(s: BattleState, id: SkillId, tx: number, tz: number)
   if (emp && target && s.party[u.team].has('blessed') && standing(target) && target.team !== u.team) addStatus(target, 'expose', { t: 2, by: u.id }, ev);
   if (!sk.free && !c.refund) u.acted = true;
   if (cdOf(u, id) > 0) u.cd[id] = cdOf(u, id);
-  if (u.mods.hitrun && sk.damaging && u.moved && !sk.free) { u.moved = false; u.moveCap = u.mods.hitrun; }
+  if (u.mods.hitrun && sk.damaging && u.moved && !u.st.root && !sk.free) { u.moved = false; u.moveCap = u.mods.hitrun; }
   checkWinner(s);
   return ev;
 }
