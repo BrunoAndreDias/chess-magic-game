@@ -6,8 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const SCRATCH = '/private/tmp/claude-501/-Users-brunodias-Desktop-code-chess-magic-game';
-const { chromium } = require(process.env.PLAYWRIGHT_CORE || `${SCRATCH}/f5366f02-463e-4e64-86fa-c98f351fb3ea/scratchpad/node_modules/playwright-core`);
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const CHROME = process.env.CHROME || '/Users/brunodias/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
 const SHOTS = process.env.SHOTS || path.join(os.tmpdir(), 'party-playtest');
 const MAP = process.env.MAP || 'chasm';
