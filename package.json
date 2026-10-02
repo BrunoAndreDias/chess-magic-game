@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "parity": "tsx scripts/parity.ts",
+    "sim": "tsx scripts/sim.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
