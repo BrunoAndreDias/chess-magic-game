@@ -1,0 +1,26 @@
+import type { BattleEvent, BattleState, Pos, Team, UnitId } from '../engine/types';
+
+export type HighlightTone = 'move' | 'target' | 'aoe' | 'deploy' | 'path' | 'selected';
+export interface Highlight { tiles: readonly Pos[]; tone: HighlightTone }
+
+export type TileInput = { kind: 'hover'; tile: Pos | null } | { kind: 'click'; tile: Pos; button: 'left' | 'right' };
+
+/**
+ * The 3D board. It only draws: it never holds game rules or decides anything.
+ * The HUD drives it with state snapshots and engine events, and hears tile input back.
+ */
+export interface Board {
+  /** Rebuild terrain and units from scratch (new battle or a jump to an unrelated state). */
+  load(state: BattleState): void;
+  /** Animate the events that turned `before` into `after`, then leave the scene matching `after`. */
+  play(events: readonly BattleEvent[], before: BattleState, after: BattleState): Promise<void>;
+  /** Replace every highlight layer at once. */
+  highlight(layers: readonly Highlight[]): void;
+  /** Ease the camera to a unit, seen from its party's side. Null returns to the overview of `team`'s side. */
+  focus(unit: UnitId | null, team: Team): void;
+  setFollow(on: boolean): void;
+  onInput(listener: (input: TileInput) => void): void;
+  /** Viewport pixel position of a tile's centre, for the HUD's floating labels and the browser playtest. */
+  screenOf(tile: Pos): { x: number; y: number };
+  dispose(): void;
+}
