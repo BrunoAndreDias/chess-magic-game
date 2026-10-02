@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mage Squad Prototypes</title>
+<style>
+  :root { --bg:#0d111c; --card:#151b2c; --line:#283050; --text:#ece6d8; --muted:#9aa0b8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font: 600 32px/1.2 Georgia, "Times New Roman", serif; margin: 0 0 8px; }
+  p.lead { color: var(--muted); margin: 0 0 32px; max-width: 66ch; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
+  a.card { display:block; text-decoration:none; color:inherit; background:var(--card); border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:12px; padding:20px; transition: border-color .15s, transform .15s; }
+  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .tag { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+  h2 { font: 600 22px/1.25 Georgia, serif; margin: 6px 0 10px; }
+  .q { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .note { margin-top: 32px; color: var(--muted); font-size: 14px; }
+  code { background:#1d2438; padding:1px 6px; border-radius:4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mage Squad: three 3D prototypes</h1>
+  <p class="lead">Same core idea, three ways to play it: <strong>equip your team of mages with spells from a shared pool, look at the enemy's loadout, counter-pick, then fight.</strong> Every version uses the same 10 spells and the same three mage archetypes (Warden, Sorcerer, Adept), so you can compare the <em>style</em> of play rather than the content.</p>
+  <div class="grid">
+    <a class="card" href="1-arena-tactics.html" style="--accent:#7fd8ff">
+      <div class="tag">1 · Turn-based</div>
+      <h2>Arena Tactics</h2>
+      <p class="q">XCOM / Into the Breach. Think, then act, with a chess-clock time bank.</p>
+      <ul><li>3 mages, 2 spells each</li><li>Move and act per mage on a 3D grid</li><li>Telegraphed Meteors, walls, line of sight</li></ul>
+    </a>
+    <a class="card" href="2-arpg-squad.html" style="--accent:#ff6a2b">
+      <div class="tag">2 · Real-time action</div>
+      <h2>Squad Brawl</h2>
+      <p class="q">Diablo / Battlerite. You control one mage, and two AI allies fight beside you.</p>
+      <ul><li>4 spells on Q W E R</li><li>Dodgeable skillshots</li><li>3v3 arena</li></ul>
+    </a>
+    <a class="card" href="3-mage-commander.html" style="--accent:#7ee081">
+      <div class="tag">3 · Strategy (RTS)</div>
+      <h2>Mage Commander</h2>
+      <p class="q">Age of Empires, lite. Design unit blueprints, run an economy, command an army.</p>
+      <ul><li>Capture Mana Wells for income</li><li>Train units from your 3 blueprints</li><li>Destroy the enemy Sanctum</li></ul>
+    </a>
+  </div>
+  <p class="note">Needs an internet connection the first time (the 3D library loads from a CDN). If something breaks, a red box appears on screen: tell me what it says. Add <code>?quick</code> to any URL to skip the loadout screen.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,2252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elemental Draft — Arena Tactics variant C (PROTOTYPE)</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:rgba(17,22,37,.93); --panel2:rgba(25,31,50,.95); --line:#2b3452;
+    --text:#ece5d3; --muted:#98a0b8; --gold:#f2c14e; --you:#5b8cff; --foe:#ff6b5b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+  button{font:inherit;color:inherit;cursor:pointer}
+  canvas#c{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+  .hidden{display:none!important}
+  h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;margin:0}
+
+  /* ---------- error box ---------- */
+  #errbox{position:fixed;left:12px;right:12px;top:12px;z-index:99;display:none;white-space:pre-wrap;
+    background:#5a1111;border:2px solid #ff5a5a;color:#fff;padding:12px 14px;border-radius:10px;font:13px/1.4 ui-monospace,Menlo,monospace;max-height:40vh;overflow:auto}
+
+  /* ---------- loadout ---------- */
+  .screen{position:fixed;inset:0;z-index:20;overflow:auto;padding:28px 16px 40px;
+    background:linear-gradient(rgba(8,11,20,.80),rgba(8,11,20,.93))}
+  .lo-head{max-width:1280px;margin:0 auto 18px}
+  .lo-head h1{font-size:30px}
+  .lo-head p{color:var(--muted);margin:6px 0 0;max-width:80ch}
+  .tag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .lo-grid{display:grid;grid-template-columns:1.05fr 1.35fr 1fr;gap:16px;max-width:1280px;margin:0 auto}
+  @media (max-width:1050px){.lo-grid{grid-template-columns:1fr}}
+  .col h2{font-size:18px;margin:0 0 10px}
+  .col .sub{color:var(--muted);font-size:13px;margin:-6px 0 10px}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer}
+  .mcard.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .mcard.foe{cursor:default;border-left:3px solid var(--foe)}
+  .mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .mname{font-weight:700;font-size:15px}
+  .mstat{color:var(--muted);font-size:12px}
+  .archrow{display:flex;gap:6px;margin:8px 0 6px}
+  .archbtn{flex:1;background:#1b2238;border:1px solid var(--line);border-radius:8px;padding:5px 6px;font-size:12px}
+  .archbtn.on{background:#2a3350;border-color:var(--you);color:#fff}
+  .adesc{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .slots{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .slot{border-radius:8px;padding:6px 8px;font-size:12.5px;background:#1a2035;border:1px solid var(--line);border-left:4px solid var(--el,#555);min-height:34px;display:flex;align-items:center;gap:6px}
+  .slot.empty{color:var(--muted);border-style:dashed;border-left-width:1px}
+  .slot .x{margin-left:auto;color:var(--muted);font-size:11px}
+  .pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+  .scard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--el);border-radius:10px;padding:9px 10px;cursor:pointer;position:relative}
+  .scard:hover{background:var(--panel2);border-color:var(--el)}
+  .scard.eq{box-shadow:inset 0 0 0 1px var(--el)}
+  .scard .t{display:flex;align-items:center;gap:6px;font-weight:700}
+  .scard .el{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--el);margin-left:auto}
+  .scard .d{font-size:12.5px;margin:4px 0 3px}
+  .scard .n{font-size:11.5px;color:var(--muted)}
+  .scard .who{position:absolute;right:8px;bottom:6px;display:flex;gap:3px}
+  .scard .who span{font-size:10px;background:var(--you);color:#fff;border-radius:4px;padding:0 4px}
+  .note{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+  .preset{font-size:22px;font-family:Georgia,serif;color:var(--foe)}
+  .pdesc{font-size:13px;color:var(--muted);margin:4px 0 10px}
+  .btn{background:#222a44;border:1px solid var(--line);border-radius:9px;padding:8px 14px}
+  .btn:hover{border-color:var(--muted)}
+  .btn.primary{background:var(--gold);border-color:var(--gold);color:#1b1405;font-weight:700;padding:11px 26px;font-size:16px}
+  .btn.primary:disabled{opacity:.45;cursor:not-allowed}
+  .lo-foot{max-width:1280px;margin:18px auto 0;display:flex;gap:14px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .lo-foot label{color:var(--muted)}
+  select{background:#1b2238;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit}
+  #lo-why{color:var(--foe);font-size:13px}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+  #hud > *{pointer-events:auto}
+  #topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px}
+  .clock{min-width:150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 14px;text-align:center}
+  .clock .who{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .clock .t{font:700 26px/1.1 ui-monospace,Menlo,monospace}
+  .clock.you{border-bottom:3px solid var(--you)} .clock.foe{border-bottom:3px solid var(--foe)}
+  .clock.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .clock.low .t{color:#ff5a5a}
+  #turnlabel{text-align:center;min-width:170px}
+  #turnlabel .r{font-size:12px;color:var(--muted)}
+  #turnlabel .w{font-family:Georgia,serif;font-size:19px}
+  #menu{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+  #menu .btn{padding:6px 10px;font-size:12.5px;background:var(--panel)}
+  .roster{position:absolute;top:84px;width:230px;display:flex;flex-direction:column;gap:6px}
+  #roster-you{left:12px} #roster-foe{right:12px}
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:12.5px;cursor:pointer}
+  .rcard.you{border-left:3px solid var(--you)} .rcard.foe{border-left:3px solid var(--foe);cursor:default}
+  .rcard.sel{border-color:var(--gold)}
+  .rcard.dead{opacity:.35}
+  .rtop{display:flex;justify-content:space-between}
+  .rtop span{color:var(--muted);font-size:11.5px}
+  .rbar{position:relative;height:6px;background:#2a2f40;border-radius:3px;margin:4px 0 3px;overflow:hidden}
+  .rbar i{position:absolute;left:0;top:0;bottom:0;background:#6fd06b;border-radius:3px}
+  .rcard.foe .rbar i{background:#ef6a5a}
+  .rbar s{position:absolute;right:0;top:0;bottom:0;background:rgba(200,160,100,.95)}
+  .rsub{display:flex;gap:8px;color:var(--muted);font-size:11.5px;align-items:center;flex-wrap:wrap}
+  .pip{display:inline-flex;align-items:center;gap:3px}
+  .pip b{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold)}
+  .pip b.used{background:#3a4058}
+  .rsp{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+  .rsp span{font-size:10.5px;border:1px solid var(--line);border-left:3px solid var(--el);border-radius:4px;padding:0 4px;color:var(--muted)}
+  #log{position:absolute;right:12px;bottom:12px;width:300px;max-height:190px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px}
+  #log div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+  #log .you{color:#a9c3ff} #log .foe{color:#ffb0a6} #log .sys{color:var(--gold)}
+  #bottombar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:10px;align-items:stretch;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;max-width:calc(100vw - 660px);min-width:520px}
+  @media (max-width:1150px){#bottombar{max-width:calc(100vw - 24px);min-width:0;bottom:210px} #log{width:260px}}
+  #selinfo{min-width:120px;padding-right:10px;border-right:1px solid var(--line);font-size:12.5px}
+  #selinfo b{font-size:14px}
+  #selinfo .mv{color:var(--muted);margin-top:4px}
+  #actions{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+  .hint{color:var(--muted);align-self:center;padding:0 8px}
+  .spbtn{position:relative;width:150px;text-align:left;background:#1a2035;border:1px solid var(--line);border-left:4px solid var(--el);border-radius:10px;padding:6px 8px 6px 26px}
+  .spbtn:hover:not(:disabled){border-color:var(--el);background:#212846}
+  .spbtn.on{background:#2a3150;box-shadow:0 0 0 1px var(--el)}
+  .spbtn:disabled{opacity:.42;cursor:not-allowed}
+  .spbtn .key{position:absolute;left:7px;top:6px;font:700 11px ui-monospace,Menlo,monospace;color:var(--muted)}
+  .spbtn .nm{font-weight:700;display:block}
+  .spbtn .st{font-size:11px;color:var(--muted);display:block}
+  .spbtn .cdb{position:absolute;right:6px;top:5px;background:#000a;border-radius:6px;padding:0 6px;font-weight:700}
+  #endturn{background:var(--gold);color:#1b1405;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:15px}
+  #endturn:disabled{opacity:.4;cursor:not-allowed}
+  #help{position:absolute;left:12px;bottom:12px;width:230px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+  #help b{color:var(--text)}
+  #help summary{cursor:pointer;color:var(--text);font-weight:700}
+  #help kbd{font:11px ui-monospace,Menlo,monospace;background:#232a42;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--text)}
+
+  /* ---------- labels ---------- */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+  .ulabel{position:absolute;transform:translate(-50%,-100%);text-align:center;white-space:nowrap}
+  .ulabel .n{font-size:11px;font-weight:700;text-shadow:0 1px 3px #000}
+  .ulabel .bar{position:relative;width:62px;height:6px;background:#1b1f2c;border:1px solid #000;border-radius:3px;overflow:hidden;margin:1px auto}
+  .ulabel .bar i{position:absolute;left:0;top:0;bottom:0;background:#6fd06b}
+  .ulabel.foe .bar i{background:#ef6a5a}
+  .ulabel .bar s{position:absolute;right:0;top:0;bottom:0;background:#e0b877}
+  .ulabel .st{font-size:12px;text-shadow:0 1px 2px #000;height:15px}
+  .float{position:absolute;transform:translate(-50%,-50%);font:800 18px/1 -apple-system,system-ui,sans-serif;text-shadow:0 2px 4px #000,0 0 2px #000;white-space:nowrap}
+  #tooltip{position:fixed;z-index:30;pointer-events:none;background:rgba(10,13,24,.96);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;max-width:260px;display:none}
+  #tooltip .tt{font-weight:700;font-size:13.5px}
+  #tooltip .m{color:var(--muted)}
+  #banner{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%);z-index:15;pointer-events:none;
+    font:600 38px Georgia,serif;text-shadow:0 3px 16px #000;opacity:0;transition:opacity .25s}
+  #banner.show{opacity:1}
+
+  /* ---------- result ---------- */
+  #result{display:flex;align-items:center;justify-content:center}
+  .rbox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 32px;text-align:center;min-width:320px}
+  .rbox h1{font-size:40px}
+  .rbox p{color:var(--muted)}
+  .rbox .row{display:flex;gap:10px;justify-content:center;margin-top:16px}
+
+  /* ---------- variant C: draft, mana, reactions ---------- */
+  .diff{margin:14px 0 0;background:rgba(242,193,78,.08);border:1px solid rgba(242,193,78,.45);border-left:4px solid var(--gold);border-radius:10px;padding:10px 14px;max-width:980px}
+  .diff b.h{color:var(--gold);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+  .diff ul{margin:6px 0 0;padding-left:18px;font-size:13.5px}
+  .diff li{margin:2px 0}
+  #dr-coin{margin:14px 0 6px;font-size:14px}
+  #dr-track{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .pk{width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;background:#161c30;border:1px dashed var(--line);position:relative}
+  .pk.you{border-color:rgba(91,140,255,.6)} .pk.foe{border-color:rgba(255,107,91,.6)}
+  .pk.done.you{border-style:solid;background:rgba(91,140,255,.18)} .pk.done.foe{border-style:solid;background:rgba(255,107,91,.16)}
+  .pk.cur{box-shadow:0 0 0 2px var(--gold);border-style:solid}
+  .pk small{position:absolute;bottom:-15px;font-size:9.5px;color:var(--muted);letter-spacing:.06em}
+  #dr-status{margin:22px 0 0;font:600 17px Georgia,serif}
+  .scard.taken{opacity:.38;cursor:default}
+  .scard.taken:hover{background:var(--panel);border-color:var(--line)}
+  .scard.locked{cursor:not-allowed}
+  .scard .badge{position:absolute;right:8px;top:8px;font-size:10px;border-radius:4px;padding:0 5px;font-weight:700;letter-spacing:.06em}
+  .scard .badge.you{background:var(--you);color:#fff} .scard .badge.foe{background:var(--foe);color:#fff}
+  .scard .newtag{font-size:9.5px;background:var(--gold);color:#1b1405;border-radius:4px;padding:0 4px;font-weight:800;letter-spacing:.08em}
+  .scard .cb{font-size:11.5px;color:#d9c7ff;margin-top:3px}
+  .scard .cst{font-weight:800;color:#8fd0ff;font-size:12px}
+  .scard .t .el{margin-left:6px}
+  .picklist{display:flex;flex-direction:column;gap:6px}
+  .pchip{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--el);border-radius:8px;padding:6px 9px;font-size:13px}
+  .pchip .m{color:var(--muted);font-size:11.5px}
+  .combos{margin-top:10px;font-size:12.5px;color:#d9c7ff}
+  .combos div{margin:3px 0}
+  .combos .none{color:var(--muted)}
+  /* mana */
+  .gems{display:inline-flex;gap:4px;align-items:center}
+  .gem{width:11px;height:11px;transform:rotate(45deg);border:1.5px solid #5fb8ff;border-radius:2px;background:transparent;display:inline-block}
+  .gem.on{background:#5fb8ff;box-shadow:0 0 6px #5fb8ffaa}
+  .gem.spend{background:#ffd36b;border-color:#ffd36b;box-shadow:0 0 6px #ffd36baa}
+  .clock .mana{margin-top:3px;display:flex;justify-content:center;gap:6px;align-items:center;font-size:11.5px;color:var(--muted)}
+  .clock .gem{width:8px;height:8px}
+  #manabox{min-width:150px;padding-right:10px;border-right:1px solid var(--line);font-size:12px}
+  #manabox .mlabel{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8fd0ff}
+  #manabox .big{font:700 22px/1.2 ui-monospace,Menlo,monospace;color:#bfe4ff}
+  #manabox .mnext{color:var(--muted);font-size:11.5px}
+  .spbtn .cost{position:absolute;right:6px;bottom:5px;font-weight:800;font-size:11.5px;color:#8fd0ff}
+  .spbtn .cdb{right:auto;left:auto;right:6px;top:5px}
+  #help{width:250px;display:flex;flex-direction:column;gap:6px;background:none;border:none;padding:0}
+  #help details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  #help .rx div{margin:3px 0}
+  #deploybar{display:flex;gap:12px;align-items:center}
+</style>
+</head>
+<body>
+<div id="errbox"></div>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="clock you" id="clk0"><div class="who">You</div><div class="t">5:00</div><div class="mana" id="mana0"></div></div>
+    <div id="turnlabel"><div class="r">Round 1</div><div class="w">Your turn</div></div>
+    <div class="clock foe" id="clk1"><div class="who">Enemy</div><div class="t">5:00</div><div class="mana" id="mana1"></div></div>
+  </div>
+  <div id="menu"><button class="btn" id="btn-loadout">⟲ New draft</button></div>
+  <div class="roster" id="roster-you"></div>
+  <div class="roster" id="roster-foe"></div>
+  <div id="bottombar">
+    <div id="manabox"></div>
+    <div id="selinfo"></div>
+    <div id="actions"></div>
+    <button id="endturn">End Turn</button>
+  </div>
+  <div id="log"></div>
+  <div id="help">
+    <details class="rx">
+      <summary>Reactions</summary>
+      <div><b style="color:#ff6a2b">🔥 Burning</b> (Fireball, Meteor): 8 dmg to anyone who <b>ends their turn</b> on it.</div>
+      <div><b style="color:#bff0ff">❄ Chilled</b> (Frost spells): Frost hitting a unit here → <b>🧊 Frozen</b>.</div>
+      <div><b style="color:#5fb8ff">💧 Wet</b> (Rain): Frost → <b>🧊 Frozen</b> · Chain → <b>⚡ conducts</b> to everyone on connected wet tiles · Fire → <b>♨ steam</b> (blocks sight 1 turn).</div>
+      <div><b style="color:#b07cff">☠ Poison</b> + any Fire → <b>💥 Explosion</b>: 24 to everyone in the cloud.</div>
+      <div><b>☄ Meteor</b> on Burning tiles: <b>+50%</b>.</div>
+      <div><b>🧊 Frozen</b>: skips its next turn, takes <b>half damage</b> meanwhile. Thawing clears the ice under it.</div>
+    </details>
+    <details open>
+      <summary>Controls</summary>
+      <div><b>Left-click</b> a mage to select · blue tile to <b>move</b></div>
+      <div><b>1 / 2</b> spells · <b>3</b> Arcane Bolt → click a lit tile to cast</div>
+      <div><b>Right-drag</b> rotate · <b>Scroll</b> zoom</div>
+      <div><kbd>Tab</kbd> next mage · <kbd>Esc</kbd> cancel · <kbd>Space</kbd> end turn</div>
+      <div style="margin-top:4px">Each mage: 1 Move and up to 2 casts per turn, paid from <b>team mana</b>.</div>
+    </details>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+<div id="banner"></div>
+
+<div id="loadout" class="screen">
+  <div class="lo-head">
+    <div class="tag">Prototype v3 · Arena Tactics · Variant C</div>
+    <h1>Elemental Draft</h1>
+    <div class="diff"><b class="h">What’s different in this variant</b><ul>
+      <li><b>Draft instead of a free loadout:</b> each spell exists <b>once</b>. You and the enemy pick in snake order (1-2-2-1…) until each has 6. Take what you need, or what <i>they</i> need.</li>
+      <li><b>Team mana instead of 1 action per mage:</b> 3 mana on turn 1, +1 per turn up to 6, keep up to 2. Any mage may cast twice, so you choose who gets the mana.</li>
+      <li><b>Spells leave elements on tiles that react:</b> 🔥 Burning, ❄ Chilled, 💧 Wet. Fire + Poison = 💥, Frost on Chilled/Wet = 🧊 Frozen, Lightning on Wet = ⚡ conducts. Two NEW combo spells: 🌧️ Rain, 🌀 Gust.</li>
+      <li><b>Prepare the field:</b> after the draft you <b>deploy</b> your mages anywhere in your 3-row zone. Mages have about 2× HP, so battles last about twice as long.</li>
+    </ul></div>
+    <div id="dr-coin"></div>
+    <div id="dr-track"></div>
+    <div id="dr-status"></div>
+  </div>
+  <div class="lo-grid">
+    <div class="col">
+      <h2 id="dr-left-h">Your picks</h2>
+      <div class="sub" id="dr-left-sub"></div>
+      <div id="lo-team"></div>
+    </div>
+    <div class="col">
+      <h2 id="dr-mid-h">Spell pool</h2>
+      <div class="sub" id="dr-mid-sub"></div>
+      <div class="pool" id="lo-pool"></div>
+      <div class="note">Every mage also always has <b>✦ Arcane Bolt</b> (◆1): range 4, 10 damage, needs line of sight. Standing on a <b>raised platform</b> gives +1 range.</div>
+    </div>
+    <div class="col">
+      <h2 id="dr-right-h">Enemy picks</h2>
+      <div class="sub" id="dr-right-sub"></div>
+      <div id="lo-enemy"></div>
+    </div>
+  </div>
+  <div class="lo-foot">
+    <span id="lo-why"></span>
+    <button class="btn" id="dr-redraft">↻ New draft</button>
+    <label>Time bank
+      <select id="lo-tc">
+        <option value="3">3:00 + 10s / turn</option>
+        <option value="5">5:00 + 15s / turn</option>
+        <option value="10" selected>10:00 + 20s / turn</option>
+        <option value="off">Off (no clock)</option>
+      </select>
+    </label>
+    <button class="btn primary" id="lo-fight">Deploy ▸</button>
+  </div>
+</div>
+
+<div id="result" class="screen hidden">
+  <div class="rbox">
+    <div class="tag" id="res-tag">Battle over</div>
+    <h1 id="res-title">Victory</h1>
+    <p id="res-why"></p>
+    <div class="row">
+      <button class="btn primary" id="res-rematch">Rematch (same draft)</button>
+      <button class="btn" id="res-assign">Re-assign spells</button>
+      <button class="btn" id="res-change">New draft</button>
+    </div>
+  </div>
+</div>
+<script>
+// ---- error overlay (defined before anything else can fail) ----
+(function(){
+  function show(msg){
+    var b=document.getElementById('errbox'); if(!b) return;
+    b.style.display='block'; b.textContent += msg + '\n';
+  }
+  window.showError = show;
+  window.addEventListener('error', function(e){
+    if(e && e.message) show('Error: '+e.message+(e.filename?'  ('+String(e.filename).split('/').pop()+':'+e.lineno+')':''));
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    var r=e.reason; show('Error: '+(r&&r.stack?r.stack:r));
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+
+<script id="logic">
+// =====================================================================
+// GAME LOGIC — no THREE, no DOM
+// Variant C "Elemental Draft": snake draft of a shared spell pool, deployment,
+// team mana economy, and element states on tiles that react with each other.
+// Mutating API: deployMove / beginBattle / performMove / performCast / endTurn /
+// tick change the state in place and return a list of events.
+// =====================================================================
+(function(){
+'use strict';
+var N = 10;
+var DIR4 = [[1,0],[-1,0],[0,1],[0,-1]];
+var DIR8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function idx(x,z){ return z*N+x; }
+function inb(x,z){ return x>=0 && z>=0 && x<N && z<N; }
+function cheb(ax,az,bx,bz){ return Math.max(Math.abs(ax-bx), Math.abs(az-bz)); }
+function sign(v){ return v>0?1:v<0?-1:0; }
+
+var ELEM = {
+  arcane:{name:'Arcane', color:'#d9c2ff'},
+  fire:  {name:'Fire',   color:'#ff6a2b'},
+  frost: {name:'Frost',  color:'#7fd8ff'},
+  storm: {name:'Storm',  color:'#c9a7ff'},
+  earth: {name:'Earth',  color:'#c8a064'},
+  life:  {name:'Life',   color:'#7ee081'},
+  shadow:{name:'Shadow', color:'#b07cff'}
+};
+
+// HP is roughly doubled vs the original so battles last ~2x as many rounds.
+var ARCH = {
+  warden:  {name:'Warden',   hp:360, move:3, dmgMult:1.0, barrierBonus:15, desc:'360 HP · moves 3 · Barriers it casts are +15 stronger'},
+  sorcerer:{name:'Sorcerer', hp:270, move:4, dmgMult:1.2, barrierBonus:0,  desc:'270 HP · moves 4 · +20% spell damage'},
+  adept:   {name:'Adept',    hp:220, move:5, dmgMult:1.0, barrierBonus:0,  desc:'220 HP · moves 5 · fastest, most fragile'}
+};
+
+var MANA  = {start:3, max:6, carry:2, perMageCasts:2};
+var REACT = {explosionDmg:24, burnDmg:8, burnTurns:2, chillTurns:2, wetTurns:3, steamTurns:1, meteorBurnMult:1.5, frozenTaken:0.5};
+
+// target: enemy | ally | tile | empty | self.  cd = extra turns of waiting after the turn you cast it.
+var SPELLS = {
+  arcane:   {id:'arcane', name:'Arcane Bolt', el:'arcane', icon:'✦', target:'enemy', range:4, los:true, dmg:10, cost:1, cd:0,
+             text:'Weak bolt. Always available, can be cast twice.', stats:'Range 4 · 10 dmg', combo:''},
+  fireball: {id:'fireball', name:'Fireball', el:'fire', icon:'🔥', target:'enemy', range:5, los:true, dmg:20, splash:8, cost:2, cd:0,
+             text:'20 damage, +8 to enemies next to the target. Sets a + of tiles BURNING.', stats:'Range 5 · 20 +8 splash', combo:'Burns tiles · 💥 ignites Poison · on Wet → ♨ steam'},
+  meteor:   {id:'meteor', name:'Meteor', el:'fire', icon:'☄️', target:'tile', range:6, los:false, dmg:36, cost:4, cd:2,
+             text:'Marks a 3×3 area. Crashes at the START of your next turn for 36 to everyone inside — allies too. Leaves the area Burning.', stats:'Range 6 · 36 dmg 3×3 delayed', combo:'×1.5 on Burning tiles · 💥 ignites Poison'},
+  frostnova:{id:'frostnova', name:'Frost Nova', el:'frost', icon:'❄️', target:'self', dmg:8, radius:2, cost:2, cd:1,
+             text:'8 damage to enemies within 2 tiles and ROOTS them (no move next turn). Chills the tiles around you and under each enemy hit.', stats:'Radius 2 · 8 dmg + root', combo:'Target on Chilled/Wet → 🧊 FROZEN'},
+  icelance: {id:'icelance', name:'Ice Lance', el:'frost', icon:'🧊', target:'enemy', range:5, los:true, dmg:14, cost:2, cd:0,
+             text:'14 damage, DOUBLE against rooted targets. Chills the target’s tile.', stats:'Range 5 · 14 dmg (×2 rooted)', combo:'Target on Chilled/Wet → 🧊 FROZEN'},
+  chain:    {id:'chain', name:'Chain Lightning', el:'storm', icon:'⚡', target:'enemy', range:5, los:true, dmg:16, jumpDmg:12, jumps:2, jumpRange:2, cost:3, cd:1,
+             text:'16 damage, then jumps to up to 2 more enemies within 2 tiles (12 each).', stats:'Range 5 · 16 → 12 → 12', combo:'Hits a unit on Wet → ⚡ conducts to EVERYONE on connected Wet tiles'},
+  blink:    {id:'blink', name:'Blink', el:'storm', icon:'✨', target:'empty', range:4, los:false, cost:1, cd:1,
+             text:'Teleport to an empty tile within 4, ignoring obstacles. You can still Move afterwards.', stats:'Range 4 teleport', combo:''},
+  wall:     {id:'wall', name:'Stone Wall', el:'earth', icon:'🧱', target:'empty', range:4, los:false, duration:3, cost:2, cd:2,
+             text:'Raises a 3-tile wall across your line of aim. Blocks movement and line of sight for 3 turns.', stats:'Range 4 · 3 tiles · 3 turns', combo:''},
+  barrier:  {id:'barrier', name:'Barrier', el:'earth', icon:'🛡️', target:'ally', range:4, los:false, shield:30, cost:2, cd:1,
+             text:'Shields an ally (or self) for 30. The shield absorbs damage until it breaks.', stats:'Range 4 · 30 shield', combo:''},
+  mend:     {id:'mend', name:'Mend', el:'life', icon:'✚', target:'ally', range:4, los:false, heal:30, cost:2, cd:1,
+             text:'Heals an ally (or self) for 30.', stats:'Range 4 · heal 30', combo:''},
+  poison:   {id:'poison', name:'Poison Cloud', el:'shadow', icon:'☠️', target:'tile', range:5, los:false, dmg:9, duration:3, cost:3, cd:2,
+             text:'A 3×3 toxic cloud for 3 turns. Enemies inside take 9 at the start of each of their turns.', stats:'Range 5 · 9/turn 3×3 · 3 turns', combo:'Any Fire → 💥 EXPLOSION: 24 to everyone inside'},
+  rain:     {id:'rain', name:'Rain', el:'storm', icon:'🌧️', isNew:true, target:'tile', range:5, los:false, duration:3, cost:2, cd:1,
+             text:'Soaks a 3×3 area: tiles are WET for 3 turns. Puts out fires.', stats:'Range 5 · 3×3 · 3 turns', combo:'Wet + Frost → 🧊 Frozen · + Chain → ⚡ conducts · + Fire → ♨ steam'},
+  gust:     {id:'gust', name:'Gust', el:'storm', icon:'🌀', isNew:true, target:'enemy', range:3, los:true, push:2, dmg:8, cost:1, cd:1,
+             text:'Pushes an enemy 2 tiles straight away from you. 8 damage if it slams into something.', stats:'Range 3 · push 2 · 8 on impact', combo:'Shove enemies into Poison, Meteor rings, Burning or Wet tiles'}
+};
+var POOL = ['fireball','meteor','frostnova','icelance','chain','blink','wall','barrier','mend','poison','rain','gust'];
+var NAMES = [['Aldric','Seren','Kip'],['Morvath','Ysolde','Grix']];
+
+// map (180°-rotation symmetric)
+var BLOCKED = [[2,3],[7,6],[4,4],[5,5],[1,6],[8,3],[6,2],[3,7]];
+var RAISED  = [[4,5],[5,4],[0,4],[9,5]];
+var START   = [[[2,0],[4,0],[6,0]], [[7,9],[5,9],[3,9]]];
+var ZONE_ROWS = [[0,1,2],[7,8,9]]; // deployment zones
+function isRaised(x,z){ for(var i=0;i<RAISED.length;i++) if(RAISED[i][0]===x&&RAISED[i][1]===z) return true; return false; }
+function isBlockedTile(x,z){ for(var i=0;i<BLOCKED.length;i++) if(BLOCKED[i][0]===x&&BLOCKED[i][1]===z) return true; return false; }
+function inZone(team,x,z){ return inb(x,z) && ZONE_ROWS[team].indexOf(z)>=0 && !isBlockedTile(x,z); }
+
+// ---------- state helpers ----------
+var TILE_KEYS = ['burn','chill','wet','steam'];
+function getUnit(s,id){ for(var i=0;i<s.units.length;i++) if(s.units[i].id===id) return s.units[i]; return null; }
+function unitAt(s,x,z){ for(var i=0;i<s.units.length;i++){ var u=s.units[i]; if(u.alive&&u.x===x&&u.z===z) return u; } return null; }
+function wallAt(s,x,z){
+  for(var i=0;i<s.walls.length;i++){ var t=s.walls[i].tiles; for(var j=0;j<t.length;j++) if(t[j].x===x&&t[j].z===z) return s.walls[i]; }
+  return null;
+}
+function isSolid(s,x,z){ return !inb(x,z) || s.blocked[idx(x,z)] || !!wallAt(s,x,z); }
+function los(s,ax,az,bx,bz){
+  var dx=bx-ax, dz=bz-az, steps=Math.max(Math.abs(dx),Math.abs(dz))*4;
+  for(var i=1;i<steps;i++){
+    var t=i/steps, x=Math.round(ax+dx*t), z=Math.round(az+dz*t);
+    if((x===ax&&z===az)||(x===bx&&z===bz)) continue;
+    if(isSolid(s,x,z) || s.tile.steam[idx(x,z)]>0) return false; // steam blocks sight, not movement
+  }
+  return true;
+}
+function square(x,z,r){ var out=[]; for(var dz=-r;dz<=r;dz++) for(var dx=-r;dx<=r;dx++) if(inb(x+dx,z+dz)) out.push({x:x+dx,z:z+dz}); return out; }
+function plus(x,z){ return [{x:x,z:z},{x:x+1,z:z},{x:x-1,z:z},{x:x,z:z+1},{x:x,z:z-1}].filter(function(t){ return inb(t.x,t.z); }); }
+function spellRange(s,sp,px,pz){ return (sp.range||0) + (s.raised[idx(px,pz)]?1:0); }
+function tileAt(s,x,z){ var i=idx(x,z); return {burn:s.tile.burn[i], chill:s.tile.chill[i], wet:s.tile.wet[i], steam:s.tile.steam[i]}; }
+function setTile(s,key,i,turns,team){ s.tile[key][i]=turns; s.tile[key+'O'][i]=team; }
+
+function cloneState(s){
+  var c={}, k;
+  for(k in s) c[k]=s[k];
+  c.units=s.units.map(function(u){ var o={}; for(var q in u) o[q]=u[q]; o.cd={}; for(var q2 in u.cd) o.cd[q2]=u.cd[q2]; return o; });
+  c.walls=s.walls.map(function(w){ return {id:w.id,team:w.team,tiles:w.tiles,turns:w.turns}; });
+  c.meteors=s.meteors.map(function(m){ return {id:m.id,team:m.team,x:m.x,z:m.z,dmg:m.dmg,caster:m.caster}; });
+  c.clouds=s.clouds.map(function(m){ return {id:m.id,team:m.team,x:m.x,z:m.z,dmg:m.dmg,turns:m.turns}; });
+  c.tile={}; for(k in s.tile) c.tile[k]=s.tile[k].slice();
+  c.clock=s.clock.slice(); c.mana=s.mana.slice(); c.turnNo=s.turnNo.slice();
+  var r={}; for(k in s.stats.reactions) r[k]=s.stats.reactions[k];
+  c.stats={dmg:s.stats.dmg.slice(), casts:s.stats.casts.slice(), reactions:r};
+  return c;
+}
+
+function createBattle(opts){
+  var s = {
+    N:N, blocked:new Array(N*N).fill(false), raised:new Array(N*N).fill(false),
+    units:[], walls:[], meteors:[], clouds:[], tile:{},
+    turn:0, round:1, winner:null, reason:'', deploying:!!opts.deploy,
+    clockOn: (opts.clockMs||0) > 0, clock:[opts.clockMs||0, opts.clockMs||0], inc:opts.incMs||0,
+    mana:[0,0], turnNo:[0,0],
+    maxRounds: opts.maxRounds||60, nextId:1,
+    stats:{dmg:[0,0], casts:[0,0], reactions:{explosion:0, frozen:0, conduct:0, steam:0, meteorBurn:0}}
+  };
+  TILE_KEYS.forEach(function(k){ s.tile[k]=new Array(N*N).fill(0); s.tile[k+'O']=new Array(N*N).fill(0); });
+  BLOCKED.forEach(function(p){ s.blocked[idx(p[0],p[1])]=true; });
+  RAISED.forEach(function(p){ s.raised[idx(p[0],p[1])]=true; });
+  for(var t=0;t<2;t++){
+    var pos=(opts.positions&&opts.positions[t]) || START[t].map(function(p){ return {x:p[0],z:p[1]}; });
+    opts.teams[t].forEach(function(m,i){
+      var a=ARCH[m.arch];
+      s.units.push({id:s.nextId++, team:t, slot:i, name:m.name||NAMES[t][i], arch:m.arch, spells:m.spells.slice(0,2),
+        x:pos[i].x, z:pos[i].z, hp:a.hp, maxHp:a.hp, shield:0, rooted:0, frozen:0, cd:{},
+        moved:false, casts:0, alive:true});
+    });
+  }
+  if(!s.deploying) startTurn(s,0,[]);
+  return s;
+}
+
+// ---------- deployment ----------
+function deployMove(s,uid,x,z){
+  var u=getUnit(s,uid);
+  if(!s.deploying||!u||!inZone(u.team,x,z)) return false;
+  var o=unitAt(s,x,z);
+  if(o===u) return false;
+  if(o){ if(o.team!==u.team) return false; o.x=u.x; o.z=u.z; } // swap with an ally
+  u.x=x; u.z=z;
+  return true;
+}
+function beginBattle(s){
+  if(!s.deploying) return [];
+  s.deploying=false;
+  var ev=[]; startTurn(s,0,ev); return ev;
+}
+// AI deployment: Warden up front, Sorcerer in the back near cover, Adept on a flank; spread out.
+function aiDeploy(s,team){
+  var mine=s.units.filter(function(u){ return u.team===team; });
+  var front=team===0?2:7, placed=[];
+  var order=mine.slice().sort(function(a,b){ var r={warden:0,sorcerer:1,adept:2}; return r[a.arch]-r[b.arch]; });
+  order.forEach(function(u){
+    var best=null, bs=-1e9;
+    ZONE_ROWS[team].forEach(function(z){
+      for(var x=0;x<N;x++){
+        if(!inZone(team,x,z)) continue;
+        if(placed.some(function(p){ return p.x===x&&p.z===z; })) continue;
+        var depth=Math.abs(z-front), sc=0;
+        if(u.arch==='warden') sc+= -depth*3 - Math.abs(x-4.5)*0.6;
+        else if(u.arch==='sorcerer') sc+= depth*1.5 - Math.abs(x-4.5)*0.4;
+        else sc+= -depth*0.5 + Math.abs(x-4.5)*0.7;
+        for(var i=0;i<8;i++){ var nx=x+DIR8[i][0], nz=z+DIR8[i][1]; if(inb(nx,nz)&&s.blocked[idx(nx,nz)]){ sc+=1.5; break; } }
+        placed.forEach(function(p){ var d=cheb(p.x,p.z,x,z); if(d<=1) sc-=8; else if(d===2) sc-=3; });
+        sc+=Math.random()*1.5;
+        if(sc>bs){ bs=sc; best={x:x,z:z}; }
+      }
+    });
+    placed.push(best);
+    var o=unitAt(s,best.x,best.z); if(o&&o!==u){ o.x=u.x; o.z=u.z; }
+    u.x=best.x; u.z=best.z;
+  });
+}
+
+// ---------- movement ----------
+function reachable(s,u){
+  var res=new Map();
+  if(!u||!u.alive||u.moved||s.deploying) return res;
+  var range=ARCH[u.arch].move, start=idx(u.x,u.z);
+  var prev=new Map([[start,-1]]), dist=new Map([[start,0]]), q=[[u.x,u.z]];
+  while(q.length){
+    var c=q.shift(), d=dist.get(idx(c[0],c[1]));
+    if(d>=range) continue;
+    for(var i=0;i<4;i++){
+      var nx=c[0]+DIR4[i][0], nz=c[1]+DIR4[i][1];
+      if(!inb(nx,nz)||isSolid(s,nx,nz)) continue;
+      var k=idx(nx,nz); if(dist.has(k)) continue;
+      var o=unitAt(s,nx,nz); if(o && o.team!==u.team) continue; // can pass through allies, not enemies
+      dist.set(k,d+1); prev.set(k,idx(c[0],c[1])); q.push([nx,nz]);
+    }
+  }
+  dist.forEach(function(d,k){
+    if(k===start) return;
+    var x=k%N, z=(k/N)|0; if(unitAt(s,x,z)) return;
+    var path=[], cur=k; while(cur!==-1){ path.push({x:cur%N, z:(cur/N)|0}); cur=prev.get(cur); }
+    res.set(k,path.reverse());
+  });
+  return res;
+}
+
+function performMove(s,uid,x,z){
+  var u=getUnit(s,uid);
+  if(!u||!u.alive||u.team!==s.turn||u.moved||s.winner!==null||s.deploying) return null;
+  var p=reachable(s,u).get(idx(x,z)); if(!p) return null;
+  u.x=x; u.z=z; u.moved=true;
+  return [{type:'move', id:u.id, path:p}];
+}
+
+// ---------- targeting ----------
+// px,pz: hypothetical caster position (defaults to the unit's own tile)
+function castTargets(s,u,spellId,px,pz){
+  if(px===undefined){ px=u.x; pz=u.z; }
+  var sp=SPELLS[spellId], out=[];
+  if(!sp) return out;
+  if(sp.target==='self') return [{x:px,z:pz}];
+  var r=spellRange(s,sp,px,pz);
+  if(sp.target==='enemy'||sp.target==='ally'){
+    for(var i=0;i<s.units.length;i++){
+      var o=s.units[i]; if(!o.alive) continue;
+      if(sp.target==='enemy' ? o.team===u.team : o.team!==u.team) continue;
+      var ox=o===u?px:o.x, oz=o===u?pz:o.z;
+      if(cheb(px,pz,ox,oz)>r) continue;
+      if(sp.los && !los(s,px,pz,ox,oz)) continue;
+      out.push({x:ox,z:oz,id:o.id});
+    }
+    return out;
+  }
+  for(var z=pz-r;z<=pz+r;z++) for(var x=px-r;x<=px+r;x++){
+    if(!inb(x,z)) continue;
+    if(sp.target==='empty'){
+      if(x===px&&z===pz) continue;
+      if(isSolid(s,x,z)) continue;
+      var occ=unitAt(s,x,z); if(occ && occ!==u) continue;
+    }
+    if(sp.los && !los(s,px,pz,x,z)) continue;
+    out.push({x:x,z:z});
+  }
+  return out;
+}
+
+function wallTiles(s,u,px,pz,tx,tz){
+  var dx=tx-px, dz=tz-pz, tiles;
+  if(Math.abs(dx)>=Math.abs(dz)) tiles=[{x:tx,z:tz-1},{x:tx,z:tz},{x:tx,z:tz+1}];
+  else tiles=[{x:tx-1,z:tz},{x:tx,z:tz},{x:tx+1,z:tz}];
+  return tiles.filter(function(t){
+    if(!inb(t.x,t.z)||isSolid(s,t.x,t.z)) return false;
+    if(t.x===px&&t.z===pz) return false;
+    var o=unitAt(s,t.x,t.z);
+    if(o && !(o===u && (u.x!==px||u.z!==pz))) return false; // the caster's old tile counts as free when planning from elsewhere
+    return true;
+  });
+}
+
+function chainPath(s,u,tx,tz){
+  var first=unitAt(s,tx,tz); if(!first||first.team===u.team) return [];
+  var hits=[first], cur=first, sp=SPELLS.chain;
+  for(var j=0;j<sp.jumps;j++){
+    var best=null, bd=99;
+    for(var i=0;i<s.units.length;i++){
+      var o=s.units[i];
+      if(!o.alive||o.team===u.team||hits.indexOf(o)>=0) continue;
+      var d=cheb(cur.x,cur.z,o.x,o.z);
+      if(d<=sp.jumpRange && (d<bd || (d===bd && o.hp<best.hp))){ best=o; bd=d; }
+    }
+    if(!best) break;
+    hits.push(best); cur=best;
+  }
+  return hits;
+}
+
+// Gust: straight line away from the caster, stops at anything solid or occupied.
+function pushPath(s,px,pz,tx,tz){
+  var dx=sign(tx-px), dz=sign(tz-pz), path=[{x:tx,z:tz}], cx=tx, cz=tz, collide=false;
+  if(!dx&&!dz) return {path:path, end:{x:tx,z:tz}, collide:false};
+  for(var k=0;k<SPELLS.gust.push;k++){
+    var nx=cx+dx, nz=cz+dz;
+    if(!inb(nx,nz)||isSolid(s,nx,nz)||unitAt(s,nx,nz)){ collide=true; break; }
+    cx=nx; cz=nz; path.push({x:cx,z:cz});
+  }
+  return {path:path, end:{x:cx,z:cz}, collide:collide};
+}
+
+function wetRegion(s,x,z){
+  var seen=new Set([idx(x,z)]), q=[[x,z]];
+  while(q.length){
+    var c=q.shift();
+    for(var i=0;i<4;i++){
+      var nx=c[0]+DIR4[i][0], nz=c[1]+DIR4[i][1];
+      if(!inb(nx,nz)) continue; var k=idx(nx,nz);
+      if(seen.has(k)||!(s.tile.wet[k]>0)) continue;
+      seen.add(k); q.push([nx,nz]);
+    }
+  }
+  return seen;
+}
+
+// tiles to highlight as the "footprint" of a cast (for previews)
+function aoeTiles(s,u,spellId,tx,tz,px,pz){
+  if(px===undefined){ px=u.x; pz=u.z; }
+  switch(spellId){
+    case 'fireball': case 'meteor': case 'poison': case 'rain': return square(tx,tz,1);
+    case 'frostnova': return square(px,pz,2).filter(function(t){ return !(t.x===px&&t.z===pz); });
+    case 'wall': return wallTiles(s,u,px,pz,tx,tz);
+    case 'chain': return chainPath(s,u,tx,tz).map(function(o){ return {x:o.x,z:o.z}; });
+    case 'gust': return pushPath(s,px,pz,tx,tz).path;
+    default: return [{x:tx,z:tz}];
+  }
+}
+
+// ---------- effects ----------
+function dealDamage(s,target,amount,ev,kind,srcTeam){
+  if(!target.alive||amount<=0) return 0;
+  if(target.frozen>0) amount=Math.max(1,Math.round(amount*REACT.frozenTaken)); // ice armour
+  var absorbed=Math.min(target.shield,amount); target.shield-=absorbed;
+  var dmg=amount-absorbed; target.hp=Math.max(0,target.hp-dmg);
+  if(srcTeam===0||srcTeam===1) s.stats.dmg[srcTeam]+=dmg+absorbed;
+  ev.push({type:'damage', id:target.id, amount:dmg, absorbed:absorbed, kind:kind});
+  if(target.hp<=0){
+    target.alive=false; target.shield=0; target.rooted=0; target.frozen=0;
+    ev.push({type:'death', id:target.id, team:target.team, msg:target.name+' is defeated!'});
+  }
+  return dmg;
+}
+function react(s,ev,kind,data){
+  s.stats.reactions[kind]=(s.stats.reactions[kind]||0)+1;
+  data.type='reaction'; data.kind=kind; ev.push(data);
+}
+function explodeCloud(s,c,team,ev){
+  s.clouds=s.clouds.filter(function(x){ return x!==c; });
+  react(s,ev,'explosion',{x:c.x,z:c.z,team:team,msg:'💥 Fire meets poison — the cloud EXPLODES!'});
+  s.units.forEach(function(o){ if(o.alive&&cheb(o.x,o.z,c.x,c.z)<=1) dealDamage(s,o,REACT.explosionDmg,ev,'explosion',team); });
+  square(c.x,c.z,1).forEach(function(t){ var i=idx(t.x,t.z); if(!s.blocked[i]&&!(s.tile.wet[i]>0)){ s.tile.chill[i]=0; setTile(s,'burn',i,REACT.burnTurns,team); } });
+}
+function applyFire(s,tiles,team,ev){
+  var touched=s.clouds.filter(function(c){ return tiles.some(function(t){ return cheb(t.x,t.z,c.x,c.z)<=1; }); });
+  var steamed=[];
+  tiles.forEach(function(t){
+    var i=idx(t.x,t.z); if(s.blocked[i]) return;
+    if(s.tile.wet[i]>0){ s.tile.wet[i]=0; s.tile.burn[i]=0; setTile(s,'steam',i,REACT.steamTurns,team); steamed.push({x:t.x,z:t.z}); }
+    else { s.tile.chill[i]=0; setTile(s,'burn',i,REACT.burnTurns,team); }
+  });
+  if(steamed.length) react(s,ev,'steam',{tiles:steamed,team:team,x:steamed[0].x,z:steamed[0].z,msg:'♨ Fire hits wet ground — STEAM blocks line of sight.'});
+  touched.forEach(function(c){ explodeCloud(s,c,team,ev); });
+  ev.push({type:'tiles'});
+}
+function frostHit(s,o,ev){
+  if(!o.alive||o.frozen>0) return;
+  var i=idx(o.x,o.z);
+  if(s.tile.chill[i]>0||s.tile.wet[i]>0){
+    o.frozen=1; o.rooted=1;
+    react(s,ev,'frozen',{id:o.id,x:o.x,z:o.z,team:o.team,msg:'🧊 '+o.name+' is FROZEN solid — skips a turn, but takes half damage.'});
+  }
+}
+function chillTiles(s,tiles,team,ev){
+  tiles.forEach(function(t){
+    var i=idx(t.x,t.z); if(s.blocked[i]) return;
+    s.tile.wet[i]=0; s.tile.burn[i]=0; setTile(s,'chill',i,REACT.chillTurns,team);
+  });
+  ev.push({type:'tiles'});
+}
+
+function checkWinner(s){
+  if(s.winner!==null) return;
+  var a0=s.units.some(function(u){ return u.alive&&u.team===0; });
+  var a1=s.units.some(function(u){ return u.alive&&u.team===1; });
+  if(!a0&&!a1){ s.winner=-1; s.reason='mutual'; }
+  else if(!a1){ s.winner=0; s.reason='elim'; }
+  else if(!a0){ s.winner=1; s.reason='elim'; }
+}
+
+// Why a unit can't cast a spell right now ('' = it can, targets aside)
+function castBlock(s,u,spellId){
+  var sp=SPELLS[spellId];
+  if(!u.alive) return 'Defeated';
+  if(u.frozen>0) return 'Frozen';
+  if(u.casts>=MANA.perMageCasts) return 'Already cast twice';
+  var cd=u.cd[spellId]||0; if(cd>0) return 'Ready in '+cd+' turn'+(cd>1?'s':'');
+  if(s.mana[u.team]<sp.cost) return 'Needs '+sp.cost+' mana';
+  return '';
+}
+
+function performCast(s,uid,spellId,tx,tz){
+  var u=getUnit(s,uid);
+  if(!u||!u.alive||u.team!==s.turn||s.winner!==null||s.deploying) return null;
+  if(spellId!=='arcane' && u.spells.indexOf(spellId)<0) return null;
+  if(castBlock(s,u,spellId)) return null;
+  var ok=castTargets(s,u,spellId).some(function(t){ return t.x===tx&&t.z===tz; });
+  if(!ok) return null;
+  return resolveCast(s,u,spellId,tx,tz);
+}
+
+function resolveCast(s,u,spellId,tx,tz){
+  var sp=SPELLS[spellId], mult=ARCH[u.arch].dmgMult;
+  var D=function(v){ return Math.round(v*mult); };
+  var target=unitAt(s,tx,tz), ev=[];
+  var c={type:'cast', id:u.id, team:u.team, spell:spellId, tx:tx, tz:tz, fx:u.x, fz:u.z, msg:''};
+  ev.push(c);
+  s.mana[u.team]-=sp.cost;
+  switch(spellId){
+    case 'arcane':
+      c.msg=u.name+' fires an Arcane Bolt at '+target.name+'.';
+      dealDamage(s,target,D(sp.dmg),ev,spellId,u.team); break;
+    case 'fireball':
+      c.msg=u.name+' hurls a Fireball at '+target.name+'.';
+      var splashed=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&o!==target&&cheb(o.x,o.z,tx,tz)<=1; });
+      dealDamage(s,target,D(sp.dmg),ev,spellId,u.team);
+      splashed.forEach(function(o){ dealDamage(s,o,D(sp.splash),ev,spellId,u.team); });
+      applyFire(s,plus(tx,tz),u.team,ev);
+      break;
+    case 'meteor':
+      c.msg=u.name+' calls down a Meteor — it lands at the start of their next turn!';
+      s.meteors.push({id:s.nextId++, team:u.team, x:tx, z:tz, dmg:D(sp.dmg), caster:u.name}); break;
+    case 'frostnova':
+      c.msg=u.name+' unleashes Frost Nova.';
+      var near=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&cheb(o.x,o.z,u.x,u.z)<=sp.radius; });
+      var chill=square(u.x,u.z,1).filter(function(t){ return !(t.x===u.x&&t.z===u.z); });
+      near.forEach(function(o){
+        dealDamage(s,o,D(sp.dmg),ev,spellId,u.team);
+        if(o.alive){ o.rooted=1; ev.push({type:'root', id:o.id}); frostHit(s,o,ev); chill.push({x:o.x,z:o.z}); }
+      });
+      chillTiles(s,chill,u.team,ev);
+      break;
+    case 'icelance':
+      var dbl=target.rooted>0;
+      c.msg=u.name+' throws an Ice Lance at '+target.name+(dbl?' — double damage on the rooted target!':'.');
+      dealDamage(s,target,D(sp.dmg*(dbl?2:1)),ev,spellId,u.team);
+      frostHit(s,target,ev);
+      chillTiles(s,[{x:tx,z:tz}],u.team,ev);
+      break;
+    case 'chain':
+      var hits=chainPath(s,u,tx,tz); c.chain=hits.map(function(h){ return h.id; });
+      c.msg=u.name+' casts Chain Lightning ('+hits.length+' target'+(hits.length>1?'s':'')+').';
+      hits.forEach(function(h,k){ dealDamage(s,h,D(k===0?sp.dmg:sp.jumpDmg),ev,spellId,u.team); });
+      var region=new Set(), from=null;
+      hits.forEach(function(h){
+        var i=idx(h.x,h.z);
+        if(s.tile.wet[i]>0&&!region.has(i)){ if(!from) from=h; wetRegion(s,h.x,h.z).forEach(function(k){ region.add(k); }); }
+      });
+      if(region.size){
+        var extra=s.units.filter(function(o){ return o.alive&&hits.indexOf(o)<0&&region.has(idx(o.x,o.z)); });
+        if(extra.length){
+          react(s,ev,'conduct',{from:from.id, ids:extra.map(function(o){ return o.id; }), x:from.x, z:from.z, team:u.team,
+            msg:'⚡ The lightning CONDUCTS through the water — '+extra.length+' more hit'+(extra.some(function(o){ return o.team===u.team; })?' (allies too!)':'')+'.'});
+          extra.forEach(function(o){ dealDamage(s,o,D(sp.jumpDmg),ev,'conduct',u.team); });
+        }
+      }
+      break;
+    case 'blink':
+      c.msg=u.name+' blinks away.';
+      u.x=tx; u.z=tz; break;
+    case 'wall':
+      var tiles=wallTiles(s,u,u.x,u.z,tx,tz); c.tiles=tiles;
+      c.msg=u.name+' raises a Stone Wall.';
+      s.walls.push({id:s.nextId++, team:u.team, tiles:tiles, turns:sp.duration}); break;
+    case 'barrier':
+      var amt=sp.shield+ARCH[u.arch].barrierBonus;
+      target.shield=Math.max(target.shield,amt);
+      c.msg=u.name+' shields '+(target===u?'themself':target.name)+' ('+amt+').';
+      ev.push({type:'shield', id:target.id, amount:amt}); break;
+    case 'mend':
+      var h=Math.min(sp.heal,target.maxHp-target.hp); target.hp+=h;
+      c.msg=u.name+' mends '+(target===u?'themself':target.name)+' (+'+h+').';
+      ev.push({type:'heal', id:target.id, amount:h}); break;
+    case 'poison':
+      c.msg=u.name+' conjures a Poison Cloud.';
+      var cloud={id:s.nextId++, team:u.team, x:tx, z:tz, dmg:sp.dmg, turns:sp.duration};
+      s.clouds.push(cloud);
+      if(square(tx,tz,1).some(function(t){ return s.tile.burn[idx(t.x,t.z)]>0; })) explodeCloud(s,cloud,u.team,ev); // burning ground ignites it
+      break;
+    case 'rain':
+      c.msg=u.name+' calls down Rain.';
+      square(tx,tz,1).forEach(function(t){ var i=idx(t.x,t.z); if(s.blocked[i]) return; s.tile.burn[i]=0; setTile(s,'wet',i,sp.duration,u.team); });
+      ev.push({type:'tiles'});
+      break;
+    case 'gust':
+      var pp=pushPath(s,u.x,u.z,tx,tz);
+      c.msg=u.name+' blasts '+target.name+' with a Gust'+(pp.collide?' — it slams into something!':'.');
+      target.x=pp.end.x; target.z=pp.end.z;
+      ev.push({type:'push', id:target.id, path:pp.path});
+      if(pp.collide) dealDamage(s,target,D(sp.dmg),ev,spellId,u.team);
+      break;
+  }
+  u.casts++;
+  if(spellId!=='arcane') u.cd[spellId]=sp.cd+1; // decremented at start of each own turn
+  s.stats.casts[u.team]++;
+  checkWinner(s);
+  return ev;
+}
+
+// what a cast would do, without changing the real state (for hover previews)
+function predict(s,uid,spellId,tx,tz){
+  var c=cloneState(s);
+  var ev=performCast(c,uid,spellId,tx,tz);
+  if(!ev) return null;
+  return ev.filter(function(e){ return e.type!=='cast'&&e.type!=='tiles'; }).map(function(e){
+    var u=e.id?getUnit(c,e.id):null;
+    return {type:e.type, kind:e.kind, name:u?u.name:'', team:u?u.team:null, amount:e.amount, absorbed:e.absorbed, msg:e.msg};
+  });
+}
+
+function finishUnit(s,uid){ var u=getUnit(s,uid); if(u){ u.moved=true; u.casts=MANA.perMageCasts; } }
+
+// ---------- turns ----------
+function startTurn(s,t,ev){
+  ev.push({type:'turn', team:t, round:s.round});
+  // delayed meteors of this team land
+  s.meteors.filter(function(m){ return m.team===t; }).forEach(function(m){
+    ev.push({type:'meteorLand', x:m.x, z:m.z, id:m.id, team:t, msg:m.caster+'’s Meteor crashes down!'});
+    var victims=s.units.filter(function(u){ return u.alive&&cheb(u.x,u.z,m.x,m.z)<=1; });
+    var boosted=victims.filter(function(u){ return s.tile.burn[idx(u.x,u.z)]>0; });
+    if(boosted.length) react(s,ev,'meteorBurn',{x:m.x,z:m.z,team:t,msg:'🔥 The Meteor hits Burning ground — +50% damage!'});
+    victims.forEach(function(u){ dealDamage(s,u,Math.round(m.dmg*(boosted.indexOf(u)>=0?REACT.meteorBurnMult:1)),ev,'meteor',t); });
+    applyFire(s,square(m.x,m.z,1),t,ev);
+  });
+  s.meteors=s.meteors.filter(function(m){ return m.team!==t; });
+  // enemy poison clouds hurt the team whose turn starts
+  s.clouds.forEach(function(c){
+    if(c.team===t) return;
+    s.units.forEach(function(u){
+      if(u.alive&&u.team===t&&cheb(u.x,u.z,c.x,c.z)<=1) dealDamage(s,u,c.dmg,ev,'poison',c.team);
+    });
+  });
+  // durations tick on the owner's turn
+  var before=s.clouds.length+s.walls.length;
+  s.clouds.forEach(function(c){ if(c.team===t) c.turns--; });
+  s.walls.forEach(function(w){ if(w.team===t) w.turns--; });
+  s.clouds=s.clouds.filter(function(c){ return c.turns>0; });
+  s.walls=s.walls.filter(function(w){ return w.turns>0; });
+  if(s.clouds.length+s.walls.length<before) ev.push({type:'expire'});
+  TILE_KEYS.forEach(function(k){
+    var a=s.tile[k], o=s.tile[k+'O'];
+    for(var i=0;i<a.length;i++) if(a[i]>0&&o[i]===t) a[i]--;
+  });
+  ev.push({type:'tiles'});
+  s.units.forEach(function(u){
+    if(u.team!==t||!u.alive) return;
+    u.moved = u.rooted>0||u.frozen>0; u.casts = u.frozen>0 ? MANA.perMageCasts : 0;
+    for(var k in u.cd) if(u.cd[k]>0) u.cd[k]--;
+  });
+  s.turnNo[t]++;
+  var gain=Math.min(MANA.max, MANA.start-1+s.turnNo[t]);
+  s.mana[t]+=gain;
+  ev.push({type:'mana', team:t, gain:gain, total:s.mana[t]});
+  checkWinner(s);
+}
+
+function endTurn(s){
+  var ev=[];
+  if(s.winner!==null||s.deploying) return ev;
+  var t=s.turn;
+  // burning ground hurts whoever ends their turn on it
+  s.units.forEach(function(u){
+    if(!u.alive||u.team!==t) return;
+    var i=idx(u.x,u.z);
+    if(s.tile.burn[i]>0){ ev.push({type:'burnTick', id:u.id, team:t, msg:u.name+' burns on the scorched ground.'}); dealDamage(s,u,REACT.burnDmg,ev,'burn',s.tile.burnO[i]); }
+  });
+  checkWinner(s); if(s.winner!==null) return ev;
+  s.units.forEach(function(u){
+    if(u.team!==t) return;
+    if(u.frozen>0&&u.alive){ var i=idx(u.x,u.z); s.tile.chill[i]=0; s.tile.wet[i]=0; ev.push({type:'thaw', id:u.id}); } // the ice shatters: no instant re-freeze
+    u.rooted=0; u.frozen=0; // roots/freezes last through the victim's own turn
+  });
+  s.mana[t]=Math.min(s.mana[t],MANA.carry);
+  if(s.clockOn) s.clock[t]+=s.inc;
+  s.turn=1-t; if(s.turn===0) s.round++;
+  if(s.round>s.maxRounds){ s.winner=-1; s.reason='rounds'; return ev; }
+  startTurn(s,s.turn,ev);
+  return ev;
+}
+
+function tick(s,ms){
+  if(!s.clockOn||s.winner!==null||s.deploying) return;
+  s.clock[s.turn]-=ms;
+  if(s.clock[s.turn]<=0){ s.clock[s.turn]=0; s.winner=1-s.turn; s.reason='time'; }
+}
+
+// ---------- draft ----------
+var DRAFT_BASE = {meteor:9, chain:8, fireball:8, mend:8, frostnova:7.5, icelance:7, poison:6.5, rain:6.5, barrier:6, gust:5, wall:4, blink:4};
+var COMBOS = [
+  ['rain','chain',3,'Rain + Chain Lightning: ⚡ conducts through all the water'],
+  ['rain','frostnova',2.5,'Rain + Frost Nova: 🧊 freezes everyone on wet tiles'],
+  ['rain','icelance',2,'Rain + Ice Lance: 🧊 freeze a wet target'],
+  ['frostnova','icelance',2.5,'Frost Nova + Ice Lance: root, then ×2 damage & 🧊 freeze'],
+  ['poison','fireball',2.5,'Poison + Fireball: 💥 detonate the cloud'],
+  ['poison','meteor',2,'Poison + Meteor: 💥 the Meteor detonates the cloud'],
+  ['fireball','meteor',1.5,'Fireball + Meteor: burn the ground first, Meteor hits ×1.5'],
+  ['frostnova','meteor',2,'Frost Nova + Meteor: rooted enemies can’t escape the ring'],
+  ['gust','meteor',1.5,'Gust + Meteor: shove enemies into the ring'],
+  ['gust','poison',1.5,'Gust + Poison: shove enemies into the cloud'],
+  ['gust','rain',1,'Gust + Rain: shove enemies onto wet tiles'],
+  ['wall','meteor',0.5,'Stone Wall + Meteor: box them in']
+];
+function comboBonus(have,id){
+  var b=0;
+  COMBOS.forEach(function(c){ if((c[0]===id&&have.indexOf(c[1])>=0)||(c[1]===id&&have.indexOf(c[0])>=0)) b+=c[2]; });
+  return b;
+}
+function combosIn(have){ return COMBOS.filter(function(c){ return have.indexOf(c[0])>=0&&have.indexOf(c[1])>=0; }).map(function(c){ return c[3]; }); }
+function draftOrder(first){ // snake: A B B A A B B A A B B A
+  var pat=[0,1,1,0,0,1,1,0,0,1,1,0];
+  return pat.map(function(p){ return p===0?first:1-first; });
+}
+function aiDraftPick(avail,mine,theirs,rnd){
+  rnd=rnd||Math.random;
+  var best=null, bs=-1e9;
+  var sustain=mine.indexOf('mend')>=0||mine.indexOf('barrier')>=0;
+  avail.forEach(function(id){
+    var sc=DRAFT_BASE[id]+comboBonus(mine,id)+0.6*comboBonus(theirs,id)+rnd()*1.5;
+    if(!sustain&&mine.length>=2){ if(id==='mend') sc+=2.5; if(id==='barrier') sc+=1.5; }
+    if(sc>bs){ bs=sc; best=id; }
+  });
+  return best;
+}
+var AFFINITY = {
+  warden:  {barrier:3, mend:2, frostnova:3, wall:2.5, gust:1, chain:0.5},
+  sorcerer:{meteor:3, fireball:3, chain:3, poison:2, icelance:1.5},
+  adept:   {icelance:2, blink:3, rain:2, gust:2, mend:1.5, poison:1}
+};
+function autoAssign(spells){
+  var archs=['warden','sorcerer','adept'], team=archs.map(function(a){ return {arch:a, spells:[]}; });
+  var pairs=[];
+  archs.forEach(function(a,ai){ spells.forEach(function(id){ pairs.push({ai:ai, id:id, v:(AFFINITY[a][id]||0)}); }); });
+  pairs.sort(function(p,q){ return q.v-p.v; });
+  var used={};
+  pairs.forEach(function(p){ if(!used[p.id]&&team[p.ai].spells.length<2){ team[p.ai].spells.push(p.id); used[p.id]=true; } });
+  spells.forEach(function(id){ if(used[id]) return; var m=team.find(function(t){ return t.spells.length<2; }); if(m){ m.spells.push(id); used[id]=true; } });
+  return team;
+}
+
+// ---------- AI (greedy, mana-aware, reaction-aware) ----------
+function teamHas(s,team,ids){
+  for(var i=0;i<s.units.length;i++){ var u=s.units[i]; if(u.alive&&u.team===team) for(var j=0;j<u.spells.length;j++) if(ids.indexOf(u.spells[j])>=0) return true; }
+  return false;
+}
+function aiTileScore(s,u,x,z){
+  var enemies=s.units.filter(function(o){ return o.alive&&o.team!==u.team; });
+  if(!enemies.length) return 0;
+  var sc=0, hpR=u.hp/u.maxHp, dmin=99, foe=1-u.team, i0=idx(x,z);
+  enemies.forEach(function(e){ dmin=Math.min(dmin,cheb(x,z,e.x,e.z)); });
+  if(hpR<0.35) sc+=Math.min(dmin,7)*1.5;
+  else {
+    var lo=u.arch==='warden'?1:3, hi=u.arch==='warden'?3:5;
+    if(dmin>hi) sc-=(dmin-hi)*3;
+    if(dmin<lo) sc-=(lo-dmin)*2.5;
+  }
+  s.meteors.forEach(function(m){ if(cheb(x,z,m.x,m.z)<=1) sc-= (m.team!==u.team?45:35); });
+  s.clouds.forEach(function(c){
+    if(cheb(x,z,c.x,c.z)>1) return;
+    if(c.team!==u.team) sc-=c.dmg*1.3;
+    if(teamHas(s,foe,['fireball','meteor'])) sc-=4; // explosion risk
+  });
+  if(s.tile.burn[i0]>0) sc-=9;
+  if(s.tile.wet[i0]>0) sc-=(teamHas(s,foe,['chain'])?3:0)+(teamHas(s,foe,['frostnova','icelance'])?2.5:0);
+  if(s.tile.chill[i0]>0&&teamHas(s,foe,['frostnova','icelance'])) sc-=2.5;
+  var threats=0;
+  enemies.forEach(function(e){ if(cheb(x,z,e.x,e.z)<=5&&los(s,e.x,e.z,x,z)) threats++; });
+  sc-=threats*(u.arch==='warden'?0.8:2)*(hpR<0.5?1.8:1);
+  if(s.raised[i0]) sc+=2;
+  for(var i=0;i<8;i++){ var nx=x+DIR8[i][0], nz=z+DIR8[i][1]; if(inb(nx,nz)&&s.blocked[idx(nx,nz)]){ sc+=1; break; } }
+  return sc;
+}
+
+// analytic scores for the support/utility spells (no reactions involved)
+function aiUtilityScore(s,u,spellId,t,px,pz){
+  var sp=SPELLS[spellId], target=t.id?getUnit(s,t.id):unitAt(s,t.x,t.z);
+  switch(spellId){
+    case 'blink': return aiTileScore(s,u,t.x,t.z)-aiTileScore(s,u,px,pz)-4;
+    case 'wall':
+      var tiles=wallTiles(s,u,px,pz,t.x,t.z); if(!tiles.length) return -1;
+      var enemies=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&cheb(o.x,o.z,px,pz)<=6; });
+      var before=enemies.filter(function(e){ return los(s,e.x,e.z,px,pz); }).length;
+      var tmp={id:-1,team:u.team,tiles:tiles,turns:1}; s.walls.push(tmp);
+      var after=enemies.filter(function(e){ return los(s,e.x,e.z,px,pz); }).length;
+      s.walls.pop();
+      return (before-after)*5;
+    case 'barrier':
+      var amt=sp.shield+ARCH[u.arch].barrierBonus;
+      if(target.shield>=amt*0.6) return -1;
+      var tx=target===u?px:target.x, tz=target===u?pz:target.z;
+      var threat=s.units.some(function(o){ return o.alive&&o.team!==u.team&&cheb(o.x,o.z,tx,tz)<=6; });
+      return (amt-target.shield)*0.55*(1.3-target.hp/target.maxHp)*(threat?1:0.3);
+    case 'mend':
+      var miss=target.maxHp-target.hp; if(miss<12) return -1;
+      return Math.min(sp.heal,miss)*(target.hp/target.maxHp<0.5?1.5:1.05);
+  }
+  return 0;
+}
+
+// how much danger `o` (an enemy of `team`) is in, from team's point of view
+function hazard(s,o,team){
+  var h=0, i=idx(o.x,o.z), stuck=o.rooted>0||o.frozen>0;
+  s.clouds.forEach(function(c){ if(c.team===team&&cheb(o.x,o.z,c.x,c.z)<=1) h+=c.dmg*1.3+(teamHas(s,team,['fireball','meteor'])?4:0); });
+  s.meteors.forEach(function(m){ if(m.team===team&&cheb(o.x,o.z,m.x,m.z)<=1) h+=Math.min(m.dmg*(s.tile.burn[i]>0?1.5:1),o.hp+o.shield)*(stuck?0.9:0.35); });
+  if(s.tile.burn[i]>0) h+=stuck?7:3;
+  if(s.tile.wet[i]>0) h+=0.5+(teamHas(s,team,['chain'])?4:0)+(teamHas(s,team,['frostnova','icelance'])?4:0);
+  if(s.tile.chill[i]>0) h+=teamHas(s,team,['frostnova','icelance'])?4:0.5;
+  return h;
+}
+function allyHazard(s,o){
+  var h=0;
+  s.meteors.forEach(function(m){ if(cheb(o.x,o.z,m.x,m.z)<=1) h+=m.dmg*0.8; });
+  s.clouds.forEach(function(c){ if(c.team!==o.team&&cheb(o.x,o.z,c.x,c.z)<=1) h+=c.dmg*1.3; });
+  if(s.tile.burn[idx(o.x,o.z)]>0) h+=6;
+  return h;
+}
+function evalCast(before,after,team){
+  var val=0;
+  for(var i=0;i<after.units.length;i++){
+    var a=after.units[i], b=before.units[i];
+    var loss=(b.hp+b.shield)-(a.hp+a.shield);
+    if(a.team!==team){
+      val+=loss;
+      if(b.alive&&!a.alive) val+=40;
+      if(a.alive){
+        if(!(b.frozen>0)&&a.frozen>0) val+=14;
+        if(!(b.rooted>0)&&a.rooted>0) val+=7;
+        val+=hazard(after,a,team)-hazard(before,b,team);
+      }
+    } else {
+      val-=loss*1.2;
+      if(b.alive&&!a.alive) val-=50;
+      if(a.alive) val-=allyHazard(after,a)-allyHazard(before,b);
+    }
+  }
+  return val;
+}
+function simValue(s,u,spellId,tx,tz,p){
+  var base=s;
+  if(p&&(p.x!==u.x||p.z!==u.z)){ base=cloneState(s); var bu=getUnit(base,u.id); bu.x=p.x; bu.z=p.z; }
+  var after=cloneState(base), au=getUnit(after,u.id);
+  after.mana[u.team]=99;
+  resolveCast(after,au,spellId,tx,tz);
+  return evalCast(base,after,u.team);
+}
+function castValue(s,u,id,t,p,cache){
+  if(id==='mend'||id==='barrier'||id==='blink'||id==='wall') return aiUtilityScore(s,u,id,t,p.x,p.z);
+  var key;
+  if(id==='frostnova'){ key='fn'+p.x+','+p.z; if(!(key in cache)) cache[key]=simValue(s,u,id,p.x,p.z,p); return cache[key]; }
+  if(id==='gust'){ key='g'+t.x+','+t.z+','+sign(t.x-p.x)+','+sign(t.z-p.z); if(!(key in cache)) cache[key]=simValue(s,u,id,t.x,t.z,p); return cache[key]; }
+  key=id+t.x+','+t.z;
+  if(!(key in cache)){
+    cache[key]=simValue(s,u,id,t.x,t.z,null);
+    if(id==='rain') cache[key]+=followUpBonus(s,u,SPELLS.rain.cost,square(t.x,t.z,1));
+  }
+  var v=cache[key];
+  if(id==='meteor'){ // the sim assumed the caster stays put; correct for where it will actually stand
+    var pen=SPELLS.meteor.dmg*ARCH[u.arch].dmgMult*0.8;
+    if(cheb(u.x,u.z,t.x,t.z)<=1) v+=pen;
+    if(cheb(p.x,p.z,t.x,t.z)<=1) v-=pen;
+  }
+  return v;
+}
+
+// Setting up a combo is worth more if a teammate can cash it in this very turn.
+function followUpBonus(s,u,cost,area){
+  var left=s.mana[u.team]-cost; if(left<2) return 0;
+  var ready=function(ids){ return s.units.some(function(o){
+    if(!o.alive||o.team!==u.team||o.frozen>0) return false;
+    var casts=o.casts+(o===u?1:0); if(casts>=MANA.perMageCasts) return false;
+    return ids.some(function(id){ return o.spells.indexOf(id)>=0&&!(o.cd[id]>0)&&SPELLS[id].cost<=left; });
+  }); };
+  var n=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&area.some(function(t){ return t.x===o.x&&t.z===o.z; }); }).length;
+  if(!n) return 0;
+  return n*((ready(['chain'])?9:0)+(ready(['frostnova','icelance'])?7:0))+(n>1&&ready(['chain'])?6:0);
+}
+
+// Returns the next step ({unitId, move, cast}) or null when the team is done.
+function aiNextAction(s){
+  if(s.winner!==null||s.deploying) return null;
+  var team=s.turn, mana=s.mana[team];
+  var units=s.units.filter(function(u){ return u.alive&&u.team===team&&!(u.frozen>0); });
+  var best=null;
+  units.forEach(function(u){
+    if(u.casts>=MANA.perMageCasts) return;
+    var cur={x:u.x,z:u.z,moved:false}; cur.ts=aiTileScore(s,u,u.x,u.z);
+    var positions=[cur];
+    if(!u.moved) reachable(s,u).forEach(function(path){ var e=path[path.length-1]; positions.push({x:e.x,z:e.z,moved:true,ts:aiTileScore(s,u,e.x,e.z)}); });
+    var spells=['arcane'].concat(u.spells).filter(function(id){ return !(u.cd[id]>0) && SPELLS[id].cost<=mana; });
+    if(u.hp/u.maxHp>0.6) spells=spells.filter(function(id){ return id!=='wall'; });
+    var cache={};
+    spells.forEach(function(id){
+      var sp=SPELLS[id];
+      (id==='blink'?[cur]:positions).forEach(function(p){
+        var ts=castTargets(s,u,id,p.x,p.z);
+        if(sp.target==='tile') ts=ts.filter(function(t){ return s.units.some(function(o){ return o.alive&&o.team!==team&&cheb(o.x,o.z,t.x,t.z)<=1; }); });
+        ts.forEach(function(t){
+          var v=castValue(s,u,id,t,p,cache), net=v-3*sp.cost;
+          if(net<=0) return;
+          var sc=net+(p.moved?(p.ts-cur.ts)*0.6-0.3:0)+Math.random()*0.3;
+          if(!best||sc>best.score) best={unitId:u.id, move:p.moved?{x:p.x,z:p.z}:null, cast:{spell:id,x:t.x,z:t.z}, score:sc};
+        });
+      });
+    });
+  });
+  if(best) return best;
+  // nothing worth the mana: reposition whoever hasn't moved
+  units.forEach(function(u){
+    if(u.moved) return;
+    var curTs=aiTileScore(s,u,u.x,u.z), bm=null, bs=0.5;
+    reachable(s,u).forEach(function(path){ var e=path[path.length-1]; var d=aiTileScore(s,u,e.x,e.z)-curTs+Math.random()*0.2; if(d>bs){ bs=d; bm={x:e.x,z:e.z}; } });
+    if(bm&&(!best||bs>best.score)) best={unitId:u.id, move:bm, cast:null, score:bs};
+  });
+  return best;
+}
+
+// convenience for headless runs: executes one AI step fully
+function aiStep(s){
+  var plan=aiNextAction(s); if(!plan) return null;
+  var ev=[], did=false;
+  if(plan.move){ var e1=performMove(s,plan.unitId,plan.move.x,plan.move.z); if(e1){ did=true; ev=ev.concat(e1); } }
+  if(plan.cast&&s.winner===null){ var e2=performCast(s,plan.unitId,plan.cast.spell,plan.cast.x,plan.cast.z); if(e2){ did=true; ev=ev.concat(e2); } }
+  if(!did) finishUnit(s,plan.unitId);
+  return {plan:plan, events:ev};
+}
+
+var API = {
+  N:N, ELEM:ELEM, ARCH:ARCH, SPELLS:SPELLS, POOL:POOL, NAMES:NAMES, MANA:MANA, REACT:REACT, COMBOS:COMBOS,
+  isRaised:isRaised, isBlockedTile:isBlockedTile, inZone:inZone, idx:idx, cheb:cheb, tileAt:tileAt,
+  createBattle:createBattle, deployMove:deployMove, beginBattle:beginBattle, aiDeploy:aiDeploy,
+  getUnit:getUnit, unitAt:unitAt, wallAt:wallAt, isSolid:isSolid, los:los,
+  reachable:reachable, performMove:performMove, castTargets:castTargets, aoeTiles:aoeTiles, castBlock:castBlock, performCast:performCast,
+  predict:predict, finishUnit:finishUnit, endTurn:endTurn, tick:tick,
+  draftOrder:draftOrder, aiDraftPick:aiDraftPick, autoAssign:autoAssign, combosIn:combosIn,
+  aiNextAction:aiNextAction, aiStep:aiStep
+};
+if(typeof module!=='undefined' && module.exports) module.exports=API;
+if(typeof window!=='undefined') window.ArenaLogic=API;
+})();
+</script>
+
+<script id="render">
+// =====================================================================
+// RENDER + UI SHELL (Three.js r147, DOM). Talks to the logic only via ArenaLogic.
+// =====================================================================
+(function(){
+'use strict';
+if(typeof THREE==='undefined'){ window.showError('Could not load 3D library — are you online?'); return; }
+if(!THREE.OrbitControls){ window.showError('Could not load camera controls (OrbitControls) — are you online?'); return; }
+var L=window.ArenaLogic;
+var $=function(id){ return document.getElementById(id); };
+var params=new URLSearchParams(location.search);
+var hexNum=function(s){ return parseInt(s.slice(1),16); };
+var elColor=function(id){ return L.ELEM[L.SPELLS[id].el].color; };
+var TC={'3':[180,10],'5':[300,15],'10':[600,20],'off':[0,0]};
+
+// ---------------- three setup ----------------
+var canvas=$('c');
+var renderer=new THREE.WebGLRenderer({canvas:canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0b0f1a);
+scene.fog=new THREE.Fog(0x0b0f1a,20,44);
+var world=new THREE.Group(); scene.add(world);
+var camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,200);
+var CAM_HOME=new THREE.Vector3(0,12.5,-12);
+camera.position.copy(CAM_HOME);
+var controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.target.set(0,0,0.3);
+controls.enablePan=false; controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.minDistance=8; controls.maxDistance=24; controls.minPolarAngle=0.35; controls.maxPolarAngle=1.25;
+controls.mouseButtons={LEFT:null, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE};
+controls.autoRotateSpeed=0.5;
+controls.update();
+window.addEventListener('resize',function(){
+  camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// lights
+scene.add(new THREE.HemisphereLight(0xbfd4ff,0x2a2233,0.55));
+scene.add(new THREE.AmbientLight(0xffffff,0.12));
+var sun=new THREE.DirectionalLight(0xffe2b8,0.9);
+sun.position.set(6,13,-5); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+var sc=sun.shadow.camera; sc.left=-9; sc.right=9; sc.top=9; sc.bottom=-9; sc.near=1; sc.far=40;
+sun.shadow.bias=-0.0008;
+scene.add(sun);
+
+// glow texture for sprites
+var GLOW=(function(){
+  var c=document.createElement('canvas'); c.width=c.height=64;
+  var g=c.getContext('2d'), gr=g.createRadialGradient(32,32,0,32,32,32);
+  gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.3,'rgba(255,255,255,.55)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+})();
+function glow(color,size,opacity){
+  var m=new THREE.SpriteMaterial({map:GLOW,color:color,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:opacity===undefined?1:opacity});
+  var sp=new THREE.Sprite(m); sp.scale.set(size,size,1); return sp;
+}
+
+// ---------------- arena ----------------
+function tileTop(x,z){ return L.isRaised(x,z)?0.45:0; }
+function W(x,z,y){ return new THREE.Vector3(x-4.5, tileTop(x,z)+(y||0), z-4.5); }
+var rngSeed=7; function rnd(){ rngSeed=(rngSeed*16807)%2147483647; return (rngSeed-1)/2147483646; }
+var tileMeshes=[], hlQuads=[], torches=[];
+(function buildArena(){
+  var ground=new THREE.Mesh(new THREE.CircleGeometry(40,48), new THREE.MeshStandardMaterial({color:0x121722,roughness:1}));
+  ground.rotation.x=-Math.PI/2; ground.position.y=-0.3; ground.receiveShadow=true; world.add(ground);
+  var matA=new THREE.MeshStandardMaterial({color:0x5f626d,roughness:0.95,flatShading:true});
+  var matB=new THREE.MeshStandardMaterial({color:0x53565f,roughness:0.95,flatShading:true});
+  var matR=new THREE.MeshStandardMaterial({color:0x7a7263,roughness:0.9,flatShading:true});
+  var geoT=new THREE.BoxGeometry(0.97,0.3,0.97), geoR=new THREE.BoxGeometry(0.97,0.75,0.97);
+  var stone=new THREE.MeshStandardMaterial({color:0x8d887b,roughness:0.9,flatShading:true});
+  var hlGeo=new THREE.PlaneGeometry(0.94,0.94);
+  var pi=0;
+  for(var z=0;z<10;z++) for(var x=0;x<10;x++){
+    var raised=L.isRaised(x,z);
+    var m=new THREE.Mesh(raised?geoR:geoT, raised?matR:((x+z)%2?matA:matB));
+    var top=tileTop(x,z), h=raised?0.75:0.3;
+    m.position.set(x-4.5,top-h/2,z-4.5); m.receiveShadow=true; m.castShadow=raised;
+    m.userData={tile:true,x:x,z:z}; world.add(m); tileMeshes.push(m);
+    var q=new THREE.Mesh(hlGeo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.3,depthWrite:false}));
+    q.rotation.x=-Math.PI/2; q.position.set(x-4.5,top+0.015,z-4.5); q.visible=false; q.renderOrder=2;
+    world.add(q); hlQuads[z*10+x]=q;
+    if(L.isBlockedTile(x,z)){
+      var g=new THREE.Group(), H=[1.9,1.2,2.3,1.5][pi%4];
+      var base=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.2,0.9),stone); base.position.y=0.1; g.add(base);
+      var shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.36,H,8),stone); shaft.position.y=0.2+H/2; g.add(shaft);
+      if(pi%3!==1){ var cap=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.2,0.8),stone); cap.position.y=0.3+H; g.add(cap); }
+      else for(var r=0;r<3;r++){ var rb=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.16,0.2),stone); rb.position.set((rnd()-0.5)*0.8,0.08,(rnd()-0.5)*0.8); rb.rotation.y=rnd()*3; g.add(rb); }
+      g.traverse(function(o){ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+      g.position.set(x-4.5,0,z-4.5); world.add(g); pi++;
+    }
+  }
+  // broken border walls
+  for(var side=0;side<4;side++){
+    for(var k=-6;k<=6;k+=1.05){
+      if(rnd()<0.28) continue;
+      var bh=0.3+rnd()*1.1;
+      var b=new THREE.Mesh(new THREE.BoxGeometry(0.95,bh,0.55),stone);
+      var d=5.9+rnd()*0.2;
+      if(side===0) b.position.set(k,bh/2-0.3,-d); else if(side===1) b.position.set(k,bh/2-0.3,d);
+      else if(side===2){ b.position.set(-d,bh/2-0.3,k); b.rotation.y=Math.PI/2; } else { b.position.set(d,bh/2-0.3,k); b.rotation.y=Math.PI/2; }
+      b.rotation.y+=(rnd()-0.5)*0.15; b.castShadow=true; b.receiveShadow=true; world.add(b);
+    }
+  }
+  // torches
+  [[-6.3,-6.3],[6.3,-6.3],[-6.3,6.3],[6.3,6.3]].forEach(function(p){
+    var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.1,1.8,6),new THREE.MeshStandardMaterial({color:0x3b2a1c}));
+    pole.position.set(p[0],0.6,p[1]); pole.castShadow=true; world.add(pole);
+    var fl=glow(0xff9a4a,1.1); fl.position.set(p[0],1.65,p[1]); world.add(fl);
+    var core=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,6),new THREE.MeshBasicMaterial({color:0xffd08a})); core.position.copy(fl.position); world.add(core);
+    var pl=new THREE.PointLight(0xff8a3a,1.1,10,2); pl.position.copy(fl.position); world.add(pl);
+    torches.push({light:pl,sprite:fl,ph:rnd()*10});
+  });
+})();
+
+// ---------------- tile element states (burning / chilled / wet / steam) ----------------
+var tileFx=[];
+(function buildTileFx(){
+  var geo=new THREE.PlaneGeometry(0.96,0.96);
+  function quad(color,op,y){
+    var q=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:op,depthWrite:false}));
+    q.rotation.x=-Math.PI/2; q.position.y=y; q.renderOrder=1; q.visible=false; return q;
+  }
+  for(var z=0;z<10;z++) for(var x=0;x<10;x++){
+    var g=new THREE.Group(); g.position.copy(W(x,z,0));
+    var fx={g:g, wet:quad(0x2f7fe0,0.4,0.006), chill:quad(0xcff4ff,0.36,0.008), burn:quad(0xff4a10,0.34,0.010),
+      flame:glow(0xff7a2a,0.7,0.85), steam:[glow(0xe8eef5,1.4,0.34),glow(0xffffff,1.05,0.3)], ph:Math.random()*10};
+    fx.flame.position.set(0,0.28,0); fx.flame.visible=false;
+    fx.steam[0].position.set(0.1,0.5,-0.05); fx.steam[1].position.set(-0.12,0.95,0.08);
+    fx.steam.forEach(function(sp){ sp.visible=false; g.add(sp); });
+    g.add(fx.wet); g.add(fx.chill); g.add(fx.burn); g.add(fx.flame);
+    world.add(g); tileFx[z*10+x]=fx;
+  }
+})();
+function syncTiles(){
+  for(var i=0;i<100;i++){
+    var f=tileFx[i], on=!!state;
+    f.wet.visible=on&&state.tile.wet[i]>0;
+    f.chill.visible=on&&state.tile.chill[i]>0;
+    f.burn.visible=on&&state.tile.burn[i]>0; f.flame.visible=f.burn.visible;
+    var st=on&&state.tile.steam[i]>0; f.steam[0].visible=st; f.steam[1].visible=st;
+  }
+}
+
+// ---------------- animation helpers ----------------
+var anims=[];
+function animate(dur,fn){ return new Promise(function(res){ anims.push({t:0,dur:Math.max(0.001,dur),fn:fn,res:res}); }); }
+function wait(ms){ return animate(ms/1000,function(){}); }
+function updateAnims(dt){
+  for(var i=anims.length-1;i>=0;i--){
+    var a=anims[i]; a.t+=dt; var p=Math.min(1,a.t/a.dur);
+    a.fn(p);
+    if(p>=1){ anims.splice(i,1); a.res(); }
+  }
+}
+var ease=function(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; };
+var shakeT=0, shakeOff=new THREE.Vector3();
+
+// ---------------- units ----------------
+var unitViews=new Map(); // id -> view
+var labelsEl=$('labels');
+function buildMage(u){
+  var g=new THREE.Group(), body=new THREE.Group(); g.add(body);
+  var you=u.team===0;
+  var P={warden:{r:0.42,h:0.95},sorcerer:{r:0.33,h:0.92},adept:{r:0.26,h:0.88}}[u.arch];
+  var robeMat=new THREE.MeshStandardMaterial({color:you?0x3d6fe0:0xcf4436,roughness:0.7,flatShading:true,emissive:0x000000});
+  var trimMat=new THREE.MeshStandardMaterial({color:you?0x1f3a80:0x7a1f1a,roughness:0.8,flatShading:true});
+  var skin=new THREE.MeshStandardMaterial({color:0xe6c39c,roughness:0.9});
+  var robe=new THREE.Mesh(new THREE.ConeGeometry(P.r,P.h,10),robeMat); robe.position.y=P.h/2; body.add(robe);
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.155,14,10),skin); head.position.y=P.h+0.1; body.add(head);
+  if(u.arch==='warden'){
+    [-1,1].forEach(function(sd){ var sh=new THREE.Mesh(new THREE.SphereGeometry(0.16,10,8),trimMat); sh.position.set(sd*0.3,P.h-0.1,0); sh.scale.y=0.8; body.add(sh); });
+    var helm=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,0.2,10),trimMat); helm.position.y=P.h+0.2; body.add(helm);
+    var crest=new THREE.Mesh(new THREE.ConeGeometry(0.08,0.2,6),trimMat); crest.position.y=P.h+0.4; body.add(crest);
+  } else if(u.arch==='sorcerer'){
+    var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.03,16),trimMat); brim.position.y=P.h+0.19; body.add(brim);
+    var hat=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.5,10),trimMat); hat.position.y=P.h+0.45; hat.rotation.z=-0.12; body.add(hat);
+  } else {
+    var hat2=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.62,8),trimMat); hat2.position.set(0.04,P.h+0.45,0); hat2.rotation.z=-0.28; body.add(hat2);
+  }
+  var staff=new THREE.Group();
+  var stick=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,1.35,6),new THREE.MeshStandardMaterial({color:0x6b4a2b,roughness:0.9}));
+  stick.position.y=0.675; staff.add(stick);
+  var orbCol=hexNum(elColor(u.spells[0]||'arcane'));
+  var orb=new THREE.Mesh(new THREE.SphereGeometry(0.085,10,8),new THREE.MeshBasicMaterial({color:orbCol}));
+  orb.position.y=1.38; staff.add(orb);
+  var og=glow(orbCol,0.5,0.9); og.position.y=1.38; staff.add(og);
+  staff.position.set(P.r*0.75+0.06,0,0.05); body.add(staff);
+  body.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+  var disc=new THREE.Mesh(new THREE.CircleGeometry(0.44,28),new THREE.MeshBasicMaterial({color:you?0x5b8cff:0xff6b5b,transparent:true,opacity:0.35,depthWrite:false}));
+  disc.rotation.x=-Math.PI/2; disc.position.y=0.02; g.add(disc);
+  var ring=new THREE.Mesh(new THREE.RingGeometry(0.47,0.57,32),new THREE.MeshBasicMaterial({color:0xf2c14e,transparent:true,opacity:0.95,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.03; ring.visible=false; g.add(ring);
+  var bubble=new THREE.Mesh(new THREE.SphereGeometry(0.72,20,14),new THREE.MeshBasicMaterial({color:hexNum(L.ELEM.earth.color),transparent:true,opacity:0.2,depthWrite:false}));
+  bubble.position.y=0.72; bubble.visible=false; g.add(bubble);
+  var ice=new THREE.Group();
+  var iceMat=new THREE.MeshStandardMaterial({color:0xbfefff,emissive:0x3aa6d6,emissiveIntensity:0.6,transparent:true,opacity:0.85,flatShading:true});
+  for(var i=0;i<6;i++){ var sp=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.38,5),iceMat); var a=i/6*Math.PI*2; sp.position.set(Math.cos(a)*0.42,0.16,Math.sin(a)*0.42); sp.rotation.z=Math.cos(a)*0.3; sp.rotation.x=-Math.sin(a)*0.3; ice.add(sp); }
+  ice.visible=false; g.add(ice);
+  var iceBlock=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.55,0.9),new THREE.MeshStandardMaterial({color:0xcff4ff,emissive:0x5ec8ff,emissiveIntensity:0.35,transparent:true,opacity:0.42,roughness:0.2,flatShading:true,depthWrite:false}));
+  iceBlock.position.y=0.78; iceBlock.visible=false; g.add(iceBlock);
+  g.traverse(function(o){ o.userData.unitId=u.id; });
+  g.position.copy(W(u.x,u.z));
+  g.rotation.y=you?0:Math.PI;
+  world.add(g);
+  var lab=document.createElement('div');
+  lab.className='ulabel '+(you?'you':'foe');
+  lab.innerHTML='<div class="st"></div><div class="n"></div><div class="bar"><i></i><s></s></div>';
+  labelsEl.appendChild(lab);
+  return {id:u.id, g:g, body:body, robeMat:robeMat, ring:ring, bubble:bubble, ice:ice, iceBlock:iceBlock, staff:staff, lab:lab, phase:Math.random()*6, dead:false};
+}
+function clearUnits(){
+  unitViews.forEach(function(v){ world.remove(v.g); v.lab.remove(); });
+  unitViews.clear();
+}
+function buildUnits(){ clearUnits(); state.units.forEach(function(u){ unitViews.set(u.id,buildMage(u)); }); }
+function face(v,x,z){ var dx=x-v.g.position.x, dz=z-v.g.position.z; if(Math.abs(dx)+Math.abs(dz)>0.01) v.g.rotation.y=Math.atan2(dx,dz); }
+function snapUnits(){
+  state.units.forEach(function(u){
+    var v=unitViews.get(u.id); if(!v) return;
+    if(u.alive){ v.g.position.copy(W(u.x,u.z)); v.g.visible=true; v.body.rotation.x=0; }
+  });
+}
+function unitPos(id,y){ var v=unitViews.get(id); return v.g.position.clone().add(new THREE.Vector3(0,y||0,0)); }
+
+// ---------------- persistent effects (walls, meteors, clouds) ----------------
+var persist={walls:new Map(),meteors:new Map(),clouds:new Map()};
+function clearPersist(){ ['walls','meteors','clouds'].forEach(function(k){ persist[k].forEach(function(o){ world.remove(o); }); persist[k].clear(); }); }
+function areaQuads(cx,cz,color,op){
+  var g=new THREE.Group(), geo=new THREE.PlaneGeometry(0.98,0.98);
+  for(var dz=-1;dz<=1;dz++) for(var dx=-1;dx<=1;dx++){
+    var x=cx+dx, z=cz+dz; if(x<0||z<0||x>9||z>9) continue;
+    var q=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:op,depthWrite:false}));
+    q.rotation.x=-Math.PI/2; q.position.copy(W(x,z,0.025)); q.renderOrder=1; g.add(q);
+  }
+  return g;
+}
+function syncPersist(){
+  var seen=new Set();
+  state.walls.forEach(function(w){
+    seen.add(w.id);
+    if(persist.walls.has(w.id)) return;
+    var g=new THREE.Group(), mat=new THREE.MeshStandardMaterial({color:0xa8865a,roughness:0.95,flatShading:true});
+    w.tiles.forEach(function(t){
+      var b=new THREE.Mesh(new THREE.BoxGeometry(0.92,1.15,0.92),mat); b.position.copy(W(t.x,t.z,0.575)); b.castShadow=true; b.receiveShadow=true; g.add(b);
+      var top=new THREE.Mesh(new THREE.DodecahedronGeometry(0.28,0),mat); top.position.copy(W(t.x,t.z,1.2)); top.castShadow=true; g.add(top);
+    });
+    g.scale.y=0.01; world.add(g); persist.walls.set(w.id,g);
+    animate(0.35,function(p){ g.scale.y=Math.max(0.01,ease(p)); });
+  });
+  persist.walls.forEach(function(g,id){ if(!seen.has(id)){ persist.walls.delete(id); animate(0.3,function(p){ g.scale.y=Math.max(0.01,1-p); }).then(function(){ world.remove(g); }); } });
+
+  seen=new Set();
+  state.meteors.forEach(function(m){
+    seen.add(m.id);
+    if(persist.meteors.has(m.id)) return;
+    var g=areaQuads(m.x,m.z,0xff4a1a,0.28);
+    var ring=new THREE.Mesh(new THREE.RingGeometry(1.35,1.5,48),new THREE.MeshBasicMaterial({color:0xff6a2b,transparent:true,opacity:0.9,depthWrite:false}));
+    ring.rotation.x=-Math.PI/2; ring.position.copy(W(m.x,m.z,0.05)); ring.renderOrder=3; g.add(ring);
+    var mark=glow(0xff6a2b,1.2,0.8); mark.position.copy(W(m.x,m.z,0.4)); g.add(mark);
+    g.userData.pulse=true; world.add(g); persist.meteors.set(m.id,g);
+  });
+  persist.meteors.forEach(function(g,id){ if(!seen.has(id)){ world.remove(g); persist.meteors.delete(id); } });
+
+  seen=new Set();
+  state.clouds.forEach(function(c){
+    seen.add(c.id);
+    if(persist.clouds.has(c.id)) return;
+    var col=hexNum(L.ELEM.shadow.color);
+    var g=areaQuads(c.x,c.z,col,0.22);
+    for(var i=0;i<7;i++){ var p=glow(i%2?0x9a5cff:col,0.9+Math.random()*0.7,0.45); p.position.copy(W(c.x,c.z,0.35)).add(new THREE.Vector3((Math.random()-0.5)*2.4,Math.random()*0.4,(Math.random()-0.5)*2.4)); p.userData.drift=Math.random()*6; g.add(p); }
+    g.userData.cloud=true; world.add(g); persist.clouds.set(c.id,g);
+  });
+  persist.clouds.forEach(function(g,id){ if(!seen.has(id)){ world.remove(g); persist.clouds.delete(id); } });
+  syncTiles();
+}
+
+// ---------------- FX ----------------
+function burst(pos,color,size,dur){
+  var s=glow(color,0.2,1); s.position.copy(pos); world.add(s);
+  animate(dur||0.4,function(p){ var k=size*(0.3+0.7*p); s.scale.set(k,k,1); s.material.opacity=1-p; }).then(function(){ world.remove(s); });
+}
+function ringFx(pos,color,maxR,dur){
+  var m=new THREE.Mesh(new THREE.RingGeometry(0.85,1,48),new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:0.9,depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.copy(pos); world.add(m);
+  return animate(dur||0.45,function(p){ var k=0.1+maxR*ease(p); m.scale.set(k,k,k); m.material.opacity=0.9*(1-p); }).then(function(){ world.remove(m); });
+}
+function projectile(from,to,color,size,dur,arc){
+  var s=glow(color,size*2.2,1), core=new THREE.Mesh(new THREE.SphereGeometry(size*0.35,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));
+  world.add(s); world.add(core);
+  var tmp=new THREE.Vector3();
+  return animate(dur,function(p){
+    tmp.lerpVectors(from,to,p); tmp.y+=Math.sin(p*Math.PI)*(arc||0.4);
+    s.position.copy(tmp); core.position.copy(tmp);
+    if(Math.random()<0.5) trail(tmp,color,size);
+  }).then(function(){ world.remove(s); world.remove(core); burst(to,color,size*4,0.35); });
+}
+function trail(pos,color,size){
+  var t=glow(color,size*1.3,0.6); t.position.copy(pos); world.add(t);
+  animate(0.25,function(p){ t.material.opacity=0.6*(1-p); }).then(function(){ world.remove(t); });
+}
+function lightning(a,b,color){
+  var pts=[], n=9;
+  for(var i=0;i<=n;i++){ var p=new THREE.Vector3().lerpVectors(a,b,i/n); if(i>0&&i<n) p.add(new THREE.Vector3((Math.random()-0.5)*0.35,(Math.random()-0.5)*0.35,(Math.random()-0.5)*0.35)); pts.push(p); }
+  var line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:color,transparent:true,opacity:1}));
+  var line2=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(function(p){ return p.clone().add(new THREE.Vector3(0,0.03,0)); })),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:1}));
+  world.add(line); world.add(line2); burst(b,color,1.6,0.35);
+  animate(0.35,function(p){ var o=(1-p)*(Math.random()<0.3?0.3:1); line.material.opacity=o; line2.material.opacity=o; }).then(function(){ world.remove(line); world.remove(line2); });
+}
+function sparkles(pos,color,n){
+  for(var i=0;i<n;i++){
+    (function(){
+      var s=glow(color,0.35,1), off=new THREE.Vector3((Math.random()-0.5)*0.8,Math.random()*0.3,(Math.random()-0.5)*0.8);
+      world.add(s);
+      animate(0.8+Math.random()*0.3,function(p){ s.position.copy(pos).add(off); s.position.y+=p*1.3; s.material.opacity=1-p; }).then(function(){ world.remove(s); });
+    })();
+  }
+}
+var floats=[];
+function floatText(text,color,pos,big){
+  var d=document.createElement('div'); d.className='float'; d.textContent=text; d.style.color=color;
+  if(big) d.style.fontSize='22px';
+  labelsEl.appendChild(d);
+  floats.push({el:d,pos:pos.clone(),t:0});
+}
+function flash(v,color){
+  v.robeMat.emissive.set(color);
+  animate(0.35,function(p){ v.robeMat.emissiveIntensity=1-p; }).then(function(){ v.robeMat.emissive.set(0x000000); v.robeMat.emissiveIntensity=1; });
+}
+function castPose(v){ return animate(0.22,function(p){ v.staff.rotation.x=-Math.sin(p*Math.PI)*0.6; v.staff.position.y=Math.sin(p*Math.PI)*0.15; }); }
+
+// ---------------- event playback ----------------
+function logLine(text,cls){
+  var d=document.createElement('div'); d.className=cls||''; d.textContent=text;
+  var el=$('log'); el.appendChild(d); while(el.children.length>60) el.removeChild(el.firstChild); el.scrollTop=el.scrollHeight;
+}
+async function playEvents(evs){
+  if(!evs) return;
+  var gen=battleGen;
+  for(var i=0;i<evs.length;i++){
+    if(gen!==battleGen) return;
+    var e=evs[i];
+    if(e.msg) logLine(e.msg, (e.type==='death'||e.type==='reaction')?'sys':(e.team===0?'you':e.team===1?'foe':'sys'));
+    switch(e.type){
+      case 'move': await animMove(e); break;
+      case 'cast': await animCast(e); break;
+      case 'damage': fxDamage(e); break;
+      case 'heal': { var vh=unitViews.get(e.id); sparkles(unitPos(e.id,0.4),hexNum(L.ELEM.life.color),8); floatText('+'+e.amount,'#7ee081',unitPos(e.id,1.6)); } break;
+      case 'shield': floatText('+'+e.amount+' 🛡','#e0b877',unitPos(e.id,1.6)); burst(unitPos(e.id,0.7),hexNum(L.ELEM.earth.color),2,0.4); break;
+      case 'root': floatText('Rooted!','#7fd8ff',unitPos(e.id,2.0)); break;
+      case 'death': await animDeath(e); break;
+      case 'meteorLand': await animMeteor(e); break;
+      case 'reaction': await fxReaction(e); break;
+      case 'push': await animPush(e); break;
+      case 'burnTick': burst(unitPos(e.id,0.3),0xff6a2b,1.8,0.4); break;
+      case 'thaw': burst(unitPos(e.id,0.8),0xcff4ff,2.2,0.35); break;
+    }
+    if(gen!==battleGen) return;
+    syncPersist();
+  }
+  await wait(120);
+  if(gen!==battleGen) return;
+  snapUnits(); syncPersist(); refreshUI();
+}
+async function animMove(e){
+  var v=unitViews.get(e.id);
+  for(var i=1;i<e.path.length;i++){
+    var a=W(e.path[i-1].x,e.path[i-1].z), b=W(e.path[i].x,e.path[i].z);
+    face(v,b.x,b.z);
+    await animate(0.13,function(p){ v.g.position.lerpVectors(a,b,p); v.g.position.y+=Math.sin(p*Math.PI)*0.12; });
+  }
+}
+async function animPush(e){
+  var v=unitViews.get(e.id); if(!v) return;
+  if(e.path.length<2){ await animate(0.15,function(p){ v.g.position.x=W(e.path[0].x,e.path[0].z).x+Math.sin(p*Math.PI*4)*0.06; }); return; }
+  for(var i=1;i<e.path.length;i++){
+    var a=W(e.path[i-1].x,e.path[i-1].z), b=W(e.path[i].x,e.path[i].z);
+    await animate(0.1,function(p){ v.g.position.lerpVectors(a,b,p); });
+  }
+}
+async function fxReaction(e){
+  switch(e.kind){
+    case 'explosion':
+      var p=W(e.x,e.z,0.4); burst(p,0xb07cff,5,0.5); burst(p,0xffa040,6.5,0.6); ringFx(W(e.x,e.z,0.1),0xffa040,2.4,0.6);
+      shakeT=0.45; floatText('💥 EXPLOSION!','#ffb347',W(e.x,e.z,1.9),true); await wait(260); break;
+    case 'frozen':
+      burst(unitPos(e.id,0.8),0xcff4ff,3,0.45); sparkles(unitPos(e.id,0),0x9fe4ff,8);
+      floatText('🧊 FROZEN!','#bff0ff',unitPos(e.id,2.3),true); await wait(200); break;
+    case 'steam':
+      e.tiles.forEach(function(t){ burst(W(t.x,t.z,0.5),0xffffff,2,0.6); });
+      floatText('♨ Steam','#e8eef5',W(e.x,e.z,1.5),true); break;
+    case 'conduct':
+      var from=unitPos(e.from,0.8);
+      e.ids.forEach(function(id){ lightning(from,unitPos(id,0.8),0x9fd0ff); });
+      floatText('⚡ CONDUCTS!','#c9a7ff',from.clone().add(new THREE.Vector3(0,1.4,0)),true); await wait(220); break;
+    case 'meteorBurn':
+      floatText('🔥 +50%','#ffb347',W(e.x,e.z,2.3),true); break;
+  }
+}
+async function animCast(e){
+  var v=unitViews.get(e.id), sp=L.SPELLS[e.spell], col=hexNum(elColor(e.spell));
+  var to=W(e.tx,e.tz,0.8);
+  if(e.spell!=='frostnova'&&e.spell!=='blink') face(v,to.x,to.z);
+  var gen=battleGen;
+  await castPose(v);
+  if(gen!==battleGen) return;
+  var from=v.g.position.clone().add(new THREE.Vector3(0,1.35,0));
+  var tv=null; var tu=L.unitAt(state,e.tx,e.tz); if(tu) tv=unitViews.get(tu.id);
+  switch(e.spell){
+    case 'arcane': await projectile(from,to,col,0.2,0.3,0.3); break;
+    case 'fireball': await projectile(from,to,col,0.35,0.38,0.6); burst(to,col,3.2,0.45); break;
+    case 'icelance': await projectile(from,to,col,0.25,0.25,0.1); burst(to,0xffffff,1.6,0.3); break;
+    case 'chain':
+      var pts=[from].concat((e.chain||[]).map(function(id){ return unitPos(id,0.8); }));
+      for(var i=1;i<pts.length;i++){ lightning(pts[i-1],pts[i],col); await wait(120); }
+      break;
+    case 'meteor': burst(from,col,1.5,0.4); await projectile(from,W(e.tx,e.tz,4),col,0.25,0.35,1.2); break;
+    case 'frostnova': burst(v.g.position.clone().add(new THREE.Vector3(0,0.5,0)),col,2.4,0.4); await ringFx(v.g.position.clone().add(new THREE.Vector3(0,0.1,0)),col,2.6,0.5); break;
+    case 'blink':
+      var src=v.g.position.clone(); burst(src.clone().add(new THREE.Vector3(0,0.7,0)),col,2.2,0.4); sparkles(src,col,6);
+      await animate(0.12,function(p){ v.g.scale.setScalar(1-p*0.95); });
+      v.g.position.copy(W(e.tx,e.tz));
+      burst(W(e.tx,e.tz,0.7),col,2.2,0.4);
+      await animate(0.15,function(p){ v.g.scale.setScalar(0.05+p*0.95); });
+      break;
+    case 'wall': burst(to,col,2,0.4); break;
+    case 'barrier': if(tv) burst(tv.g.position.clone().add(new THREE.Vector3(0,0.7,0)),col,2.2,0.45); break;
+    case 'mend': if(tv) sparkles(tv.g.position.clone(),col,10); break;
+    case 'poison': await projectile(from,W(e.tx,e.tz,0.3),col,0.3,0.45,1.0); burst(W(e.tx,e.tz,0.4),col,3.5,0.6); break;
+    case 'rain':
+      burst(from,0x6fb7ff,1.4,0.3);
+      var cen=W(e.tx,e.tz,0);
+      for(var k=0;k<14;k++){ (function(){
+        var d=glow(0x6fb7ff,0.3,0.9), off=new THREE.Vector3((Math.random()-0.5)*2.8,0,(Math.random()-0.5)*2.8), st=Math.random()*0.35;
+        d.position.copy(cen).add(off).setY(cen.y+3.2); world.add(d);
+        animate(0.6,function(p){ var q=Math.max(0,Math.min(1,(p-st)/(1-st))); d.position.y=cen.y+3.2*(1-q); })
+          .then(function(){ world.remove(d); burst(cen.clone().add(off).setY(cen.y+0.1),0x6fb7ff,0.8,0.25); });
+      })(); }
+      await wait(620); break;
+    case 'gust': await projectile(from,to,0xdfe8ff,0.3,0.25,0.05); ringFx(W(e.tx,e.tz,0.15),0xdfe8ff,1.2,0.35); break;
+  }
+}
+function fxDamage(e){
+  var v=unitViews.get(e.id); if(!v) return;
+  var col={meteor:'#ff8a4a',poison:'#b07cff',fireball:'#ff8a4a',icelance:'#9fe4ff',chain:'#d9c2ff',frostnova:'#9fe4ff',burn:'#ff9a4a',explosion:'#ffb347',conduct:'#c9a7ff',gust:'#dfe8ff'}[e.kind]||'#ff6b5b';
+  if(e.amount>0){ floatText('−'+e.amount,col,unitPos(e.id,1.6),e.amount>=25); flash(v,0xff2a1a); }
+  if(e.absorbed>0) floatText('('+e.absorbed+' blocked)','#e0b877',unitPos(e.id,2.1));
+  if(e.kind==='poison') burst(unitPos(e.id,0.5),hexNum(L.ELEM.shadow.color),1.6,0.4);
+}
+async function animDeath(e){
+  var v=unitViews.get(e.id); if(!v) return;
+  v.dead=true; v.lab.style.display='none';
+  await animate(0.6,function(p){ v.body.rotation.x=-ease(p)*Math.PI/2*0.95; v.g.position.y-=0.004; });
+  animate(0.8,function(p){ v.g.scale.setScalar(1-p*0.99); }).then(function(){ v.g.visible=false; });
+}
+async function animMeteor(e){
+  var target=W(e.x,e.z,0.3), start=target.clone().add(new THREE.Vector3(2.5,11,1.5));
+  var rock=new THREE.Mesh(new THREE.IcosahedronGeometry(0.45,0),new THREE.MeshStandardMaterial({color:0x5a2a12,emissive:0xff5a1a,emissiveIntensity:0.9,flatShading:true}));
+  var gl=glow(0xff6a2b,2.2,1); world.add(rock); world.add(gl);
+  await animate(0.5,function(p){ rock.position.lerpVectors(start,target,p*p); gl.position.copy(rock.position); rock.rotation.x+=0.2; if(Math.random()<0.7) trail(rock.position,0xff6a2b,0.6); });
+  world.remove(rock); world.remove(gl);
+  burst(target,0xff6a2b,6,0.6); burst(target,0xffe0a0,3,0.35); ringFx(W(e.x,e.z,0.1),0xff6a2b,2.2,0.6);
+  shakeT=0.4;
+  await wait(200);
+}
+
+// ---------------- UI state ----------------
+// battleGen changes whenever a battle starts or is abandoned, so async turn loops from an old battle stop
+var battleGen=0;
+var state=null, phase='draft', busy=false, sel=null, mode='idle', spellSel=null;
+var reach=new Map(), targets=[], hoverTile=null, aiPreview=null, resultShown=false;
+var draft=null, tcChoice='10';
+
+function deploying(){ return state && phase==='battle' && state.deploying; }
+function myTurn(){ return state && phase==='battle' && !state.deploying && state.turn===0 && state.winner===null && !busy; }
+function selUnit(){ return sel && state ? L.getUnit(state,sel) : null; }
+function isDone(u){ return !u.alive || u.frozen>0 || (u.moved && u.casts>=L.MANA.perMageCasts); }
+
+function refreshHighlights(){
+  for(var i=0;i<hlQuads.length;i++) hlQuads[i].visible=false;
+  if(phase!=='battle'||!state) return;
+  var setQ=function(x,z,color,op){ var q=hlQuads[z*10+x]; if(!q) return; q.visible=true; q.material.color.set(color); q.material.opacity=op; };
+  if(state.deploying){
+    for(var z=0;z<10;z++) for(var x=0;x<10;x++){
+      if(L.inZone(0,x,z)) setQ(x,z,'#f2c14e',0.2);
+      else if(L.inZone(1,x,z)) setQ(x,z,'#ff6b5b',0.1);
+    }
+    if(hoverTile&&sel&&L.inZone(0,hoverTile.x,hoverTile.z)) setQ(hoverTile.x,hoverTile.z,'#f2c14e',0.6);
+    return;
+  }
+  if(aiPreview){ aiPreview.tiles.forEach(function(t){ setQ(t.x,t.z,aiPreview.color,0.55); }); return; }
+  var u=selUnit();
+  if(u&&u.alive&&myTurn()){
+    if(mode==='target'){
+      var c=elColor(spellSel);
+      targets.forEach(function(t){ setQ(t.x,t.z,c,0.22); });
+      if(hoverTile&&isTarget(hoverTile.x,hoverTile.z)) L.aoeTiles(state,u,spellSel,hoverTile.x,hoverTile.z).forEach(function(t){ setQ(t.x,t.z,c,0.7); });
+      return;
+    }
+    reach.forEach(function(p){ var e=p[p.length-1]; setQ(e.x,e.z,'#4f8cff',0.28); });
+    if(hoverTile&&reach.has(hoverTile.z*10+hoverTile.x)) reach.get(hoverTile.z*10+hoverTile.x).forEach(function(t,k){ if(k>0) setQ(t.x,t.z,'#8fb4ff',0.55); });
+  }
+  if(hoverTile&&!(mode==='target')&&!hlQuads[hoverTile.z*10+hoverTile.x].visible) setQ(hoverTile.x,hoverTile.z,'#ffffff',0.12);
+}
+function isTarget(x,z){ for(var i=0;i<targets.length;i++) if(targets[i].x===x&&targets[i].z===z) return true; return false; }
+
+function refreshUI(){
+  if(phase!=='battle'||!state) return;
+  var u=selUnit();
+  if(u&&u.alive&&u.team===0&&!u.moved&&!state.deploying) reach=L.reachable(state,u); else reach=new Map();
+  if(mode==='target'&&u) targets=L.castTargets(state,u,spellSel); else targets=[];
+  renderRoster(); renderMana(); renderActions(); renderTurnLabel(); refreshHighlights();
+  unitViews.forEach(function(v,id){ v.ring.visible=(id===sel); });
+  var eb=$('endturn');
+  if(state.deploying){ eb.textContent='Start battle ⚔'; eb.disabled=busy; }
+  else { eb.textContent='End Turn'; eb.disabled=!myTurn(); }
+}
+function renderTurnLabel(){
+  var w=state.deploying?'Deployment':state.winner!==null?'Battle over':state.turn===0?'Your turn':'Enemy turn';
+  $('turnlabel').innerHTML='<div class="r">'+(state.deploying?'Prepare the field':'Round '+state.round)+'</div><div class="w" style="color:'+(state.deploying?'#f2c14e':state.turn===0?'#a9c3ff':'#ffb0a6')+'">'+w+'</div>';
+}
+function gems(n,spend,min){
+  var total=Math.max(n,min||0), h='';
+  for(var i=0;i<total;i++) h+='<i class="gem'+(i<n?(i>=n-spend?' spend':' on'):'')+'"></i>';
+  return '<span class="gems">'+h+'</span>';
+}
+function nextGain(t){ return Math.min(L.MANA.max, L.MANA.start+state.turnNo[t]); }
+function renderMana(){
+  var m=state.mana[0], spend=0;
+  if(mode==='target'&&spellSel) spend=Math.min(m,L.SPELLS[spellSel].cost);
+  if(state.deploying){
+    $('manabox').innerHTML='<div class="mlabel">Team mana</div><div class="mnext">Turn 1 starts with ◆'+L.MANA.start+'.<br>+1 per turn, up to ◆'+L.MANA.max+'.</div>';
+  } else {
+    $('manabox').innerHTML='<div class="mlabel">Team mana</div><div class="big">◆ '+m+'</div><div>'+gems(m,spend,6)+'</div>'+
+      '<div class="mnext">'+(state.turn===0?'Next turn +'+nextGain(0)+' · keep up to '+L.MANA.carry:'Enemy has ◆'+state.mana[1])+'</div>';
+  }
+  $('mana0').innerHTML=gems(state.mana[0],0,0)+'<span>'+state.mana[0]+'</span>';
+  $('mana1').innerHTML=gems(state.mana[1],0,0)+'<span>'+state.mana[1]+'</span>';
+}
+function spellChip(id){ var sp=L.SPELLS[id]; return '<span style="--el:'+elColor(id)+'">'+sp.icon+' '+sp.name+'</span>'; }
+function tileIcons(x,z){
+  var t=L.tileAt(state,x,z), s='';
+  if(t.burn) s+='🔥'; if(t.chill) s+='❄'; if(t.wet) s+='💧'; if(t.steam) s+='♨';
+  return s;
+}
+function renderRoster(){
+  var mk=function(u){
+    var hp=Math.round(u.hp/u.maxHp*100), sh=Math.min(100,Math.round(u.shield/u.maxHp*100));
+    var pips='';
+    if(u.team===0&&u.alive&&!state.deploying){
+      if(u.frozen>0) pips='<span class="pip" style="color:#bff0ff">🧊 Frozen this turn</span>';
+      else pips='<span class="pip"><b class="'+(u.moved?'used':'')+'"></b>Move</span><span class="pip"><b class="'+(u.casts>=1?'used':'')+'"></b><b class="'+(u.casts>=2?'used':'')+'"></b>Casts</span>';
+    }
+    var cds=u.spells.map(function(id){ var c=u.cd[id]||0; return c?L.SPELLS[id].icon+c:''; }).filter(Boolean).join(' ');
+    var st=(u.shield?' +'+u.shield+'🛡':'')+(u.frozen?' 🧊':u.rooted?' ❄':'')+(u.alive?' '+tileIcons(u.x,u.z):'');
+    return '<div class="rcard '+(u.team?'foe':'you')+(u.id===sel?' sel':'')+(u.alive?'':' dead')+'" data-id="'+u.id+'">'+
+      '<div class="rtop"><b>'+u.name+'</b><span>'+L.ARCH[u.arch].name+'</span></div>'+
+      '<div class="rbar"><i style="width:'+hp+'%"></i><s style="width:'+sh+'%"></s></div>'+
+      '<div class="rsub"><span>'+(u.alive?u.hp+'/'+u.maxHp:'defeated')+st+'</span>'+pips+(cds?'<span title="cooldowns">⏳'+cds+'</span>':'')+'</div>'+
+      '<div class="rsp">'+u.spells.map(spellChip).join('')+'</div></div>';
+  };
+  $('roster-you').innerHTML=state.units.filter(function(u){ return u.team===0; }).map(mk).join('');
+  $('roster-foe').innerHTML=state.units.filter(function(u){ return u.team===1; }).map(mk).join('');
+}
+function renderActions(){
+  var u=selUnit();
+  if(state.deploying){
+    $('selinfo').innerHTML=u?'<b>'+u.name+'</b><div>'+L.ARCH[u.arch].name+' · moves '+L.ARCH[u.arch].move+'</div><div class="mv">Click a gold tile to place</div>':'<b>Deployment</b>';
+    $('actions').innerHTML='<div class="hint">Click one of your mages, then any <b style="color:#f2c14e">gold tile</b> in your zone.<br>The enemy has already deployed (red zone). Think about Meteors, chains and cover, then press <b>Start battle</b>.</div>';
+    return;
+  }
+  if(!u||!u.alive||u.team!==0){
+    $('selinfo').innerHTML='<b>No mage selected</b>';
+    $('actions').innerHTML='<div class="hint">'+(state.turn===0?'Click one of your mages (blue) or press Tab.':'Enemy is acting…')+'</div>';
+    return;
+  }
+  var mv=u.frozen>0?'🧊 Frozen — skips this turn':u.rooted>0?'❄ Rooted — can’t move':u.moved?'Move used':'Move: click a blue tile';
+  $('selinfo').innerHTML='<b>'+u.name+'</b><div>'+L.ARCH[u.arch].name+' · '+u.hp+'/'+u.maxHp+(u.shield?' +'+u.shield+'🛡':'')+'</div><div class="mv">'+mv+'</div><div class="mv">Casts this turn: '+u.casts+'/'+L.MANA.perMageCasts+'</div>';
+  var list=u.spells.concat(['arcane']);
+  $('actions').innerHTML=list.map(function(id,i){
+    var sp=L.SPELLS[id], cd=u.cd[id]||0, hasT=L.castTargets(state,u,id).length>0, block=L.castBlock(state,u,id);
+    var ok=myTurn()&&!block&&hasT;
+    var why=block||(!hasT?'No target in range':sp.stats);
+    return '<button class="spbtn'+(mode==='target'&&spellSel===id?' on':'')+'" data-spell="'+id+'" '+(ok?'':'disabled')+' style="--el:'+elColor(id)+'" title="'+(sp.text+(sp.combo?' — Combos: '+sp.combo:'')).replace(/"/g,'&quot;')+'">'+
+      '<span class="key">'+(i+1)+'</span><span class="nm">'+sp.icon+' '+sp.name+'</span><span class="st">'+why+'</span>'+(cd?'<span class="cdb">'+cd+'</span>':'')+'<span class="cost">◆'+sp.cost+'</span></button>';
+  }).join('');
+}
+
+function select(id){
+  var u=L.getUnit(state,id); if(!u||!u.alive||u.team!==0) return;
+  sel=id; mode='idle'; spellSel=null; refreshUI();
+}
+function selectNext(){
+  var mine=state.units.filter(function(u){ return u.team===0&&u.alive; });
+  if(!mine.length) return;
+  var avail=mine.filter(function(u){ return !isDone(u); });
+  var list=avail.length?avail:mine;
+  var i=list.findIndex(function(u){ return u.id===sel; });
+  select(list[(i+1)%list.length].id);
+}
+function enterTarget(id){
+  var u=selUnit(); if(!u||!myTurn()||L.castBlock(state,u,id)) return;
+  if(mode==='target'&&spellSel===id){
+    if(L.SPELLS[id].target==='self'){ doCast(u.x,u.z); return; }
+    cancelTarget(); return;
+  }
+  var t=L.castTargets(state,u,id); if(!t.length) return;
+  mode='target'; spellSel=id; refreshUI();
+}
+function cancelTarget(){ if(mode==='target'){ mode='idle'; spellSel=null; hideTip(); refreshUI(); } }
+
+async function doMove(x,z){
+  var gen=battleGen; busy=true; hideTip();
+  var ev=L.performMove(state,sel,x,z);
+  refreshUI(); await playEvents(ev); if(gen!==battleGen) return; busy=false; afterAction();
+}
+async function doCast(x,z){
+  var gen=battleGen, id=spellSel; busy=true; mode='idle'; spellSel=null; hideTip();
+  var ev=L.performCast(state,sel,id,x,z);
+  refreshUI(); await playEvents(ev); if(gen!==battleGen) return; busy=false; afterAction();
+}
+function afterAction(){
+  if(checkEnd()) return;
+  var u=selUnit();
+  if(!u||isDone(u)){
+    var next=state.units.find(function(o){ return o.team===0&&!isDone(o); });
+    sel=next?next.id:(u&&u.alive?u.id:null);
+  }
+  refreshUI();
+}
+
+function banner(text,color){
+  var b=$('banner'); b.textContent=text; b.style.color=color||'#ece5d3'; b.classList.add('show');
+  return wait(750).then(function(){ b.classList.remove('show'); return wait(200); });
+}
+
+async function startFight(){
+  if(!deploying()||busy) return;
+  var gen=battleGen; busy=true; sel=null; hideTip();
+  var ev=L.beginBattle(state);
+  logLine('Battle begins. You move first.','sys');
+  refreshUI(); await playEvents(ev);
+  if(gen!==battleGen) return;
+  busy=false;
+  var first=state.units.find(function(o){ return o.team===0&&o.alive; });
+  sel=first?first.id:null; refreshUI();
+  banner('Your turn — Round 1','#a9c3ff');
+}
+
+async function endPlayerTurn(){
+  if(!myTurn()) return;
+  var gen=battleGen;
+  busy=true; mode='idle'; spellSel=null; hideTip(); refreshUI();
+  var ev=L.endTurn(state); await playEvents(ev);
+  if(gen!==battleGen||checkEnd()) return;
+  await banner('Enemy turn','#ffb0a6');
+  var guard=0;
+  while(gen===battleGen&&state.winner===null&&guard++<40){
+    var plan=L.aiNextAction(state); if(!plan) break;
+    var u=L.getUnit(state,plan.unitId), did=false;
+    unitViews.forEach(function(w,id){ w.ring.visible=(id===u.id); });
+    if(plan.move){ var e1=L.performMove(state,u.id,plan.move.x,plan.move.z); if(e1){ did=true; await playEvents(e1); if(gen!==battleGen) return; } }
+    if(plan.cast&&state.winner===null){
+      aiPreview={color:elColor(plan.cast.spell),tiles:L.aoeTiles(state,u,plan.cast.spell,plan.cast.x,plan.cast.z)};
+      refreshHighlights();
+      logLine(u.name+' prepares '+L.SPELLS[plan.cast.spell].name+' (◆'+L.SPELLS[plan.cast.spell].cost+')…','foe');
+      await wait(450);
+      if(gen!==battleGen) return;
+      aiPreview=null; refreshHighlights();
+      var e2=L.performCast(state,u.id,plan.cast.spell,plan.cast.x,plan.cast.z);
+      if(e2){ did=true; await playEvents(e2); }
+    }
+    if(gen!==battleGen) return;
+    if(!did) L.finishUnit(state,u.id);
+    refreshUI();
+    await wait(260);
+  }
+  if(gen!==battleGen) return;
+  unitViews.forEach(function(w){ w.ring.visible=false; });
+  if(checkEnd()) return;
+  var ev2=L.endTurn(state); await playEvents(ev2);
+  if(gen!==battleGen||checkEnd()) return;
+  await banner('Your turn — Round '+state.round,'#a9c3ff');
+  if(gen!==battleGen) return;
+  busy=false;
+  var first=state.units.find(function(o){ return o.team===0&&!isDone(o); })||state.units.find(function(o){ return o.team===0&&o.alive; });
+  sel=first?first.id:null; mode='idle'; refreshUI();
+}
+
+function checkEnd(){
+  if(!state||state.winner===null) return false;
+  if(resultShown) return true;
+  resultShown=true; busy=true; refreshUI();
+  var gen=battleGen; setTimeout(function(){ if(gen===battleGen) showResult(); },900);
+  return true;
+}
+function showResult(){
+  var w=state.winner, r=state.reason, rx=state.stats.reactions;
+  $('res-title').textContent=w===0?'Victory':w===1?'Defeat':'Draw';
+  $('res-title').style.color=w===0?'#f2c14e':w===1?'#ff6b5b':'#ece5d3';
+  var why={elim:w===0?'All enemy mages defeated.':'Your team was defeated.', time:w===0?'The enemy ran out of time.':'Your time bank ran out.', mutual:'Both teams fell in the same blast.', rounds:'Round limit reached.'}[r]||'';
+  $('res-why').innerHTML=why+'<br>Rounds: '+state.round+' · Damage dealt: you '+state.stats.dmg[0]+' / enemy '+state.stats.dmg[1]+
+    '<br>Reactions: 💥 '+rx.explosion+' · 🧊 '+rx.frozen+' · ⚡ '+rx.conduct+' · ♨ '+rx.steam+' · ☄🔥 '+rx.meteorBurn+
+    (state.clockOn?'<br>Time left: you '+fmt(state.clock[0])+' · enemy '+fmt(state.clock[1]):'');
+  $('res-tag').textContent='vs the enemy draft';
+  $('result').classList.remove('hidden');
+}
+
+// ---------------- tooltip ----------------
+var tip=$('tooltip'), mouse={x:0,y:0};
+function showTip(html){ tip.innerHTML=html; tip.style.display='block'; placeTip(); }
+function hideTip(){ tip.style.display='none'; }
+function placeTip(){
+  var x=mouse.x+16, y=mouse.y+16, w=tip.offsetWidth, h=tip.offsetHeight;
+  if(x+w>window.innerWidth-8) x=mouse.x-w-16; if(y+h>window.innerHeight-8) y=mouse.y-h-16;
+  tip.style.left=x+'px'; tip.style.top=y+'px';
+}
+function unitTip(u){
+  var st=[]; if(u.shield) st.push('🛡 '+u.shield+' shield'); if(u.frozen) st.push('🧊 frozen (half damage)'); else if(u.rooted) st.push('❄ rooted');
+  state.clouds.forEach(function(c){ if(c.team!==u.team&&L.cheb(c.x,c.z,u.x,u.z)<=1) st.push('☠ in poison'); });
+  state.meteors.forEach(function(m){ if(L.cheb(m.x,m.z,u.x,u.z)<=1) st.push('☄ under a Meteor!'); });
+  return '<div class="tt" style="color:'+(u.team?'#ffb0a6':'#a9c3ff')+'">'+u.name+' <span class="m">· '+L.ARCH[u.arch].name+'</span></div>'+
+    '<div>HP '+u.hp+'/'+u.maxHp+'</div>'+(st.length?'<div>'+st.join(' · ')+'</div>':'')+
+    u.spells.map(function(id){ var sp=L.SPELLS[id], c=u.cd[id]||0; return '<div><span style="color:'+elColor(id)+'">'+sp.icon+' '+sp.name+' ◆'+sp.cost+'</span> <span class="m">'+(c?'ready in '+c:'ready')+' — '+sp.text+'</span></div>'; }).join('');
+}
+function tileTip(x,z){
+  var parts=[], t=L.tileAt(state,x,z);
+  state.meteors.forEach(function(m){ if(L.cheb(m.x,m.z,x,z)<=1) parts.push('<b style="color:#ff6a2b">☄ Meteor</b> lands here at the start of '+(m.team===0?'your':'the enemy’s')+' next turn ('+m.dmg+' dmg, ×1.5 on Burning).'); });
+  state.clouds.forEach(function(c){ if(L.cheb(c.x,c.z,x,z)<=1) parts.push('<b style="color:#b07cff">☠ Poison</b> ('+(c.team===0?'yours':'enemy')+'): '+c.dmg+' dmg per turn, '+c.turns+' turn(s) left. <b>Fire → 💥</b>'); });
+  if(t.burn) parts.push('<b style="color:#ff6a2b">🔥 Burning</b>: '+L.REACT.burnDmg+' dmg to anyone ending their turn here ('+t.burn+' turn(s) left).');
+  if(t.chill) parts.push('<b style="color:#bff0ff">❄ Chilled</b>: Frost hitting a unit here → 🧊 Frozen ('+t.chill+' turn(s) left).');
+  if(t.wet) parts.push('<b style="color:#5fb8ff">💧 Wet</b>: Frost → 🧊 Frozen · Chain → ⚡ conducts · Fire → ♨ steam ('+t.wet+' turn(s) left).');
+  if(t.steam) parts.push('<b style="color:#e8eef5">♨ Steam</b>: blocks line of sight.');
+  var w=L.wallAt(state,x,z); if(w) parts.push('<b style="color:#c8a064">🧱 Stone Wall</b>: '+w.turns+' turn(s) left.');
+  if(L.isRaised(x,z)) parts.push('<b>Raised platform</b>: +1 spell range.');
+  if(L.isBlockedTile(x,z)) parts.push('<b>Pillar</b>: blocks movement and line of sight.');
+  return parts.join('<br>');
+}
+function predictTip(x,z){
+  var u=selUnit(); if(!u) return '';
+  var sp=L.SPELLS[spellSel], head='<b style="color:'+elColor(spellSel)+'">'+sp.icon+' '+sp.name+' <span style="color:#8fd0ff">◆'+sp.cost+'</span></b>';
+  var note='';
+  if(spellSel==='meteor'){
+    var hot=state.units.filter(function(o){ return o.alive&&L.cheb(o.x,o.z,x,z)<=1&&L.tileAt(state,o.x,o.z).burn; }).length;
+    note='Lands at the start of your next turn. Enemies can walk out; rooted and frozen ones can’t. Hits your own mages too.'+(hot?' <b style="color:#ffb347">🔥 '+hot+' on Burning ground: +50%!</b>':'');
+  }
+  if(spellSel==='poison') note='Enemies inside take '+sp.dmg+' at the start of each of their turns. Any Fire here → 💥.';
+  if(spellSel==='rain') note='Tiles become 💧 Wet: Frost → 🧊, Chain → ⚡ conducts, Fire → ♨ steam.';
+  if(spellSel==='wall') note='Blocks movement and line of sight for 3 turns.';
+  if(spellSel==='blink') note='Teleport here.';
+  var res=L.predict(state,u.id,spellSel,x,z);
+  var lines=(res||[]).map(function(r){
+    if(r.type==='damage') return '<div style="color:'+(r.team===0?'#a9c3ff':'#ffb0a6')+'">'+r.name+': −'+r.amount+(r.absorbed?' <span class="m">('+r.absorbed+' blocked)</span>':'')+'</div>';
+    if(r.type==='death') return '<div style="color:#f2c14e">✖ '+r.name+' is defeated</div>';
+    if(r.type==='heal') return '<div style="color:#7ee081">'+r.name+': +'+r.amount+' HP</div>';
+    if(r.type==='shield') return '<div style="color:#e0b877">'+r.name+': '+r.amount+' shield</div>';
+    if(r.type==='root') return '<div style="color:#7fd8ff">'+r.name+': rooted</div>';
+    if(r.type==='push') return '<div style="color:#dfe8ff">'+r.name+' is pushed</div>';
+    if(r.type==='reaction') return '<div style="color:#ffd36b;font-weight:700">'+r.msg+'</div>';
+    return '';
+  }).join('');
+  return head+(note?'<div class="m">'+note+'</div>':'')+(lines||(note?'':'<div class="m">No effect.</div>'));
+}
+
+// ---------------- picking ----------------
+var ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function pick(ev){
+  var r=canvas.getBoundingClientRect();
+  ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  var alive=[]; unitViews.forEach(function(v){ if(!v.dead) alive.push(v.g); });
+  var hits=ray.intersectObjects(alive,true);
+  if(hits.length){ var u=L.getUnit(state,hits[0].object.userData.unitId); if(u&&u.alive) return {x:u.x,z:u.z}; }
+  hits=ray.intersectObjects(tileMeshes,false);
+  if(hits.length) return {x:hits[0].object.userData.x,z:hits[0].object.userData.z};
+  return null;
+}
+canvas.addEventListener('pointermove',function(ev){
+  mouse.x=ev.clientX; mouse.y=ev.clientY;
+  if(phase!=='battle'||!state) return;
+  var t=pick(ev), changed=(!t!==!hoverTile)||(t&&hoverTile&&(t.x!==hoverTile.x||t.z!==hoverTile.z));
+  hoverTile=t;
+  if(changed) refreshHighlights();
+  if(!t){ hideTip(); return; }
+  var html='';
+  if(mode==='target'&&isTarget(t.x,t.z)) html=predictTip(t.x,t.z);
+  else {
+    var u=L.unitAt(state,t.x,t.z);
+    if(u) html=unitTip(u);
+    var tt=tileTip(t.x,t.z); if(tt) html+=(html?'<hr style="border:0;border-top:1px solid #2b3452">':'')+tt;
+  }
+  if(html) showTip(html); else hideTip();
+});
+canvas.addEventListener('pointerleave',function(){ hoverTile=null; hideTip(); refreshHighlights(); });
+canvas.addEventListener('click',function(ev){
+  if(deploying()&&!busy){
+    var d=pick(ev); if(!d) return;
+    var du=L.unitAt(state,d.x,d.z);
+    if(du&&du.team===0){ select(du.id); return; }
+    if(sel&&L.deployMove(state,sel,d.x,d.z)){ snapUnits(); refreshUI(); }
+    return;
+  }
+  if(!myTurn()) return;
+  var t=pick(ev);
+  if(!t){ cancelTarget(); return; }
+  if(mode==='target'){ if(isTarget(t.x,t.z)) doCast(t.x,t.z); else cancelTarget(); return; }
+  var u=L.unitAt(state,t.x,t.z);
+  if(u&&u.team===0){ select(u.id); return; }
+  if(sel&&reach.has(t.z*10+t.x)){ doMove(t.x,t.z); return; }
+});
+
+// ---------------- HUD buttons & keys ----------------
+$('actions').addEventListener('click',function(ev){
+  var b=ev.target.closest('.spbtn'); if(!b||b.disabled) return; b.blur(); enterTarget(b.dataset.spell);
+});
+$('roster-you').addEventListener('click',function(ev){
+  var c=ev.target.closest('.rcard'); if(!c||busy) return; select(+c.dataset.id);
+});
+$('endturn').addEventListener('click',function(){ $('endturn').blur(); if(deploying()) startFight(); else endPlayerTurn(); });
+$('btn-loadout').addEventListener('click',function(){
+  if(phase==='battle'&&state&&state.winner===null&&!confirm('Leave this battle and start a new draft?')) return;
+  openDraft(true);
+});
+window.addEventListener('keydown',function(ev){
+  if(phase!=='battle') return;
+  if(ev.key==='Escape'){ cancelTarget(); return; }
+  if(deploying()){ if(ev.key==='Tab'){ ev.preventDefault(); selectNext(); } if(ev.key===' '||ev.key==='Enter'){ ev.preventDefault(); startFight(); } return; }
+  if(!myTurn()) return;
+  if(ev.key==='Tab'){ ev.preventDefault(); selectNext(); return; }
+  if(ev.key===' '||ev.key==='Enter'){ ev.preventDefault(); endPlayerTurn(); return; }
+  var u=selUnit(); if(!u) return;
+  var list=u.spells.concat(['arcane']);
+  var k=parseInt(ev.key,10); if(k>=1&&k<=list.length) enterTarget(list[k-1]);
+});
+
+// ---------------- draft screen ----------------
+function newDraft(){
+  if(draft&&draft.timer) clearTimeout(draft.timer);
+  var first=Math.random()<0.5?0:1;
+  draft={first:first, order:L.draftOrder(first), picks:[[],[]], step:0, phase:'draft', team:null, enemy:null, sel:0, timer:null};
+}
+function draftAvail(){ var taken=draft.picks[0].concat(draft.picks[1]); return L.POOL.filter(function(id){ return taken.indexOf(id)<0; }); }
+function draftPick(team,id){
+  draft.picks[team].push(id); draft.step++;
+  if(draft.step>=draft.order.length) finishDraft();
+}
+function finishDraft(){
+  draft.phase='assign';
+  draft.team=L.autoAssign(draft.picks[0]).map(function(m,i){ return {arch:m.arch,spells:m.spells.slice(),name:L.NAMES[0][i]}; });
+  draft.enemy=L.autoAssign(draft.picks[1]).map(function(m,i){ return {arch:m.arch,spells:m.spells.slice(),name:L.NAMES[1][i]}; });
+  draft.sel=0;
+}
+function scheduleAI(){
+  clearTimeout(draft.timer);
+  if(draft.phase==='draft'&&draft.order[draft.step]===1){
+    draft.timer=setTimeout(function(){
+      if(phase!=='draft'||draft.phase!=='draft') return;
+      draftPick(1,L.aiDraftPick(draftAvail(),draft.picks[1],draft.picks[0]));
+      renderDraft(); scheduleAI();
+    },600);
+  }
+}
+function spellCard(id,extraCls,badge){
+  var sp=L.SPELLS[id];
+  return '<div class="scard'+(extraCls||'')+'" data-id="'+id+'" style="--el:'+elColor(id)+'">'+(badge||'')+
+    '<div class="t">'+sp.icon+' '+sp.name+(sp.isNew?' <span class="newtag">NEW</span>':'')+'<span class="el">'+L.ELEM[sp.el].name+'</span></div>'+
+    '<div class="d">'+sp.text+'</div><div class="n"><span class="cst">◆'+sp.cost+'</span> · '+sp.stats+(sp.cd?' · CD '+sp.cd:'')+'</div>'+
+    (sp.combo?'<div class="cb">⚗ '+sp.combo+'</div>':'')+'</div>';
+}
+function pickList(ids){
+  if(!ids.length) return '<div class="note">Nothing yet.</div>';
+  return '<div class="picklist">'+ids.map(function(id){ var sp=L.SPELLS[id]; return '<div class="pchip" style="--el:'+elColor(id)+'">'+sp.icon+' <b>'+sp.name+'</b> <span class="m">◆'+sp.cost+' · '+L.ELEM[sp.el].name+'</span></div>'; }).join('')+'</div>';
+}
+function comboList(ids,label){
+  var c=L.combosIn(ids);
+  return '<div class="combos"><b>'+label+'</b>'+(c.length?c.map(function(t){ return '<div>⚗ '+t+'</div>'; }).join(''):'<div class="none">No combos yet.</div>')+'</div>';
+}
+function mageCard(m,i,editable,foe){
+  var slots=[0,1].map(function(k){
+    var id=m.spells[k];
+    if(!id) return '<div class="slot empty">Empty — pick a spell</div>';
+    return '<div class="slot"'+(editable?' data-i="'+i+'" data-k="'+k+'"':'')+' style="--el:'+elColor(id)+'" title="'+L.SPELLS[id].text.replace(/"/g,'&quot;')+'">'+L.SPELLS[id].icon+' '+L.SPELLS[id].name+(editable?'<span class="x">✕</span>':'')+'</div>';
+  }).join('');
+  if(foe) return '<div class="mcard foe"><div class="mhead"><span class="mname">'+m.name+'</span><span class="mstat">'+L.ARCH[m.arch].name+'</span></div><div class="adesc">'+L.ARCH[m.arch].desc+'</div><div class="slots">'+slots+'</div></div>';
+  return '<div class="mcard'+(i===draft.sel?' sel':'')+'" data-i="'+i+'">'+
+    '<div class="mhead"><span class="mname">'+m.name+'</span><span class="mstat">Slot '+(i+1)+'</span></div>'+
+    '<div class="archrow">'+['warden','sorcerer','adept'].map(function(a){ return '<button class="archbtn'+(m.arch===a?' on':'')+'" data-i="'+i+'" data-a="'+a+'">'+L.ARCH[a].name+'</button>'; }).join('')+'</div>'+
+    '<div class="adesc">'+L.ARCH[m.arch].desc+'</div><div class="slots">'+slots+'</div></div>';
+}
+function renderDraft(){
+  var d=draft;
+  $('dr-coin').innerHTML='🪙 Coin flip: <b>'+(d.first===0?'you pick first':'the enemy picks first')+'</b>. Snake order: each side ends with 6 of the 12 spells.';
+  var cnt=[0,0];
+  $('dr-track').innerHTML=d.order.map(function(t,k){
+    var id=d.picks[t][cnt[t]++], done=!!id;
+    return '<div class="pk '+(t?'foe':'you')+(done?' done':'')+(k===d.step&&d.phase==='draft'?' cur':'')+'" title="'+(done?L.SPELLS[id].name:'')+'">'+(done?L.SPELLS[id].icon:'')+'<small>'+(t?'ENEMY':'YOU')+'</small></div>';
+  }).join('');
+  var yourTurn=d.phase==='draft'&&d.order[d.step]===0;
+  if(d.phase==='draft'){
+    $('dr-status').innerHTML=yourTurn?'<span style="color:#a9c3ff">Your pick</span> <span style="color:var(--muted);font-size:14px">('+(d.picks[0].length+1)+' of 6): click a spell in the pool.</span>':'<span style="color:#ffb0a6">Enemy is picking…</span>';
+    $('dr-left-h').textContent='Your picks ('+d.picks[0].length+'/6)';
+    $('dr-left-sub').textContent='Look for combos. You assign spells to mages after the draft.';
+    $('lo-team').innerHTML=pickList(d.picks[0])+comboList(d.picks[0],'Your combos');
+    $('dr-mid-h').textContent='Spell pool';
+    $('dr-mid-sub').innerHTML='Each spell exists <b>once</b>. Taking it also denies it to the enemy.';
+    $('lo-pool').innerHTML=L.POOL.map(function(id){
+      var who=d.picks[0].indexOf(id)>=0?0:d.picks[1].indexOf(id)>=0?1:-1;
+      var badge=who===0?'<span class="badge you">YOU</span>':who===1?'<span class="badge foe">ENEMY</span>':'';
+      return spellCard(id,(who>=0?' taken':(yourTurn?'':' locked')),badge);
+    }).join('');
+    $('dr-right-h').textContent='Enemy picks ('+d.picks[1].length+'/6)';
+    $('dr-right-sub').textContent='Watch what combos they are building, and deny them.';
+    $('lo-enemy').innerHTML=pickList(d.picks[1])+comboList(d.picks[1],'Enemy combos');
+    $('lo-fight').disabled=true; $('lo-why').textContent='Finish the draft first.';
+  } else {
+    $('dr-status').innerHTML='<span style="color:#f2c14e">Draft complete: equip your mages.</span> <span style="color:var(--muted);font-size:14px">We pre-assigned them; change anything you like.</span>';
+    $('dr-left-h').textContent='Your team';
+    $('dr-left-sub').textContent='Click a mage, then click one of your spells to give it to them. Click ✕ to unequip.';
+    $('lo-team').innerHTML=d.team.map(function(m,i){ return mageCard(m,i,true,false); }).join('')+comboList(d.picks[0],'Your combos');
+    var cur=d.team[d.sel];
+    $('dr-mid-h').textContent='Your 6 spells';
+    $('dr-mid-sub').innerHTML='Equipping to: <b>'+cur.name+' ('+L.ARCH[cur.arch].name+')</b> — '+cur.spells.length+'/2';
+    $('lo-pool').innerHTML=d.picks[0].map(function(id){
+      var holder=d.team.findIndex(function(m){ return m.spells.indexOf(id)>=0; });
+      var badge=holder>=0?'<span class="badge you">'+d.team[holder].name+'</span>':'<span class="badge foe">unassigned</span>';
+      return spellCard(id,holder===d.sel?' eq':'',badge);
+    }).join('');
+    $('dr-right-h').textContent='Enemy team';
+    $('dr-right-sub').textContent='This is exactly what you will face.';
+    $('lo-enemy').innerHTML=d.enemy.map(function(m,i){ return mageCard(m,i,false,true); }).join('')+comboList(d.picks[1],'Enemy combos');
+    var missing=d.team.filter(function(m){ return m.spells.length<2; }).map(function(m){ return m.name; });
+    $('lo-fight').disabled=missing.length>0;
+    $('lo-why').textContent=missing.length?('Give 2 spells to: '+missing.join(', ')):'';
+  }
+  $('lo-tc').value=tcChoice;
+}
+$('lo-pool').addEventListener('click',function(ev){
+  var c=ev.target.closest('.scard'); if(!c||!draft) return;
+  var id=c.dataset.id;
+  if(draft.phase==='draft'){
+    if(draft.order[draft.step]!==0||draftAvail().indexOf(id)<0) return;
+    draftPick(0,id); renderDraft(); scheduleAI(); return;
+  }
+  var m=draft.team[draft.sel], k=m.spells.indexOf(id);
+  if(k>=0){ m.spells.splice(k,1); renderDraft(); return; }
+  draft.team.forEach(function(o){ var j=o.spells.indexOf(id); if(j>=0) o.spells.splice(j,1); });
+  if(m.spells.length>=2) m.spells.shift();
+  m.spells.push(id);
+  if(m.spells.length===2){ var nxt=draft.team.findIndex(function(o){ return o.spells.length<2; }); if(nxt>=0) draft.sel=nxt; }
+  renderDraft();
+});
+$('lo-team').addEventListener('click',function(ev){
+  if(!draft||draft.phase!=='assign') return;
+  var slot=ev.target.closest('.slot[data-k]');
+  if(slot){ draft.team[+slot.dataset.i].spells.splice(+slot.dataset.k,1); draft.sel=+slot.dataset.i; renderDraft(); return; }
+  var ab=ev.target.closest('.archbtn');
+  if(ab){ draft.team[+ab.dataset.i].arch=ab.dataset.a; draft.sel=+ab.dataset.i; renderDraft(); return; }
+  var card=ev.target.closest('.mcard'); if(card&&card.dataset.i!==undefined){ draft.sel=+card.dataset.i; renderDraft(); }
+});
+$('dr-redraft').addEventListener('click',function(){ openDraft(true); });
+$('lo-tc').addEventListener('change',function(ev){ tcChoice=ev.target.value; });
+$('lo-fight').addEventListener('click',function(){ startBattle(true); });
+$('res-rematch').addEventListener('click',function(){ startBattle(true); });
+$('res-assign').addEventListener('click',function(){ openDraft(false); });
+$('res-change').addEventListener('click',function(){ openDraft(true); });
+
+function openDraft(fresh){
+  battleGen++;
+  phase='draft'; busy=false; state=null; sel=null; mode='idle'; aiPreview=null;
+  clearUnits(); clearPersist(); syncTiles(); refreshHighlights(); hideTip();
+  $('hud').classList.add('hidden'); $('result').classList.add('hidden'); $('loadout').classList.remove('hidden');
+  controls.autoRotate=true;
+  if(fresh||!draft) newDraft();
+  renderDraft(); scheduleAI();
+}
+function startBattle(withDeploy){
+  battleGen++;
+  var tc=TC[tcChoice]||TC['10'];
+  state=L.createBattle({
+    teams:[draft.team.map(function(m){ return {arch:m.arch,spells:m.spells.slice(),name:m.name}; }),
+           draft.enemy.map(function(m){ return {arch:m.arch,spells:m.spells.slice(),name:m.name}; })],
+    clockMs:tc[0]*1000, incMs:tc[1]*1000, deploy:true
+  });
+  L.aiDeploy(state,1);
+  phase='battle'; busy=false; resultShown=false; mode='idle'; spellSel=null; aiPreview=null;
+  clearUnits(); clearPersist(); buildUnits(); syncPersist();
+  $('log').innerHTML='';
+  logLine('Deployment: place your mages in the gold zone.','sys');
+  $('loadout').classList.add('hidden'); $('result').classList.add('hidden'); $('hud').classList.remove('hidden');
+  $('clk0').querySelector('.t').style.display=$('clk1').querySelector('.t').style.display=state.clockOn?'':'none';
+  controls.autoRotate=false; camera.position.copy(CAM_HOME); controls.target.set(0,0,0.3); controls.update();
+  sel=state.units[0].id; refreshUI();
+  if(withDeploy) banner('Deploy your mages','#f2c14e');
+  else { L.aiDeploy(state,0); snapUnits(); startFight(); }
+}
+
+// ---------------- frame loop ----------------
+function fmt(ms){
+  var s=Math.max(0,ms)/1000;
+  if(s<10) return s.toFixed(1);
+  var m=Math.floor(s/60), r=Math.floor(s%60); return m+':'+(r<10?'0':'')+r;
+}
+var vtmp=new THREE.Vector3(), last=performance.now(), T=0;
+function toScreen(p){ vtmp.copy(p).project(camera); return {x:(vtmp.x*0.5+0.5)*window.innerWidth, y:(-vtmp.y*0.5+0.5)*window.innerHeight, ok:vtmp.z<1}; }
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt=Math.min(0.1,(now-last)/1000); last=now; T+=dt;
+  updateAnims(dt);
+  // clocks: only the side to move, only while it is actually deciding (not during animations)
+  if(phase==='battle'&&state&&state.winner===null&&!busy){
+    L.tick(state,dt*1000);
+    if(state.winner!==null) checkEnd();
+  }
+  if(phase==='battle'&&state&&state.clockOn){
+    for(var t=0;t<2;t++){
+      var el=$('clk'+t);
+      el.querySelector('.t').textContent=fmt(state.clock[t]);
+      el.classList.toggle('active',state.turn===t&&state.winner===null);
+      el.classList.toggle('low',state.clock[t]<30000);
+    }
+  }
+  // idle motion + status visuals
+  if(state){
+    unitViews.forEach(function(v){
+      var u=L.getUnit(state,v.id); if(!u) return;
+      if(!v.dead) v.body.position.y=Math.sin(T*2+v.phase)*0.025;
+      v.bubble.visible=u.alive&&u.shield>0;
+      if(v.bubble.visible){ v.bubble.material.opacity=0.14+0.06*Math.sin(T*3); }
+      v.ice.visible=u.alive&&u.rooted>0&&!(u.frozen>0);
+      v.iceBlock.visible=u.alive&&u.frozen>0;
+      if(v.ring.visible) v.ring.material.opacity=0.65+0.3*Math.sin(T*5);
+    });
+  }
+  persist.meteors.forEach(function(g){ var k=0.25+0.15*Math.sin(T*6); g.children.forEach(function(c){ if(c.material&&c.isMesh&&c.geometry.type==='PlaneGeometry') c.material.opacity=k; }); });
+  persist.clouds.forEach(function(g){ g.children.forEach(function(c){ if(c.isSprite){ c.position.y+=Math.sin(T+c.userData.drift)*0.002; c.material.rotation+=0.003; } }); });
+  tileFx.forEach(function(f){
+    if(f.flame.visible){ var k=0.6+0.15*Math.sin(T*10+f.ph)+0.08*Math.sin(T*23+f.ph); f.flame.scale.set(k,k*1.3,1); f.burn.material.opacity=0.28+0.08*Math.sin(T*6+f.ph); }
+    if(f.steam[0].visible){ f.steam[0].position.y=0.5+0.08*Math.sin(T*1.5+f.ph); f.steam[1].position.y=0.95+0.1*Math.sin(T*1.2+f.ph+1); }
+  });
+  torches.forEach(function(t){ var f=0.9+0.25*Math.sin(T*9+t.ph)+0.1*Math.sin(T*23+t.ph); t.light.intensity=f; t.sprite.scale.setScalar(1+0.12*Math.sin(T*11+t.ph)); });
+
+  controls.update();
+  if(shakeT>0){ shakeT-=dt; shakeOff.set((Math.random()-0.5)*0.25,(Math.random()-0.5)*0.25,(Math.random()-0.5)*0.25).multiplyScalar(Math.max(0,shakeT)/0.4); } else shakeOff.set(0,0,0);
+  camera.position.add(shakeOff);
+
+  // labels above heads
+  if(state){
+    unitViews.forEach(function(v){
+      var u=L.getUnit(state,v.id); if(!u||v.dead) return;
+      var p=toScreen(vtmp.set(v.g.position.x,v.g.position.y+1.95,v.g.position.z));
+      if(!p.ok){ v.lab.style.display='none'; return; }
+      v.lab.style.display=''; v.lab.style.left=p.x+'px'; v.lab.style.top=p.y+'px';
+      v.lab.children[1].textContent=u.name;
+      v.lab.querySelector('i').style.width=Math.round(u.hp/u.maxHp*100)+'%';
+      v.lab.querySelector('s').style.width=Math.min(100,Math.round(u.shield/u.maxHp*100))+'%';
+      var st=(u.shield?'🛡':'')+(u.frozen?'🧊':u.rooted?'❄':'')+tileIcons(u.x,u.z);
+      state.clouds.forEach(function(c){ if(c.team!==u.team&&L.cheb(c.x,c.z,u.x,u.z)<=1) st+='☠'; });
+      if(state.meteors.some(function(m){ return L.cheb(m.x,m.z,u.x,u.z)<=1; })) st+='☄';
+      v.lab.children[0].textContent=st;
+    });
+  }
+  for(var i=floats.length-1;i>=0;i--){
+    var f=floats[i]; f.t+=dt;
+    var q=toScreen(vtmp.copy(f.pos).add(new THREE.Vector3(0,f.t*0.9,0)));
+    f.el.style.left=q.x+'px'; f.el.style.top=q.y+'px'; f.el.style.opacity=String(Math.max(0,1-Math.max(0,f.t-0.6)/0.6));
+    if(f.t>1.2){ f.el.remove(); floats.splice(i,1); }
+  }
+  renderer.render(scene,camera);
+  camera.position.sub(shakeOff);
+}
+requestAnimationFrame(frame);
+
+// ---------------- boot ----------------
+if(params.has('quick')){
+  newDraft();
+  while(draft.phase==='draft'){ var t=draft.order[draft.step]; draftPick(t,L.aiDraftPick(draftAvail(),draft.picks[t],draft.picks[1-t])); }
+  startBattle(false);
+} else openDraft(true);
+})();
+</script>
+</body>
+</html>

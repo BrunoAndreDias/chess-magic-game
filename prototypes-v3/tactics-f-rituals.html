@@ -1,0 +1,2252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arena Tactics: Rituals — PROTOTYPE v3 · F</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:rgba(17,22,37,.93); --panel2:rgba(25,31,50,.95); --line:#2b3452;
+    --text:#ece5d3; --muted:#98a0b8; --gold:#f2c14e; --you:#5b8cff; --foe:#ff6b5b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+  button{font:inherit;color:inherit;cursor:pointer}
+  canvas#c{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+  .hidden{display:none!important}
+  h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;margin:0}
+
+  /* ---------- error box ---------- */
+  #errbox{position:fixed;left:12px;right:12px;top:12px;z-index:99;display:none;white-space:pre-wrap;
+    background:#5a1111;border:2px solid #ff5a5a;color:#fff;padding:12px 14px;border-radius:10px;font:13px/1.4 ui-monospace,Menlo,monospace;max-height:40vh;overflow:auto}
+
+  /* ---------- loadout ---------- */
+  .screen{position:fixed;inset:0;z-index:20;overflow:auto;padding:28px 16px 40px;
+    background:linear-gradient(rgba(8,11,20,.80),rgba(8,11,20,.93))}
+  .lo-head{max-width:1280px;margin:0 auto 18px}
+  .lo-head h1{font-size:30px}
+  .lo-head p{color:var(--muted);margin:6px 0 0;max-width:80ch}
+  .tag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .lo-grid{display:grid;grid-template-columns:1.05fr 1.35fr 1fr;gap:16px;max-width:1280px;margin:0 auto}
+  @media (max-width:1050px){.lo-grid{grid-template-columns:1fr}}
+  .col h2{font-size:18px;margin:0 0 10px}
+  .col .sub{color:var(--muted);font-size:13px;margin:-6px 0 10px}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer}
+  .mcard.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .mcard.foe{cursor:default;border-left:3px solid var(--foe)}
+  .mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .mname{font-weight:700;font-size:15px}
+  .mstat{color:var(--muted);font-size:12px}
+  .archrow{display:flex;gap:6px;margin:8px 0 6px}
+  .archbtn{flex:1;background:#1b2238;border:1px solid var(--line);border-radius:8px;padding:5px 6px;font-size:12px}
+  .archbtn.on{background:#2a3350;border-color:var(--you);color:#fff}
+  .adesc{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .slots{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .slot{border-radius:8px;padding:6px 8px;font-size:12.5px;background:#1a2035;border:1px solid var(--line);border-left:4px solid var(--el,#555);min-height:34px;display:flex;align-items:center;gap:6px}
+  .slot.empty{color:var(--muted);border-style:dashed;border-left-width:1px}
+  .slot .x{margin-left:auto;color:var(--muted);font-size:11px}
+  .pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+  .scard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--el);border-radius:10px;padding:9px 10px;cursor:pointer;position:relative}
+  .scard:hover{background:var(--panel2);border-color:var(--el)}
+  .scard.eq{box-shadow:inset 0 0 0 1px var(--el)}
+  .scard .t{display:flex;align-items:center;gap:6px;font-weight:700}
+  .scard .el{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--el);margin-left:auto}
+  .scard .d{font-size:12.5px;margin:4px 0 3px}
+  .scard .n{font-size:11.5px;color:var(--muted)}
+  .scard .who{position:absolute;right:8px;bottom:6px;display:flex;gap:3px}
+  .scard .who span{font-size:10px;background:var(--you);color:#fff;border-radius:4px;padding:0 4px}
+  .note{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+  .preset{font-size:22px;font-family:Georgia,serif;color:var(--foe)}
+  .pdesc{font-size:13px;color:var(--muted);margin:4px 0 10px}
+  .btn{background:#222a44;border:1px solid var(--line);border-radius:9px;padding:8px 14px}
+  .btn:hover{border-color:var(--muted)}
+  .btn.primary{background:var(--gold);border-color:var(--gold);color:#1b1405;font-weight:700;padding:11px 26px;font-size:16px}
+  .btn.primary:disabled{opacity:.45;cursor:not-allowed}
+  .lo-foot{max-width:1280px;margin:18px auto 0;display:flex;gap:14px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .lo-foot label{color:var(--muted)}
+  select{background:#1b2238;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit}
+  #lo-why{color:var(--foe);font-size:13px}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+  #hud > *{pointer-events:auto}
+  #topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px}
+  .clock{min-width:150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 14px;text-align:center}
+  .clock .who{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .clock .t{font:700 26px/1.1 ui-monospace,Menlo,monospace}
+  .clock.you{border-bottom:3px solid var(--you)} .clock.foe{border-bottom:3px solid var(--foe)}
+  .clock.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .clock.low .t{color:#ff5a5a}
+  #turnlabel{text-align:center;min-width:170px}
+  #turnlabel .r{font-size:12px;color:var(--muted)}
+  #turnlabel .w{font-family:Georgia,serif;font-size:19px}
+  #menu{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+  #menu .btn{padding:6px 10px;font-size:12.5px;background:var(--panel)}
+  .roster{position:absolute;top:84px;width:230px;display:flex;flex-direction:column;gap:6px}
+  #roster-you{left:12px} #roster-foe{right:12px}
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:12.5px;cursor:pointer}
+  .rcard.you{border-left:3px solid var(--you)} .rcard.foe{border-left:3px solid var(--foe);cursor:default}
+  .rcard.sel{border-color:var(--gold)}
+  .rcard.dead{opacity:.35}
+  .rtop{display:flex;justify-content:space-between}
+  .rtop span{color:var(--muted);font-size:11.5px}
+  .rbar{position:relative;height:6px;background:#2a2f40;border-radius:3px;margin:4px 0 3px;overflow:hidden}
+  .rbar i{position:absolute;left:0;top:0;bottom:0;background:#6fd06b;border-radius:3px}
+  .rcard.foe .rbar i{background:#ef6a5a}
+  .rbar s{position:absolute;right:0;top:0;bottom:0;background:rgba(200,160,100,.95)}
+  .rsub{display:flex;gap:8px;color:var(--muted);font-size:11.5px;align-items:center;flex-wrap:wrap}
+  .pip{display:inline-flex;align-items:center;gap:3px}
+  .pip b{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold)}
+  .pip b.used{background:#3a4058}
+  .rsp{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+  .rsp span{font-size:10.5px;border:1px solid var(--line);border-left:3px solid var(--el);border-radius:4px;padding:0 4px;color:var(--muted)}
+  #log{position:absolute;right:12px;bottom:12px;width:300px;max-height:190px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px}
+  #log div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+  #log .you{color:#a9c3ff} #log .foe{color:#ffb0a6} #log .sys{color:var(--gold)}
+  #bottombar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:10px;align-items:stretch;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;max-width:calc(100vw - 660px);min-width:520px}
+  @media (max-width:1150px){#bottombar{max-width:calc(100vw - 24px);min-width:0;bottom:210px} #log{width:260px}}
+  #selinfo{min-width:120px;padding-right:10px;border-right:1px solid var(--line);font-size:12.5px}
+  #selinfo b{font-size:14px}
+  #selinfo .mv{color:var(--muted);margin-top:4px}
+  #actions{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+  .hint{color:var(--muted);align-self:center;padding:0 8px}
+  .spbtn{position:relative;width:150px;text-align:left;background:#1a2035;border:1px solid var(--line);border-left:4px solid var(--el);border-radius:10px;padding:6px 8px 6px 26px}
+  .spbtn:hover:not(:disabled){border-color:var(--el);background:#212846}
+  .spbtn.on{background:#2a3150;box-shadow:0 0 0 1px var(--el)}
+  .spbtn:disabled{opacity:.42;cursor:not-allowed}
+  .spbtn .key{position:absolute;left:7px;top:6px;font:700 11px ui-monospace,Menlo,monospace;color:var(--muted)}
+  .spbtn .nm{font-weight:700;display:block}
+  .spbtn .st{font-size:11px;color:var(--muted);display:block}
+  .spbtn .cdb{position:absolute;right:6px;top:5px;background:#000a;border-radius:6px;padding:0 6px;font-weight:700}
+  #endturn{background:var(--gold);color:#1b1405;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:15px}
+  #endturn:disabled{opacity:.4;cursor:not-allowed}
+  #help{position:absolute;left:12px;bottom:12px;width:230px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+  #help b{color:var(--text)}
+  #help summary{cursor:pointer;color:var(--text);font-weight:700}
+  #help kbd{font:11px ui-monospace,Menlo,monospace;background:#232a42;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--text)}
+
+  /* ---------- labels ---------- */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+  .ulabel{position:absolute;transform:translate(-50%,-100%);text-align:center;white-space:nowrap}
+  .ulabel .n{font-size:11px;font-weight:700;text-shadow:0 1px 3px #000}
+  .ulabel .bar{position:relative;width:62px;height:6px;background:#1b1f2c;border:1px solid #000;border-radius:3px;overflow:hidden;margin:1px auto}
+  .ulabel .bar i{position:absolute;left:0;top:0;bottom:0;background:#6fd06b}
+  .ulabel.foe .bar i{background:#ef6a5a}
+  .ulabel .bar s{position:absolute;right:0;top:0;bottom:0;background:#e0b877}
+  .ulabel .st{font-size:12px;text-shadow:0 1px 2px #000;height:15px}
+  .float{position:absolute;transform:translate(-50%,-50%);font:800 18px/1 -apple-system,system-ui,sans-serif;text-shadow:0 2px 4px #000,0 0 2px #000;white-space:nowrap}
+  #tooltip{position:fixed;z-index:30;pointer-events:none;background:rgba(10,13,24,.96);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;max-width:260px;display:none}
+  #tooltip .tt{font-weight:700;font-size:13.5px}
+  #tooltip .m{color:var(--muted)}
+  #banner{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%);z-index:15;pointer-events:none;
+    font:600 38px Georgia,serif;text-shadow:0 3px 16px #000;opacity:0;transition:opacity .25s}
+  #banner.show{opacity:1}
+
+  /* ---------- variant F: rituals ---------- */
+  .diff{max-width:1280px;margin:0 auto 16px;background:rgba(242,193,78,.08);border:1px solid rgba(242,193,78,.55);border-radius:12px;padding:10px 16px}
+  .diff b.h{color:var(--gold);font-family:Georgia,serif;font-size:15px}
+  .diff ul{margin:6px 0 0;padding-left:18px}
+  .diff li{margin:2px 0}
+  .gl-els{font-size:12px;color:var(--muted);margin-top:6px}
+  .gl-els span{display:inline-block;border:1px solid var(--line);border-left:3px solid var(--el);border-radius:4px;padding:0 5px;margin-right:4px;color:var(--text)}
+  #actbar{position:absolute;top:78px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 14px;font-size:13px;white-space:nowrap;text-align:center}
+  #actbar b{font-family:Georgia,serif;font-size:15px;letter-spacing:.04em}
+  #actbar.a1{border-color:rgba(242,193,78,.7)} #actbar.a1 b{color:var(--gold)}
+  #actbar.a2 b{color:#ff9a6a} #actbar.a3{border-color:#ff5a5a} #actbar.a3 b{color:#ff5a5a}
+  #actbar .m{color:var(--muted)}
+  #codex{position:absolute;top:84px;left:254px;width:330px;max-height:calc(100vh - 330px);overflow:auto;background:var(--panel);border:1px solid rgba(242,193,78,.5);border-radius:12px;padding:10px 12px;font-size:12.5px}
+  #codex h3{font-size:14px;margin:8px 0 4px;color:var(--gold)}
+  #codex h3:first-child{margin-top:0}
+  #codex .row{display:flex;gap:6px;align-items:baseline;margin:2px 0}
+  #codex .row .k{min-width:92px;font-weight:700}
+  #codex .m{color:var(--muted)}
+  #codex .x{float:right;background:none;border:none;color:var(--muted);font-size:16px;line-height:1}
+  .pats{display:flex;gap:10px;margin:4px 0}
+  .pat{display:grid;grid-template-columns:repeat(5,11px);grid-template-rows:repeat(5,11px);gap:2px;padding:4px;background:#141a2c;border-radius:6px}
+  .pat i{background:#252c44;border-radius:2px} .pat i.g{background:var(--gold)}
+  .patl{font-size:11px;color:var(--muted);text-align:center}
+  .spbtn.util{width:128px}
+  .spbtn.sealed .nm{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
+  @media (max-width:1150px){#codex{left:12px;top:auto;bottom:260px;width:300px;max-height:40vh}}
+
+  /* ---------- result ---------- */
+  #result{display:flex;align-items:center;justify-content:center}
+  .rbox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 32px;text-align:center;min-width:320px}
+  .rbox h1{font-size:40px}
+  .rbox p{color:var(--muted)}
+  .rbox .row{display:flex;gap:10px;justify-content:center;margin-top:16px}
+</style>
+</head>
+<body>
+<div id="errbox"></div>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="clock you" id="clk0"><div class="who">You</div><div class="t">5:00</div></div>
+    <div id="turnlabel"><div class="r">Round 1</div><div class="w">Your turn</div></div>
+    <div class="clock foe" id="clk1"><div class="who">Enemy</div><div class="t">5:00</div></div>
+  </div>
+  <div id="actbar"></div>
+  <div id="menu"><button class="btn" id="btn-codex">📜 Glyphs &amp; Rituals (G)</button><button class="btn" id="btn-loadout">⟲ Loadout</button></div>
+  <div id="codex">
+    <button class="x" id="codex-x" title="Close (G)">✕</button>
+    <h3>How the battle flows</h3>
+    <div><b>Act I · Preparation</b> (rounds 1–4): damage spells are 🔒 sealed. Inscribe glyphs, raise walls, shield up, erase enemy glyphs.</div>
+    <div><b>Act II · Clash</b> (round 5+): all spells unlock. Glyphs and rituals pay off.</div>
+    <div><b>Act III · Unraveling</b> (round 30+): everyone takes growing damage each turn.</div>
+    <h3>Glyphs <span class="m">(your mage must stand on your own glyph)</span></h3>
+    <div id="codex-glyphs"></div>
+    <div class="m" style="margin-top:4px">A mage can inscribe the elements of its equipped spells, on its own tile or an adjacent one. Max 6 per team: the oldest crumbles. Enemies erase a glyph by standing next to it and spending an action, or with a Meteor.</div>
+    <h3>Ritual patterns <span class="m">(3 of your glyphs)</span></h3>
+    <div class="pats">
+      <div><div class="pat" id="pat-line"></div><div class="patl">Line</div></div>
+      <div><div class="pat" id="pat-gap"></div><div class="patl">Line, 1-tile gaps OK</div></div>
+      <div><div class="pat" id="pat-diag"></div><div class="patl">Diagonal</div></div>
+      <div><div class="pat" id="pat-l"></div><div class="patl">L-shape</div></div>
+    </div>
+    <div>Stand on one of the 3 glyphs → <b>✺ Grand Ritual</b>. The mage channels (can’t move or act) and the ritual fires at the start of your <b>2nd turn</b> from now. The glyphs are consumed.</div>
+    <div class="m">It <b>breaks</b> (glyphs crack) if the channeler takes 25 HP damage (shields don’t count), is rooted, dies, or one of its glyphs is erased. You can begin a ritual from round 3, so it can land exactly as the seals break.</div>
+    <h3>Rituals <span class="m">(majority element of the 3 glyphs; no majority → the glyph you stand on)</span></h3>
+    <div id="codex-rituals"></div>
+  </div>
+  <div class="roster" id="roster-you"></div>
+  <div class="roster" id="roster-foe"></div>
+  <div id="bottombar">
+    <div id="selinfo"></div>
+    <div id="actions"></div>
+    <button id="endturn">End Turn</button>
+  </div>
+  <div id="log"></div>
+  <details id="help" open>
+    <summary>Controls</summary>
+    <div><b>Left-click</b> a mage to select · blue tile to <b>move</b></div>
+    <div><b>1 / 2</b> equipped spells · <b>3</b> Arcane Bolt → click a lit tile to cast</div>
+    <div><b>Right-drag</b> rotate · <b>Scroll</b> zoom</div>
+    <div><kbd>Tab</kbd> next mage · <kbd>Esc</kbd> cancel · <kbd>Space</kbd> end turn · <kbd>G</kbd> glyph guide</div>
+    <div style="margin-top:4px">Each mage: 1 Move + 1 Action per turn, any order. Inscribe, Erase and Ritual are Actions. Your clock only runs on your turn.</div>
+  </details>
+</div>
+
+<div id="tooltip"></div>
+<div id="banner"></div>
+
+<div id="loadout" class="screen">
+  <div class="lo-head">
+    <div class="tag">Prototype v3 · Variant F · Turn-based tactics with preparation</div>
+    <h1>Arena Tactics: Rituals — equip your mages</h1>
+    <p>Pick an archetype and <b>two spells</b> for each of your three mages. Your spells also decide which <b>glyphs</b> each mage can draw on the battlefield. The enemy's loadout is shown, so pick counters. Each mage gets one move and one action per turn, and both teams share a chess-clock time bank.</p>
+  </div>
+  <div class="diff">
+    <b class="h">What's different in this variant</b>
+    <ul>
+      <li><b>Act I · Preparation (rounds 1–4):</b> damage spells are sealed. You race to <b>inscribe element glyphs</b> on the 12×12 board, raise walls and erase the enemy's glyphs.</li>
+      <li><b>Glyphs buff the mage standing on them</b> (Fire +30% dmg, Frost root-immune, Storm +2 move, Earth shield, Life heal). Both sides can see every glyph.</li>
+      <li><b>3 glyphs in a line or L → Grand Ritual:</b> channel for 2 turns to unleash Inferno, Blizzard, Tempest, Bastion or Renewal. The enemy can break it with damage, a root, or by erasing a glyph.</li>
+      <li>Tougher mages (about 1.6× HP) → battles last about twice as long. From round 30 the arena unravels and forces a finish.</li>
+    </ul>
+  </div>
+  <div class="lo-grid">
+    <div class="col">
+      <h2>Your team</h2>
+      <div class="sub">Click a mage to select it, then click spells in the pool to equip. Click an equipped spell to remove it.</div>
+      <div id="lo-team"></div>
+    </div>
+    <div class="col">
+      <h2>Spell pool</h2>
+      <div class="sub">Equipping to: <b id="lo-target">—</b></div>
+      <div class="pool" id="lo-pool"></div>
+      <div class="note">Every mage also always has <b>✦ Arcane Bolt</b>: range 4, 10 damage, needs line of sight, no cooldown (sealed in Act I). Standing on a <b>raised platform</b> gives +1 range.<br>
+        <b>Glyphs:</b> a mage can inscribe glyphs of its spells' elements: 🔥 Fire, ❄️ Frost, ⚡ Storm, 🛡️ Earth, ✚ Life (Shadow has no glyph). Two mages sharing an element make that ritual easier to build.</div>
+    </div>
+    <div class="col">
+      <h2>Enemy team</h2>
+      <div class="preset" id="lo-preset"></div>
+      <div class="pdesc" id="lo-pdesc"></div>
+      <div id="lo-enemy"></div>
+      <button class="btn" id="lo-reroll">↻ Different enemy</button>
+    </div>
+  </div>
+  <div class="lo-foot">
+    <span id="lo-why"></span>
+    <label>Time bank
+      <select id="lo-tc">
+        <option value="3">3:00 + 10s / turn</option>
+        <option value="5" selected>5:00 + 15s / turn</option>
+        <option value="10">10:00 + 20s / turn</option>
+        <option value="off">Off (no clock)</option>
+      </select>
+    </label>
+    <button class="btn primary" id="lo-fight">Fight ⚔</button>
+  </div>
+</div>
+
+<div id="result" class="screen hidden">
+  <div class="rbox">
+    <div class="tag" id="res-tag">Battle over</div>
+    <h1 id="res-title">Victory</h1>
+    <p id="res-why"></p>
+    <div class="row">
+      <button class="btn primary" id="res-rematch">Rematch (same loadout)</button>
+      <button class="btn" id="res-change">Change loadout</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- error overlay (defined before anything else can fail) ----
+(function(){
+  function show(msg){
+    var b=document.getElementById('errbox'); if(!b) return;
+    b.style.display='block'; b.textContent += msg + '\n';
+  }
+  window.showError = show;
+  window.addEventListener('error', function(e){
+    if(e && e.message) show('Error: '+e.message+(e.filename?'  ('+String(e.filename).split('/').pop()+':'+e.lineno+')':''));
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    var r=e.reason; show('Error: '+(r&&r.stack?r.stack:r));
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+
+<script id="logic">
+// =====================================================================
+// GAME LOGIC — no THREE, no DOM
+// Battle state, rules and AI as plain data + functions. Liftable into node.
+// Mutating API: performMove / performCast / endTurn / tick change the state
+// in place and return a list of events describing what happened.
+//
+// Variant F "Rituals": the battle has two acts.
+//   ACT I  (rounds 1–4)  Preparation — damage spells are sealed; mages inscribe
+//                        element GLYPHS on tiles, raise walls, erase enemy glyphs.
+//   ACT II (round 5+)    Clash — everything unlocks; glyphs buff the mage standing
+//                        on them, and 3 glyphs in a pattern power a GRAND RITUAL.
+// =====================================================================
+(function(){
+'use strict';
+var N = 12;
+var PREP_ROUNDS = 4;       // Act I length; seals break at the start of round PREP_ROUNDS+1
+var GLYPH_CAP = 6;         // per team; inscribing a 7th makes the oldest one crumble
+var CHANNEL_TURNS = 2;     // a ritual resolves at the start of the caster's 2nd turn after starting
+var CHANNEL_BREAK = 25;    // HP damage taken while channeling that breaks the ritual
+var UNRAVEL_ROUND = 30;    // ACT III: from this round the arena's magic unravels and hurts everyone, escalating
+var DIR4 = [[1,0],[-1,0],[0,1],[0,-1]];
+var DIR8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function idx(x,z){ return z*N+x; }
+function inb(x,z){ return x>=0 && z>=0 && x<N && z<N; }
+function cheb(ax,az,bx,bz){ return Math.max(Math.abs(ax-bx), Math.abs(az-bz)); }
+
+var ELEM = {
+  arcane:{name:'Arcane', color:'#d9c2ff'},
+  fire:  {name:'Fire',   color:'#ff6a2b'},
+  frost: {name:'Frost',  color:'#7fd8ff'},
+  storm: {name:'Storm',  color:'#c9a7ff'},
+  earth: {name:'Earth',  color:'#c8a064'},
+  life:  {name:'Life',   color:'#7ee081'},
+  shadow:{name:'Shadow', color:'#b07cff'}
+};
+
+var ARCH = {
+  warden:  {name:'Warden',   hp:200, move:3, dmgMult:1.0, barrierBonus:15, perk:'Barriers it casts are +15 stronger'},
+  sorcerer:{name:'Sorcerer', hp:150, move:4, dmgMult:1.2, barrierBonus:0,  perk:'+20% spell damage'},
+  adept:   {name:'Adept',    hp:120, move:5, dmgMult:1.0, barrierBonus:0,  perk:'fastest, most fragile'}
+};
+Object.keys(ARCH).forEach(function(k){ var a=ARCH[k]; a.desc=a.hp+' HP · moves '+a.move+' · '+a.perk; });
+
+// target: enemy | ally | tile | empty | self | inscribe | erase
+// sealed: cannot be cast during Act I (Preparation)
+var SPELLS = {
+  arcane:   {id:'arcane', name:'Arcane Bolt', el:'arcane', icon:'✦', target:'enemy', range:4, los:true, dmg:10, cd:0, sealed:true,
+             text:'Weak bolt. Always available (from Act II).', stats:'Range 4 · 10 dmg'},
+  fireball: {id:'fireball', name:'Fireball', el:'fire', icon:'🔥', target:'enemy', range:5, los:true, dmg:22, splash:8, cd:1, sealed:true,
+             text:'Hurls a fireball: 22 damage, plus 8 to enemies next to the target.', stats:'Range 5 · 22 dmg +8 splash · CD 1'},
+  meteor:   {id:'meteor', name:'Meteor', el:'fire', icon:'☄️', target:'tile', range:6, los:false, dmg:40, cd:3, sealed:true,
+             text:'Marks a 3×3 area. At the START of your next turn it crashes for 40 damage to everyone inside — allies too — and shatters enemy glyphs there.', stats:'Range 6 · 40 dmg 3×3 delayed · CD 3'},
+  frostnova:{id:'frostnova', name:'Frost Nova', el:'frost', icon:'❄️', target:'self', dmg:8, radius:2, cd:2, sealed:true,
+             text:'8 damage to enemies within 2 tiles and ROOTS them: they cannot move on their next turn. A rooted channeler’s ritual breaks.', stats:'Radius 2 · 8 dmg + root · CD 2'},
+  icelance: {id:'icelance', name:'Ice Lance', el:'frost', icon:'🧊', target:'enemy', range:5, los:true, dmg:14, cd:1, sealed:true,
+             text:'14 damage. DOUBLE damage against rooted targets.', stats:'Range 5 · 14 dmg (×2 rooted) · CD 1'},
+  chain:    {id:'chain', name:'Chain Lightning', el:'storm', icon:'⚡', target:'enemy', range:5, los:true, dmg:16, jumpDmg:12, jumps:2, jumpRange:2, cd:2, sealed:true,
+             text:'16 damage, then jumps to up to 2 more enemies within 2 tiles (12 each).', stats:'Range 5 · 16 → 12 → 12 · CD 2'},
+  blink:    {id:'blink', name:'Blink', el:'storm', icon:'✨', target:'empty', range:4, los:false, cd:2,
+             text:'Teleport to an empty tile within 4, ignoring obstacles. You can still Move afterwards.', stats:'Range 4 teleport · CD 2'},
+  wall:     {id:'wall', name:'Stone Wall', el:'earth', icon:'🧱', target:'empty', range:4, los:false, duration:3, cd:3,
+             text:'Raises a 3-tile wall across your line of aim. Blocks movement and line of sight for 3 turns.', stats:'Range 4 · 3 tiles · 3 turns · CD 3'},
+  barrier:  {id:'barrier', name:'Barrier', el:'earth', icon:'🛡️', target:'ally', range:4, los:false, shield:25, cd:2,
+             text:'Shields an ally (or self) for 25. The shield absorbs damage until it breaks — and shielded damage does not break rituals.', stats:'Range 4 · 25 shield · CD 2'},
+  mend:     {id:'mend', name:'Mend', el:'life', icon:'✚', target:'ally', range:4, los:false, heal:26, cd:2,
+             text:'Heals an ally (or self) for 26.', stats:'Range 4 · heal 26 · CD 2'},
+  poison:   {id:'poison', name:'Poison Cloud', el:'shadow', icon:'☠️', target:'tile', range:5, los:false, dmg:9, duration:3, cd:3, sealed:true,
+             text:'A 3×3 toxic cloud for 3 turns. Enemies standing in it take 9 at the start of each of their turns.', stats:'Range 5 · 9/turn 3×3 · 3 turns · CD 3'}
+};
+var POOL = ['fireball','meteor','frostnova','icelance','chain','blink','wall','barrier','mend','poison'];
+
+// ---------- NEW: glyphs & rituals ----------
+var GLYPH_ELS = ['fire','frost','storm','earth','life'];
+var GLYPHS = {
+  fire: {name:'Fire Glyph',  icon:'🔥', short:'+30% Fire damage',       text:'Your mage standing here deals +30% Fire damage (Fireball, Meteor).'},
+  frost:{name:'Frost Glyph', icon:'❄️', short:'Root-immune · Nova +1',  text:'Your mage standing here cannot be rooted, and its Frost Nova reaches 1 tile further.'},
+  storm:{name:'Storm Glyph', icon:'⚡', short:'+2 move',                 text:'Your mage that starts its turn here can move 2 extra tiles.'},
+  earth:{name:'Earth Glyph', icon:'🛡️', short:'+10 shield / turn',      text:'Your mage standing here gains 10 shield at the start of your turn (up to 30).'},
+  life: {name:'Life Glyph',  icon:'✚', short:'Heal 6 / turn',            text:'Your mage standing here heals 6 at the start of your turn.'}
+};
+var RITUALS = {
+  fire: {name:'Inferno',  icon:'🔥', text:'Fire rains on the enemy: every enemy mage takes 32 damage.'},
+  frost:{name:'Blizzard', icon:'❄️', text:'Every enemy mage takes 15 damage and is ROOTED for their next turn (Frost-glyph standers resist).'},
+  storm:{name:'Tempest',  icon:'⚡', text:'Your whole team gets +1 extra Action on the turn it completes.'},
+  earth:{name:'Bastion',  icon:'🛡️', text:'Every mage on your team gains 40 shield.'},
+  life: {name:'Renewal',  icon:'✚', text:'Every mage on your team heals 50% of their max HP.'}
+};
+GLYPH_ELS.forEach(function(el){
+  SPELLS['inscribe_'+el]={id:'inscribe_'+el, name:GLYPHS[el].name, el:el, icon:GLYPHS[el].icon, target:'inscribe', range:1, util:true, glyph:el, cd:0,
+    text:'NEW · Inscribe a '+ELEM[el].name+' glyph on your tile or an adjacent one. '+GLYPHS[el].text, stats:'Adjacent · '+GLYPHS[el].short};
+});
+SPELLS.erase ={id:'erase', name:'Erase Glyph', el:'arcane', icon:'⌫', target:'erase', range:1, util:true, cd:0,
+  text:'NEW · Scrub out an enemy glyph on or next to your tile. Erasing a glyph that powers a ritual breaks that ritual.', stats:'Adjacent enemy glyph'};
+SPELLS.ritual={id:'ritual', name:'Grand Ritual', el:'arcane', icon:'✺', target:'self', util:true, cd:0,
+  text:'NEW · Stand on one of 3 of your glyphs that form a pattern and channel. It completes at the start of your 2nd turn from now. Taking 25 HP damage, being rooted, dying, or losing one of its glyphs breaks it.', stats:'Channel 2 turns'};
+
+var PRESETS = [
+  {id:'inferno', name:'Inferno', desc:'Burst fire. Two Meteors — don’t clump, and step out of the red rings. Will try to build an Inferno ritual.',
+   team:[{arch:'warden',spells:['barrier','fireball']},{arch:'sorcerer',spells:['fireball','meteor']},{arch:'adept',spells:['meteor','blink']}]},
+  {id:'glacier', name:'Glacier', desc:'Roots you with Frost Nova, then Ice Lances for double damage. Will try to build a Blizzard ritual.',
+   team:[{arch:'warden',spells:['frostnova','wall']},{arch:'sorcerer',spells:['icelance','meteor']},{arch:'adept',spells:['frostnova','icelance']}]},
+  {id:'plague', name:'Plague', desc:'Poison zones plus heals, fuelled by Life glyphs and a Renewal ritual. Focus the healers.',
+   team:[{arch:'warden',spells:['mend','barrier']},{arch:'sorcerer',spells:['poison','chain']},{arch:'adept',spells:['poison','mend']}]},
+  {id:'storm', name:'Storm', desc:'Chain Lightning punishes grouped mages; Blink lets them dive. A Tempest ritual gives them double actions.',
+   team:[{arch:'warden',spells:['barrier','chain']},{arch:'sorcerer',spells:['chain','icelance']},{arch:'adept',spells:['chain','blink']}]}
+];
+var DEFAULT_TEAM = [
+  {arch:'warden',   spells:['barrier','frostnova']},
+  {arch:'sorcerer', spells:['fireball','meteor']},
+  {arch:'adept',    spells:['icelance','mend']}
+];
+var NAMES = [['Aldric','Seren','Kip'],['Morvath','Ysolde','Grix']];
+
+// map (180°-rotation symmetric: (x,z) ↔ (11-x, 11-z))
+var BLOCKED = [[2,4],[9,7],[5,5],[6,6],[1,8],[10,3],[8,4],[3,7]];
+var RAISED  = [[5,6],[6,5],[0,5],[11,6]];
+var START   = [[[3,1],[5,1],[7,1]], [[8,10],[6,10],[4,10]]];
+var HOME    = [{x:5,z:2},{x:6,z:9}];   // where each side likes to build in Act I (AI)
+function isRaised(x,z){ for(var i=0;i<RAISED.length;i++) if(RAISED[i][0]===x&&RAISED[i][1]===z) return true; return false; }
+function isBlockedTile(x,z){ for(var i=0;i<BLOCKED.length;i++) if(BLOCKED[i][0]===x&&BLOCKED[i][1]===z) return true; return false; }
+
+// ---------- state helpers ----------
+function getUnit(s,id){ for(var i=0;i<s.units.length;i++) if(s.units[i].id===id) return s.units[i]; return null; }
+function unitAt(s,x,z){ for(var i=0;i<s.units.length;i++){ var u=s.units[i]; if(u.alive&&u.x===x&&u.z===z) return u; } return null; }
+function wallAt(s,x,z){
+  for(var i=0;i<s.walls.length;i++){ var t=s.walls[i].tiles; for(var j=0;j<t.length;j++) if(t[j].x===x&&t[j].z===z) return s.walls[i]; }
+  return null;
+}
+function isSolid(s,x,z){ return !inb(x,z) || s.blocked[idx(x,z)] || !!wallAt(s,x,z); }
+function los(s,ax,az,bx,bz){
+  var dx=bx-ax, dz=bz-az, steps=Math.max(Math.abs(dx),Math.abs(dz))*4;
+  for(var i=1;i<steps;i++){
+    var t=i/steps, x=Math.round(ax+dx*t), z=Math.round(az+dz*t);
+    if((x===ax&&z===az)||(x===bx&&z===bz)) continue;
+    if(isSolid(s,x,z)) return false;
+  }
+  return true;
+}
+function square(x,z,r){ var out=[]; for(var dz=-r;dz<=r;dz++) for(var dx=-r;dx<=r;dx++) if(inb(x+dx,z+dz)) out.push({x:x+dx,z:z+dz}); return out; }
+function spellRange(s,sp,px,pz){ return (sp.range||0) + (s.raised[idx(px,pz)]?1:0); }
+
+function isPrep(s){ return s.round<=s.prepRounds; }
+function actOf(s){ return s.round<=s.prepRounds?1:s.round<s.unravelRound?2:3; }
+function unravelDmg(s){ return 3*(s.round-s.unravelRound+1); }
+function isSealed(s,spellId){ return isPrep(s) && !!SPELLS[spellId].sealed; }
+function canAct(u){ return !!u && u.alive && !u.channel && (!u.acted || (u.extra||0)>0); }
+function glyphEls(u){
+  var out=[]; u.spells.forEach(function(id){ var e=SPELLS[id].el; if(GLYPH_ELS.indexOf(e)>=0&&out.indexOf(e)<0) out.push(e); });
+  return out;
+}
+// every action button a mage has, in hotkey order
+function actionList(u){ return u.spells.concat(['arcane']).concat(glyphEls(u).map(function(e){ return 'inscribe_'+e; })).concat(['erase','ritual']); }
+
+// ---------- glyphs ----------
+function glyphAt(s,x,z){ for(var i=0;i<s.glyphs.length;i++){ var g=s.glyphs[i]; if(g.x===x&&g.z===z) return g; } return null; }
+function ownGlyph(s,u,x,z,el){ var g=glyphAt(s,x,z); return g&&g.team===u.team&&(!el||g.el===el)?g:null; }
+function channelerOf(s,g){ for(var i=0;i<s.units.length;i++){ var o=s.units[i]; if(o.alive&&o.channel&&o.channel.ids.indexOf(g.id)>=0) return o; } return null; }
+
+// (dx,dz) = len·(ux,uz) with ux,uz ∈ {-1,0,1}? → straight or diagonal step
+function straight(dx,dz){
+  var len=Math.max(Math.abs(dx),Math.abs(dz)); if(!len) return null;
+  if((dx!==0&&Math.abs(dx)!==len)||(dz!==0&&Math.abs(dz)!==len)) return null;
+  return {ux:dx/len, uz:dz/len, len:len};
+}
+// LINE: 3 in a straight/diagonal line, gaps of at most 1 tile. L: a corner with one arm along each axis (arms 1–2 tiles).
+function tripleShape(P){
+  var o=[[1,0,2],[0,1,2],[0,2,1]], k, a, m, b;
+  for(k=0;k<3;k++){
+    a=P[o[k][0]]; m=P[o[k][1]]; b=P[o[k][2]];
+    var s1=straight(m.x-a.x,m.z-a.z), s2=straight(b.x-m.x,b.z-m.z);
+    if(s1&&s2&&s1.ux===s2.ux&&s1.uz===s2.uz&&s1.len<=2&&s2.len<=2) return 'line';
+  }
+  for(k=0;k<3;k++){
+    var c=P[k], p=P[(k+1)%3], q=P[(k+2)%3];
+    var ax1=(p.x===c.x)!==(p.z===c.z), ax2=(q.x===c.x)!==(q.z===c.z);
+    if(!ax1||!ax2) continue;
+    if(cheb(c.x,c.z,p.x,p.z)>2||cheb(c.x,c.z,q.x,q.z)>2) continue;
+    if((p.x===c.x)!==(q.x===c.x)) return 'L';
+  }
+  return null;
+}
+function majority(gs){
+  var cnt={}, best=null, bc=0;
+  gs.forEach(function(g){ cnt[g.el]=(cnt[g.el]||0)+1; if(cnt[g.el]>bc){ bc=cnt[g.el]; best=g.el; } });
+  return bc>=2?{el:best,n:bc}:{el:null,n:1};
+}
+function patternsOf(gs){
+  var out=[];
+  for(var i=0;i<gs.length;i++) for(var j=i+1;j<gs.length;j++) for(var k=j+1;k<gs.length;k++){
+    var P=[gs[i],gs[j],gs[k]], sh=tripleShape(P);
+    if(!sh) continue;
+    var mj=majority(P);
+    out.push({ids:[P[0].id,P[1].id,P[2].id], tiles:P.map(function(g){ return {x:g.x,z:g.z}; }), shape:sh, maj:mj.el, n:mj.n});
+  }
+  return out;
+}
+function teamPatterns(s,team){ return patternsOf(s.glyphs.filter(function(g){ return g.team===team; })); }
+
+// ritual choices for u standing at (px,pz); the strongest first
+function ritualOptions(s,u,px,pz){
+  if(s.round<s.prepRounds-1||u.channel) return [];
+  if(s.units.some(function(o){ return o.alive&&o.team===u.team&&o.channel; })) return [];
+  var g=ownGlyph(s,u,px,pz); if(!g) return [];
+  var opts=teamPatterns(s,u.team).filter(function(p){ return p.ids.indexOf(g.id)>=0; }).map(function(p){
+    return {ids:p.ids, tiles:p.tiles, shape:p.shape, el:p.maj||g.el, n:p.n};
+  });
+  opts.sort(function(a,b){ return b.n-a.n; });
+  return opts;
+}
+
+function createBattle(opts){
+  var s = {
+    N:N, blocked:new Array(N*N).fill(false), raised:new Array(N*N).fill(false),
+    units:[], walls:[], meteors:[], clouds:[], glyphs:[],
+    turn:0, round:1, winner:null, reason:'', prepRounds:opts.prepRounds===undefined?PREP_ROUNDS:opts.prepRounds,
+    clockOn: (opts.clockMs||0) > 0, clock:[opts.clockMs||0, opts.clockMs||0], inc:opts.incMs||0,
+    maxRounds: opts.maxRounds||50, unravelRound: opts.unravelRound||UNRAVEL_ROUND, nextId:1,
+    stats:{dmg:[0,0], casts:[0,0], inscribed:[0,0], erased:[0,0], started:[0,0], completed:[0,0], broken:[0,0], rituals:{}}
+  };
+  BLOCKED.forEach(function(p){ s.blocked[idx(p[0],p[1])]=true; });
+  RAISED.forEach(function(p){ s.raised[idx(p[0],p[1])]=true; });
+  for(var t=0;t<2;t++){
+    opts.teams[t].forEach(function(m,i){
+      var a=ARCH[m.arch];
+      s.units.push({id:s.nextId++, team:t, slot:i, name:m.name||NAMES[t][i], arch:m.arch, spells:m.spells.slice(0,2),
+        x:START[t][i][0], z:START[t][i][1], hp:a.hp, maxHp:a.hp, shield:0, rooted:0, cd:{},
+        moved:false, acted:false, extra:0, bonusMove:0, channel:null, alive:true});
+    });
+  }
+  startTurn(s,0,[]);
+  return s;
+}
+
+// ---------- movement ----------
+function reachable(s,u){
+  var res=new Map();
+  if(!u||!u.alive||u.moved||u.channel) return res;
+  var range=ARCH[u.arch].move+(u.bonusMove||0), start=idx(u.x,u.z);
+  var prev=new Map([[start,-1]]), dist=new Map([[start,0]]), q=[[u.x,u.z]];
+  while(q.length){
+    var c=q.shift(), d=dist.get(idx(c[0],c[1]));
+    if(d>=range) continue;
+    for(var i=0;i<4;i++){
+      var nx=c[0]+DIR4[i][0], nz=c[1]+DIR4[i][1];
+      if(!inb(nx,nz)||isSolid(s,nx,nz)) continue;
+      var k=idx(nx,nz); if(dist.has(k)) continue;
+      var o=unitAt(s,nx,nz); if(o && o.team!==u.team) continue; // can pass through allies, not enemies
+      dist.set(k,d+1); prev.set(k,idx(c[0],c[1])); q.push([nx,nz]);
+    }
+  }
+  dist.forEach(function(d,k){
+    if(k===start) return;
+    var x=k%N, z=(k/N)|0; if(unitAt(s,x,z)) return;
+    var path=[], cur=k; while(cur!==-1){ path.push({x:cur%N, z:(cur/N)|0}); cur=prev.get(cur); }
+    res.set(k,path.reverse());
+  });
+  return res;
+}
+
+function performMove(s,uid,x,z){
+  var u=getUnit(s,uid);
+  if(!u||!u.alive||u.team!==s.turn||u.moved||u.channel||s.winner!==null) return null;
+  var p=reachable(s,u).get(idx(x,z)); if(!p) return null;
+  u.x=x; u.z=z; u.moved=true;
+  return [{type:'move', id:u.id, path:p}];
+}
+
+// ---------- targeting ----------
+function novaRadius(s,u,px,pz){ return SPELLS.frostnova.radius+(ownGlyph(s,u,px,pz,'frost')?1:0); }
+function castMult(s,u,spellId,px,pz){
+  var m=ARCH[u.arch].dmgMult;
+  if(SPELLS[spellId].el==='fire'&&ownGlyph(s,u,px,pz,'fire')) m*=1.3;
+  return m;
+}
+
+function utilTargets(s,u,sp,px,pz){
+  var out=[], x, z, g;
+  if(sp.target==='inscribe'){
+    if(glyphEls(u).indexOf(sp.glyph)<0) return out;
+    for(z=pz-1;z<=pz+1;z++) for(x=px-1;x<=px+1;x++){
+      if(!inb(x,z)||isSolid(s,x,z)) continue;
+      g=glyphAt(s,x,z);
+      if(g && (g.team!==u.team || g.el===sp.glyph || channelerOf(s,g))) continue; // may re-type your own idle glyph
+      out.push({x:x,z:z});
+    }
+    return out;
+  }
+  if(sp.target==='erase'){
+    for(z=pz-1;z<=pz+1;z++) for(x=px-1;x<=px+1;x++){
+      if(!inb(x,z)) continue;
+      g=glyphAt(s,x,z); if(g&&g.team!==u.team) out.push({x:x,z:z});
+    }
+    return out;
+  }
+  if(sp.id==='ritual') return ritualOptions(s,u,px,pz).length?[{x:px,z:pz}]:[];
+  return out;
+}
+
+// px,pz: hypothetical caster position (defaults to the unit's own tile)
+function castTargets(s,u,spellId,px,pz){
+  if(px===undefined){ px=u.x; pz=u.z; }
+  var sp=SPELLS[spellId], out=[];
+  if(!sp) return out;
+  if(sp.util) return utilTargets(s,u,sp,px,pz);
+  if(isSealed(s,spellId)) return out;
+  if(sp.target==='self') return [{x:px,z:pz}];
+  var r=spellRange(s,sp,px,pz);
+  if(sp.target==='enemy'||sp.target==='ally'){
+    for(var i=0;i<s.units.length;i++){
+      var o=s.units[i]; if(!o.alive) continue;
+      if(sp.target==='enemy' ? o.team===u.team : o.team!==u.team) continue;
+      var ox=o===u?px:o.x, oz=o===u?pz:o.z;
+      if(cheb(px,pz,ox,oz)>r) continue;
+      if(sp.los && !los(s,px,pz,ox,oz)) continue;
+      out.push({x:ox,z:oz,id:o.id});
+    }
+    return out;
+  }
+  for(var z=pz-r;z<=pz+r;z++) for(var x=px-r;x<=px+r;x++){
+    if(!inb(x,z)) continue;
+    if(sp.target==='empty'){
+      if(x===px&&z===pz) continue;
+      if(isSolid(s,x,z)) continue;
+      var occ=unitAt(s,x,z); if(occ && occ!==u) continue;
+    }
+    if(sp.los && !los(s,px,pz,x,z)) continue;
+    out.push({x:x,z:z});
+  }
+  return out;
+}
+
+function wallTiles(s,u,px,pz,tx,tz){
+  var dx=tx-px, dz=tz-pz, tiles;
+  if(Math.abs(dx)>=Math.abs(dz)) tiles=[{x:tx,z:tz-1},{x:tx,z:tz},{x:tx,z:tz+1}];
+  else tiles=[{x:tx-1,z:tz},{x:tx,z:tz},{x:tx+1,z:tz}];
+  return tiles.filter(function(t){
+    if(!inb(t.x,t.z)||isSolid(s,t.x,t.z)) return false;
+    if(t.x===px&&t.z===pz) return false;
+    var o=unitAt(s,t.x,t.z);
+    if(o && !(o===u && (u.x!==px||u.z!==pz))) return false; // the caster's old tile counts as free when planning from elsewhere
+    return true;
+  });
+}
+
+function chainPath(s,u,tx,tz){
+  var first=unitAt(s,tx,tz); if(!first||first.team===u.team) return [];
+  var hits=[first], cur=first, sp=SPELLS.chain;
+  for(var j=0;j<sp.jumps;j++){
+    var best=null, bd=99;
+    for(var i=0;i<s.units.length;i++){
+      var o=s.units[i];
+      if(!o.alive||o.team===u.team||hits.indexOf(o)>=0) continue;
+      var d=cheb(cur.x,cur.z,o.x,o.z);
+      if(d<=sp.jumpRange && (d<bd || (d===bd && o.hp<best.hp))){ best=o; bd=d; }
+    }
+    if(!best) break;
+    hits.push(best); cur=best;
+  }
+  return hits;
+}
+
+// tiles to highlight as the "footprint" of a cast (for previews)
+function aoeTiles(s,u,spellId,tx,tz,px,pz){
+  if(px===undefined){ px=u.x; pz=u.z; }
+  switch(spellId){
+    case 'fireball': case 'meteor': case 'poison': return square(tx,tz,1);
+    case 'frostnova': return square(px,pz,novaRadius(s,u,px,pz)).filter(function(t){ return !(t.x===px&&t.z===pz); });
+    case 'wall': return wallTiles(s,u,px,pz,tx,tz);
+    case 'chain': return chainPath(s,u,tx,tz).map(function(o){ return {x:o.x,z:o.z}; });
+    case 'ritual': var o=ritualOptions(s,u,px,pz)[0]; return o?o.tiles:[{x:px,z:pz}];
+    default: return [{x:tx,z:tz}];
+  }
+}
+
+// ---------- effects ----------
+function breakRitual(s,u,ev,why){
+  var ch=u.channel; if(!ch) return;
+  u.channel=null;
+  var tiles=[];
+  s.glyphs=s.glyphs.filter(function(g){ if(ch.ids.indexOf(g.id)>=0){ tiles.push({x:g.x,z:g.z}); return false; } return true; });
+  s.stats.broken[u.team]++;
+  var reason={damage:'took '+CHANNEL_BREAK+'+ damage', root:'rooted', fell:'the channeler fell', erase:'a glyph was erased'}[why]||why;
+  ev.push({type:'ritualBroken', id:u.id, team:u.team, tiles:tiles, el:ch.el,
+    msg:u.name+'’s '+RITUALS[ch.el].name+' ritual is broken ('+reason+') — its glyphs crack!'});
+}
+function removeGlyph(s,g,ev,why){
+  var i=s.glyphs.indexOf(g); if(i<0) return;
+  var ch=channelerOf(s,g);
+  s.glyphs.splice(i,1);
+  ev.push({type:'glyphGone', x:g.x, z:g.z, el:g.el, team:g.team, why:why});
+  if(ch) breakRitual(s,ch,ev,'erase');
+}
+function applyRoot(s,o,ev){
+  if(!o.alive) return;
+  if(ownGlyph(s,o,o.x,o.z,'frost')){ ev.push({type:'resist', id:o.id}); return; }
+  o.rooted=1; ev.push({type:'root', id:o.id});
+  if(o.channel) breakRitual(s,o,ev,'root');
+}
+
+function dealDamage(s,target,amount,ev,kind,srcTeam){
+  if(!target.alive||amount<=0) return 0;
+  var absorbed=Math.min(target.shield,amount); target.shield-=absorbed;
+  var dmg=amount-absorbed; target.hp=Math.max(0,target.hp-dmg);
+  if(srcTeam===0||srcTeam===1) s.stats.dmg[srcTeam]+=dmg+absorbed;
+  ev.push({type:'damage', id:target.id, amount:dmg, absorbed:absorbed, kind:kind});
+  if(target.channel) target.channel.taken+=dmg;
+  if(target.hp<=0){
+    if(target.channel) breakRitual(s,target,ev,'fell');
+    target.alive=false; target.shield=0; target.rooted=0;
+    ev.push({type:'death', id:target.id, team:target.team, msg:target.name+' is defeated!'});
+  } else if(target.channel && target.channel.taken>=CHANNEL_BREAK) breakRitual(s,target,ev,'damage');
+  return dmg;
+}
+
+function checkWinner(s){
+  if(s.winner!==null) return;
+  var a0=s.units.some(function(u){ return u.alive&&u.team===0; });
+  var a1=s.units.some(function(u){ return u.alive&&u.team===1; });
+  if(!a0&&!a1){ s.winner=-1; s.reason='mutual'; }
+  else if(!a1){ s.winner=0; s.reason='elim'; }
+  else if(!a0){ s.winner=1; s.reason='elim'; }
+}
+
+function inscribe(s,u,el,tx,tz,ev,c){
+  var old=glyphAt(s,tx,tz); if(old) removeGlyph(s,old,ev,'retype');
+  var mine=s.glyphs.filter(function(g){ return g.team===u.team&&!channelerOf(s,g); });
+  if(s.glyphs.filter(function(g){ return g.team===u.team; }).length>=GLYPH_CAP && mine.length){
+    var oldest=mine.reduce(function(a,b){ return a.born<b.born?a:b; });
+    removeGlyph(s,oldest,ev,'fade');
+  }
+  var before=teamPatterns(s,u.team).length;
+  var g={id:s.nextId++, team:u.team, el:el, x:tx, z:tz, born:s.nextId};
+  s.glyphs.push(g);
+  s.stats.inscribed[u.team]++;
+  var done=teamPatterns(s,u.team).length>before;
+  c.msg=u.name+' inscribes a '+GLYPHS[el].name+'.'+(done?' A ritual pattern is complete!':'');
+  ev.push({type:'glyph', x:tx, z:tz, el:el, team:u.team, pattern:done});
+}
+
+function performCast(s,uid,spellId,tx,tz){
+  var u=getUnit(s,uid), sp=SPELLS[spellId];
+  if(!u||!sp||!u.alive||u.team!==s.turn||!canAct(u)||s.winner!==null) return null;
+  if(sp.util){ if(sp.glyph && glyphEls(u).indexOf(sp.glyph)<0) return null; }
+  else if(spellId!=='arcane' && u.spells.indexOf(spellId)<0) return null;
+  if((u.cd[spellId]||0)>0) return null;
+  var ok=castTargets(s,u,spellId).some(function(t){ return t.x===tx&&t.z===tz; });
+  if(!ok) return null;
+  var mult=castMult(s,u,spellId,u.x,u.z);
+  var D=function(v){ return Math.round(v*mult); };
+  var target=unitAt(s,tx,tz), ev=[];
+  var c={type:'cast', id:u.id, team:u.team, spell:spellId, tx:tx, tz:tz, fx:u.x, fz:u.z, msg:''};
+  ev.push(c);
+  if(sp.target==='inscribe') inscribe(s,u,sp.glyph,tx,tz,ev,c);
+  else switch(spellId){
+    case 'arcane':
+      c.msg=u.name+' fires an Arcane Bolt at '+target.name+'.';
+      dealDamage(s,target,D(sp.dmg),ev,spellId,u.team); break;
+    case 'fireball':
+      c.msg=u.name+' hurls a Fireball at '+target.name+(mult>ARCH[u.arch].dmgMult?' (Fire glyph +30%)':'')+'.';
+      var splashed=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&o!==target&&cheb(o.x,o.z,tx,tz)<=1; });
+      dealDamage(s,target,D(sp.dmg),ev,spellId,u.team);
+      splashed.forEach(function(o){ dealDamage(s,o,D(sp.splash),ev,spellId,u.team); });
+      break;
+    case 'meteor':
+      c.msg=u.name+' calls down a Meteor — it lands at the start of their next turn!';
+      s.meteors.push({id:s.nextId++, team:u.team, x:tx, z:tz, dmg:D(sp.dmg), caster:u.name}); break;
+    case 'frostnova':
+      c.msg=u.name+' unleashes Frost Nova.';
+      var rad=novaRadius(s,u,u.x,u.z); c.radius=rad;
+      var near=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&cheb(o.x,o.z,u.x,u.z)<=rad; });
+      near.forEach(function(o){ dealDamage(s,o,D(sp.dmg),ev,spellId,u.team); applyRoot(s,o,ev); });
+      break;
+    case 'icelance':
+      var dbl=target.rooted>0;
+      c.msg=u.name+' throws an Ice Lance at '+target.name+(dbl?' — shatters the rooted target for double damage!':'.');
+      dealDamage(s,target,D(sp.dmg*(dbl?2:1)),ev,spellId,u.team); break;
+    case 'chain':
+      var hits=chainPath(s,u,tx,tz); c.chain=hits.map(function(h){ return h.id; });
+      c.msg=u.name+' casts Chain Lightning ('+hits.length+' target'+(hits.length>1?'s':'')+').';
+      hits.forEach(function(h,k){ dealDamage(s,h,D(k===0?sp.dmg:sp.jumpDmg),ev,spellId,u.team); });
+      break;
+    case 'blink':
+      c.msg=u.name+' blinks away.';
+      u.x=tx; u.z=tz; break;
+    case 'wall':
+      var tiles=wallTiles(s,u,u.x,u.z,tx,tz); c.tiles=tiles;
+      c.msg=u.name+' raises a Stone Wall.';
+      s.walls.push({id:s.nextId++, team:u.team, tiles:tiles, turns:sp.duration}); break;
+    case 'barrier':
+      var amt=sp.shield+ARCH[u.arch].barrierBonus;
+      target.shield=Math.max(target.shield,amt);
+      c.msg=u.name+' shields '+(target===u?'themself':target.name)+' ('+amt+').';
+      ev.push({type:'shield', id:target.id, amount:amt}); break;
+    case 'mend':
+      var h=Math.min(sp.heal,target.maxHp-target.hp); target.hp+=h;
+      c.msg=u.name+' mends '+(target===u?'themself':target.name)+' (+'+h+').';
+      ev.push({type:'heal', id:target.id, amount:h}); break;
+    case 'poison':
+      c.msg=u.name+' conjures a Poison Cloud.';
+      s.clouds.push({id:s.nextId++, team:u.team, x:tx, z:tz, dmg:sp.dmg, turns:sp.duration}); break;
+    case 'erase':
+      var eg=glyphAt(s,tx,tz);
+      c.msg=u.name+' erases an enemy '+GLYPHS[eg.el].name+'.';
+      s.stats.erased[u.team]++;
+      removeGlyph(s,eg,ev,'erase'); break;
+    case 'ritual':
+      var opt=ritualOptions(s,u,u.x,u.z)[0];
+      u.channel={turns:CHANNEL_TURNS, ids:opt.ids.slice(), el:opt.el, taken:0};
+      u.moved=true; c.el=opt.el; c.tiles=opt.tiles;
+      s.stats.started[u.team]++;
+      c.msg=u.name+' begins channeling '+RITUALS[opt.el].name+'! It completes at the start of their team’s turn in 2 rounds.';
+      break;
+  }
+  if(!u.acted) u.acted=true; else if(u.extra>0) u.extra--;
+  if(sp.cd>0) u.cd[spellId]=sp.cd+1; // decremented at start of each own turn → unavailable for `cd` turns
+  s.stats.casts[u.team]++;
+  checkWinner(s);
+  return ev;
+}
+
+// what a cast would do, without changing the real state (for hover previews)
+function predict(s,uid,spellId,tx,tz){
+  var c=JSON.parse(JSON.stringify(s));
+  var ev=performCast(c,uid,spellId,tx,tz);
+  if(!ev) return null;
+  return ev.filter(function(e){ return e.type!=='cast'; }).map(function(e){
+    var u=getUnit(c,e.id); return {type:e.type, name:u?u.name:'', team:u?u.team:null, amount:e.amount, absorbed:e.absorbed, msg:e.msg};
+  });
+}
+
+function finishUnit(s,uid){ var u=getUnit(s,uid); if(u){ u.moved=true; u.acted=true; u.extra=0; } }
+
+// ---------- turns ----------
+function resolveRitual(s,u,ev){
+  var ch=u.channel, el=ch.el, R=RITUALS[el];
+  u.channel=null;
+  s.glyphs=s.glyphs.filter(function(g){ return ch.ids.indexOf(g.id)<0; }); // the glyphs are consumed
+  s.stats.completed[u.team]++;
+  s.stats.rituals[el]=(s.stats.rituals[el]||0)+1;
+  ev.push({type:'ritualDone', id:u.id, team:u.team, el:el, x:u.x, z:u.z, msg:u.name+' completes the Grand Ritual — '+R.name+'!'});
+  var foes=s.units.filter(function(o){ return o.alive&&o.team!==u.team; });
+  var allies=s.units.filter(function(o){ return o.alive&&o.team===u.team; });
+  switch(el){
+    case 'fire': foes.forEach(function(o){ dealDamage(s,o,32,ev,'ritual',u.team); }); break;
+    case 'frost': foes.forEach(function(o){ dealDamage(s,o,15,ev,'ritual',u.team); applyRoot(s,o,ev); }); break;
+    case 'storm': allies.forEach(function(a){ a.extra=(a.extra||0)+1; ev.push({type:'tempest', id:a.id}); }); break;
+    case 'earth': allies.forEach(function(a){ a.shield+=40; ev.push({type:'shield', id:a.id, amount:40}); }); break;
+    case 'life': allies.forEach(function(a){ var h=Math.min(Math.round(a.maxHp*0.5),a.maxHp-a.hp); a.hp+=h; ev.push({type:'heal', id:a.id, amount:h}); }); break;
+  }
+}
+
+function startTurn(s,t,ev){
+  ev.push({type:'turn', team:t, round:s.round});
+  if(t===0 && s.round===s.prepRounds+1) ev.push({type:'act', act:2, msg:'ACT II — The seals break! Every spell is unlocked.'});
+  if(t===0 && s.round===s.unravelRound) ev.push({type:'act', act:3, msg:'ACT III — The arena unravels! Every mage now takes growing damage each turn.'});
+  if(s.round>=s.unravelRound){
+    var ud=unravelDmg(s);
+    s.units.forEach(function(u){ if(u.alive&&u.team===t) dealDamage(s,u,ud,ev,'unravel',-1); });
+  }
+  // delayed meteors of this team land (and shatter enemy glyphs)
+  s.meteors.filter(function(m){ return m.team===t; }).forEach(function(m){
+    ev.push({type:'meteorLand', x:m.x, z:m.z, id:m.id, team:t, msg:m.caster+'’s Meteor crashes down!'});
+    s.units.forEach(function(u){ if(u.alive&&cheb(u.x,u.z,m.x,m.z)<=1) dealDamage(s,u,m.dmg,ev,'meteor',t); });
+    s.glyphs.filter(function(g){ return g.team!==t&&cheb(g.x,g.z,m.x,m.z)<=1; }).forEach(function(g){ removeGlyph(s,g,ev,'meteor'); });
+  });
+  s.meteors=s.meteors.filter(function(m){ return m.team!==t; });
+  // enemy poison clouds hurt the team whose turn starts
+  s.clouds.forEach(function(c){
+    if(c.team===t) return;
+    s.units.forEach(function(u){
+      if(u.alive&&u.team===t&&cheb(u.x,u.z,c.x,c.z)<=1) dealDamage(s,u,c.dmg,ev,'poison',c.team);
+    });
+  });
+  // durations tick on the owner's turn
+  var before=s.clouds.length+s.walls.length;
+  s.clouds.forEach(function(c){ if(c.team===t) c.turns--; });
+  s.walls.forEach(function(w){ if(w.team===t) w.turns--; });
+  s.clouds=s.clouds.filter(function(c){ return c.turns>0; });
+  s.walls=s.walls.filter(function(w){ return w.turns>0; });
+  if(s.clouds.length+s.walls.length<before) ev.push({type:'expire'});
+  s.units.forEach(function(u){
+    if(u.team!==t||!u.alive) return;
+    u.moved = u.rooted>0; u.acted=false; u.extra=0; u.bonusMove=0;
+    for(var k in u.cd) if(u.cd[k]>0) u.cd[k]--;
+    // glyph blessings for the mage standing on its own glyph
+    var g=ownGlyph(s,u,u.x,u.z);
+    if(g){
+      if(g.el==='earth'){ var sh=Math.min(10,30-u.shield); if(sh>0){ u.shield+=sh; ev.push({type:'shield', id:u.id, amount:sh, glyph:true}); } }
+      else if(g.el==='life'){ var hl=Math.min(6,u.maxHp-u.hp); if(hl>0){ u.hp+=hl; ev.push({type:'heal', id:u.id, amount:hl, glyph:true}); } }
+      else if(g.el==='storm') u.bonusMove=2;
+    }
+  });
+  // channels progress; a finished one resolves now (the channeler is free again this turn)
+  s.units.forEach(function(u){
+    if(u.team!==t||!u.alive||!u.channel) return;
+    u.channel.turns--;
+    if(u.channel.turns<=0) resolveRitual(s,u,ev);
+    else { u.moved=true; u.acted=true; ev.push({type:'channel', id:u.id, turns:u.channel.turns}); }
+  });
+  checkWinner(s);
+}
+
+function endTurn(s){
+  var ev=[];
+  if(s.winner!==null) return ev;
+  var t=s.turn;
+  s.units.forEach(function(u){ if(u.team===t) u.rooted=0; }); // roots last through the victim's own turn
+  if(s.clockOn) s.clock[t]+=s.inc;
+  s.turn=1-t; if(s.turn===0) s.round++;
+  if(s.round>s.maxRounds){ s.winner=-1; s.reason='rounds'; return ev; }
+  startTurn(s,s.turn,ev);
+  return ev;
+}
+
+function tick(s,ms){
+  if(!s.clockOn||s.winner!==null) return;
+  s.clock[s.turn]-=ms;
+  if(s.clock[s.turn]<=0){ s.clock[s.turn]=0; s.winner=1-s.turn; s.reason='time'; }
+}
+
+// ---------- AI (greedy: best move+action combo per unit, best unit first) ----------
+function teamPrefEl(s,team){
+  var cnt={}, best=null, bc=0;
+  s.units.forEach(function(u){ if(u.alive&&u.team===team) glyphEls(u).forEach(function(e){ cnt[e]=(cnt[e]||0)+1; if(cnt[e]>bc){ bc=cnt[e]; best=e; } }); });
+  return best;
+}
+
+function aiTileScore(s,u,x,z){
+  var enemies=s.units.filter(function(o){ return o.alive&&o.team!==u.team; });
+  if(!enemies.length) return 0;
+  var g=ownGlyph(s,u,x,z), sc=0, hpR=u.hp/u.maxHp;
+  if(isPrep(s)){
+    // Act I: gather around the home building site
+    var h=HOME[u.team];
+    sc=-cheb(x,z,h.x,h.z)*0.9;
+    if(g) sc+=1.5;
+    return sc;
+  }
+  var dmin=99;
+  enemies.forEach(function(e){ dmin=Math.min(dmin,cheb(x,z,e.x,e.z)); });
+  if(hpR<0.35) sc+=Math.min(dmin,7)*1.5;
+  else {
+    var lo=u.arch==='warden'?1:3, hi=u.arch==='warden'?3:5;
+    if(dmin>hi) sc-=(dmin-hi)*3;
+    if(dmin<lo) sc-=(lo-dmin)*2.5;
+  }
+  s.meteors.forEach(function(m){ if(cheb(x,z,m.x,m.z)<=1) sc-= (m.team!==u.team?45:35); });
+  s.clouds.forEach(function(c){ if(c.team!==u.team&&cheb(x,z,c.x,c.z)<=1) sc-=c.dmg*1.3; });
+  var threats=0;
+  enemies.forEach(function(e){ if(cheb(x,z,e.x,e.z)<=5&&los(s,e.x,e.z,x,z)) threats++; });
+  sc-=threats*(u.arch==='warden'?0.8:2)*(hpR<0.5?1.8:1);
+  if(s.raised[idx(x,z)]) sc+=2;
+  for(var i=0;i<8;i++){ var nx=x+DIR8[i][0], nz=z+DIR8[i][1]; if(inb(nx,nz)&&s.blocked[idx(nx,nz)]){ sc+=1; break; } }
+  if(g){
+    if(g.el==='life') sc+=hpR<0.8?4:1.5;
+    else if(g.el==='earth') sc+=u.shield<30?4:1.5;
+    else if(g.el==='fire') sc+=u.spells.some(function(id){ return SPELLS[id].el==='fire'; })?3:0.5;
+    else if(g.el==='frost') sc+=2;
+    else sc+=1.5;
+  }
+  return sc;
+}
+
+function aiUtilScore(s,u,spellId,t,px,pz){
+  var sp=SPELLS[spellId], prep=isPrep(s), sc;
+  var foes=s.units.filter(function(o){ return o.alive&&o.team!==u.team; });
+  if(sp.target==='inscribe'){
+    if(glyphAt(s,t.x,t.z)) return -1; // the AI never re-types
+    var mine=s.glyphs.filter(function(g){ return g.team===u.team; });
+    if(mine.length>=GLYPH_CAP) return -1;
+    var hyp=mine.concat([{id:-1,team:u.team,el:sp.glyph,x:t.x,z:t.z}]);
+    var pb=patternsOf(mine).length, pa=patternsOf(hyp);
+    sc=prep?5:1;
+    if(pa.length>pb){
+      var best=0; pa.forEach(function(p){ if(p.ids.indexOf(-1)>=0) best=Math.max(best,p.n); });
+      sc+=(prep?20:10)+best*3;
+      if(mine.length>=3) sc-=8; // one good pattern at a time is enough
+    } else if(mine.some(function(g){ var d=cheb(g.x,g.z,t.x,t.z); return d<=2&&straight(g.x-t.x,g.z-t.z); })) sc+=prep?7:2;
+    if(sp.glyph===teamPrefEl(s,u.team)) sc+=3;
+    if(prep){ var h=HOME[u.team]; sc-=cheb(t.x,t.z,h.x,h.z)*0.4; }
+    else foes.forEach(function(e){ if(cheb(e.x,e.z,t.x,t.z)<=3) sc-=3; });
+    if(t.x===px&&t.z===pz&&(sp.glyph==='life'||sp.glyph==='earth')) sc+=prep?1:4;
+    return sc;
+  }
+  if(sp.target==='erase'){
+    var g=glyphAt(s,t.x,t.z);
+    sc=prep?9:5;
+    if(teamPatterns(s,g.team).some(function(p){ return p.ids.indexOf(g.id)>=0; })) sc+=14;
+    if(channelerOf(s,g)) sc+=50;
+    return sc;
+  }
+  if(spellId==='ritual'){
+    var opts=ritualOptions(s,u,px,pz); if(!opts.length) return -1;
+    var el=opts[0].el, allies=s.units.filter(function(o){ return o.alive&&o.team===u.team; }), v=0;
+    if(el==='fire') v=foes.length*28;
+    else if(el==='frost') v=foes.length*22;
+    else if(el==='storm') v=allies.length*16;
+    else if(el==='earth') v=allies.length*20;
+    else { allies.forEach(function(a){ v+=Math.min(Math.round(a.maxHp*0.5),a.maxHp-a.hp)*0.7; }); v+=allies.length*4; }
+    if(prep) v+=6;
+    else {
+      var threats=foes.filter(function(e){ return cheb(e.x,e.z,px,pz)<=6&&los(s,e.x,e.z,px,pz); }).length;
+      v-=threats*13;
+      if(u.shield>=20) v+=6;
+      if(ownGlyph(s,u,px,pz,'frost')) v+=5;
+    }
+    return v-10;
+  }
+  return 0;
+}
+
+function aiCastScore(s,u,spellId,t,px,pz){
+  var sp=SPELLS[spellId];
+  if(sp.util) return aiUtilScore(s,u,spellId,t,px,pz);
+  var mult=castMult(s,u,spellId,px,pz);
+  var D=function(v){ return Math.round(v*mult); };
+  var val=function(o,amt){
+    var pool=o.hp+o.shield; var v=Math.min(amt,pool); if(amt>=pool) v+=40;
+    if(o.channel&&o.team!==u.team){ var hpd=Math.max(0,amt-o.shield); v+=(o.channel.taken+hpd>=CHANNEL_BREAK)?45:hpd*0.6; }
+    return v;
+  };
+  var target=t.id?getUnit(s,t.id):unitAt(s,t.x,t.z), sc=0; // t.id: self-targets while planning from another tile
+  switch(spellId){
+    case 'arcane': return val(target,D(sp.dmg));
+    case 'fireball':
+      sc=val(target,D(sp.dmg));
+      s.units.forEach(function(o){ if(o.alive&&o.team!==u.team&&o!==target&&cheb(o.x,o.z,t.x,t.z)<=1) sc+=val(o,D(sp.splash)); });
+      return sc;
+    case 'icelance': return val(target,D(sp.dmg*(target.rooted>0?2:1)));
+    case 'chain':
+      chainPath(s,u,t.x,t.z).forEach(function(h,k){ sc+=val(h,D(k===0?sp.dmg:sp.jumpDmg)); });
+      return sc;
+    case 'frostnova':
+      var n=0, rad=novaRadius(s,u,px,pz);
+      s.units.forEach(function(o){
+        if(!o.alive||o.team===u.team||cheb(o.x,o.z,px,pz)>rad) return;
+        n++; sc+=val(o,D(sp.dmg))+(o.hp+o.shield>D(sp.dmg)?9:0);
+        if(o.channel&&!ownGlyph(s,o,o.x,o.z,'frost')) sc+=45;
+      });
+      return n?sc:-1;
+    case 'meteor':
+      s.units.forEach(function(o){
+        if(!o.alive) return;
+        var ox=o===u?px:o.x, oz=o===u?pz:o.z;
+        if(cheb(ox,oz,t.x,t.z)>1) return;
+        if(o.team!==u.team) sc+=val(o,D(sp.dmg))*(o.rooted>0||o.channel?0.9:0.4);
+        else sc-=D(sp.dmg);
+      });
+      s.glyphs.forEach(function(g){ if(g.team!==u.team&&cheb(g.x,g.z,t.x,t.z)<=1) sc+=4; });
+      return sc;
+    case 'poison':
+      s.units.forEach(function(o){ if(o.alive&&o.team!==u.team&&cheb(o.x,o.z,t.x,t.z)<=1) sc+=sp.dmg*1.3+(o.channel?12:0); });
+      return sc;
+    case 'blink':
+      return aiTileScore(s,u,t.x,t.z)-aiTileScore(s,u,px,pz)-4;
+    case 'wall':
+      if(isPrep(s)){
+        // shelter your own glyphs from being walked over
+        var tl=wallTiles(s,u,px,pz,t.x,t.z); if(tl.length<2) return -1;
+        var guard=0;
+        s.glyphs.forEach(function(g){ if(g.team===u.team&&tl.some(function(w){ return cheb(w.x,w.z,g.x,g.z)===1; })) guard++; });
+        var h=HOME[u.team], toward=t.z>h.z===(u.team===0);
+        return guard&&toward?2+guard:0.2;
+      }
+      if(u.hp/u.maxHp>0.6) return 0.5;
+      var tiles=wallTiles(s,u,px,pz,t.x,t.z); if(!tiles.length) return -1;
+      var enemies=s.units.filter(function(o){ return o.alive&&o.team!==u.team&&cheb(o.x,o.z,px,pz)<=6; });
+      var before=enemies.filter(function(e){ return los(s,e.x,e.z,px,pz); }).length;
+      var tmp={id:-1,team:u.team,tiles:tiles,turns:1}; s.walls.push(tmp);
+      var after=enemies.filter(function(e){ return los(s,e.x,e.z,px,pz); }).length;
+      s.walls.pop();
+      return (before-after)*5;
+    case 'barrier':
+      var amt=sp.shield+ARCH[u.arch].barrierBonus;
+      if(target.shield>=amt*0.6) return -1;
+      if(isPrep(s)) return s.round===s.prepRounds?3:-1; // pre-shield just before the clash
+      var tx=target===u?px:target.x, tz=target===u?pz:target.z;
+      var threat=s.units.some(function(o){ return o.alive&&o.team!==u.team&&cheb(o.x,o.z,tx,tz)<=6; });
+      return (amt-target.shield)*0.55*(1.3-target.hp/target.maxHp)*(threat?1:0.3)+(target.channel?15:0);
+    case 'mend':
+      var miss=target.maxHp-target.hp; if(miss<10) return -1;
+      return Math.min(sp.heal,miss)*(target.hp/target.maxHp<0.5?1.5:1.05);
+  }
+  return 0;
+}
+
+function aiBestPlan(s,u){
+  var positions=[{x:u.x,z:u.z,moved:false}];
+  if(!u.moved) reachable(s,u).forEach(function(p){ var e=p[p.length-1]; positions.push({x:e.x,z:e.z,moved:true}); });
+  var spells=canAct(u)?actionList(u).filter(function(id){ return !(u.cd[id]>0); }):[];
+  var best=null;
+  positions.forEach(function(p){
+    var ts=aiTileScore(s,u,p.x,p.z)+Math.random()*0.4-(p.moved?0.2:0);
+    var bc=null, bcs=0;
+    spells.forEach(function(id){
+      castTargets(s,u,id,p.x,p.z).forEach(function(t){
+        var cs=aiCastScore(s,u,id,t,p.x,p.z);
+        if(cs>bcs){ bcs=cs; bc={spell:id,x:t.x,z:t.z}; }
+      });
+    });
+    var total=ts+bcs;
+    if(!best||total>best.score) best={unitId:u.id, move:p.moved?{x:p.x,z:p.z}:null, cast:bc, score:total, castScore:bcs};
+  });
+  return best;
+}
+
+// Returns the next unit's plan ({unitId, move, cast}) or null when the team is done.
+function aiNextAction(s){
+  if(s.winner!==null) return null;
+  var units=s.units.filter(function(u){ return u.alive&&u.team===s.turn&&!u.channel&&(!u.moved||canAct(u)); });
+  var best=null;
+  units.forEach(function(u){
+    var p=aiBestPlan(s,u);
+    if(p && (!best||p.castScore>best.castScore||(p.castScore===best.castScore&&p.score>best.score))) best=p;
+  });
+  return best;
+}
+
+// convenience for headless runs: executes one AI plan fully
+function aiStep(s){
+  var plan=aiNextAction(s); if(!plan) return null;
+  var ev=[], castOk=false;
+  if(plan.move){ var e1=performMove(s,plan.unitId,plan.move.x,plan.move.z); if(e1) ev=ev.concat(e1); }
+  if(plan.cast&&s.winner===null){ var e2=performCast(s,plan.unitId,plan.cast.spell,plan.cast.x,plan.cast.z); if(e2){ castOk=true; ev=ev.concat(e2); } }
+  if(!castOk||!canAct(getUnit(s,plan.unitId))) finishUnit(s,plan.unitId);
+  return {plan:plan, events:ev, castOk:castOk};
+}
+
+var API = {
+  N:N, ELEM:ELEM, ARCH:ARCH, SPELLS:SPELLS, POOL:POOL, PRESETS:PRESETS, DEFAULT_TEAM:DEFAULT_TEAM, NAMES:NAMES,
+  GLYPHS:GLYPHS, RITUALS:RITUALS, GLYPH_ELS:GLYPH_ELS, PREP_ROUNDS:PREP_ROUNDS, GLYPH_CAP:GLYPH_CAP, CHANNEL_BREAK:CHANNEL_BREAK,
+  isRaised:isRaised, isBlockedTile:isBlockedTile, idx:idx, cheb:cheb,
+  createBattle:createBattle, getUnit:getUnit, unitAt:unitAt, wallAt:wallAt, isSolid:isSolid, los:los,
+  reachable:reachable, performMove:performMove, castTargets:castTargets, aoeTiles:aoeTiles, performCast:performCast,
+  predict:predict, finishUnit:finishUnit, endTurn:endTurn, tick:tick,
+  isPrep:isPrep, actOf:actOf, unravelDmg:unravelDmg, isSealed:isSealed, canAct:canAct, glyphEls:glyphEls, actionList:actionList,
+  glyphAt:glyphAt, channelerOf:channelerOf, teamPatterns:teamPatterns, ritualOptions:ritualOptions,
+  aiNextAction:aiNextAction, aiStep:aiStep
+};
+if(typeof module!=='undefined' && module.exports) module.exports=API;
+if(typeof window!=='undefined') window.ArenaLogic=API;
+})();
+</script>
+
+<script id="render">
+// =====================================================================
+// RENDER + UI SHELL (Three.js r147, DOM). Talks to the logic only via ArenaLogic.
+// =====================================================================
+(function(){
+'use strict';
+if(typeof THREE==='undefined'){ window.showError('Could not load 3D library — are you online?'); return; }
+if(!THREE.OrbitControls){ window.showError('Could not load camera controls (OrbitControls) — are you online?'); return; }
+var L=window.ArenaLogic;
+var $=function(id){ return document.getElementById(id); };
+var params=new URLSearchParams(location.search);
+var hexNum=function(s){ return parseInt(s.slice(1),16); };
+var elColor=function(id){ return L.ELEM[L.SPELLS[id].el].color; };
+var TC={'3':[180,10],'5':[300,15],'10':[600,20],'off':[0,0]};
+var NN=L.N, OFF=(NN-1)/2, HALF=NN/2; // board size (12×12 in this variant)
+
+// ---------------- three setup ----------------
+var canvas=$('c');
+var renderer=new THREE.WebGLRenderer({canvas:canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0b0f1a);
+scene.fog=new THREE.Fog(0x0b0f1a,24,54);
+var world=new THREE.Group(); scene.add(world);
+var camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,200);
+var CAM_HOME=new THREE.Vector3(0,15,-14.5);
+camera.position.copy(CAM_HOME);
+var controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.target.set(0,0,0.3);
+controls.enablePan=false; controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.minDistance=9; controls.maxDistance=30; controls.minPolarAngle=0.35; controls.maxPolarAngle=1.25;
+controls.mouseButtons={LEFT:null, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE};
+controls.autoRotateSpeed=0.5;
+controls.update();
+window.addEventListener('resize',function(){
+  camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// lights
+scene.add(new THREE.HemisphereLight(0xbfd4ff,0x2a2233,0.55));
+scene.add(new THREE.AmbientLight(0xffffff,0.12));
+var sun=new THREE.DirectionalLight(0xffe2b8,0.9);
+sun.position.set(6,13,-5); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+var sc=sun.shadow.camera; sc.left=-11; sc.right=11; sc.top=11; sc.bottom=-11; sc.near=1; sc.far=44;
+sun.shadow.bias=-0.0008;
+scene.add(sun);
+
+// glow texture for sprites
+var GLOW=(function(){
+  var c=document.createElement('canvas'); c.width=c.height=64;
+  var g=c.getContext('2d'), gr=g.createRadialGradient(32,32,0,32,32,32);
+  gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.3,'rgba(255,255,255,.55)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+})();
+function glow(color,size,opacity){
+  var m=new THREE.SpriteMaterial({map:GLOW,color:color,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:opacity===undefined?1:opacity});
+  var sp=new THREE.Sprite(m); sp.scale.set(size,size,1); return sp;
+}
+
+// ---------------- arena ----------------
+function tileTop(x,z){ return L.isRaised(x,z)?0.45:0; }
+function W(x,z,y){ return new THREE.Vector3(x-OFF, tileTop(x,z)+(y||0), z-OFF); }
+var rngSeed=7; function rnd(){ rngSeed=(rngSeed*16807)%2147483647; return (rngSeed-1)/2147483646; }
+var tileMeshes=[], hlQuads=[], torches=[];
+(function buildArena(){
+  var ground=new THREE.Mesh(new THREE.CircleGeometry(40,48), new THREE.MeshStandardMaterial({color:0x121722,roughness:1}));
+  ground.rotation.x=-Math.PI/2; ground.position.y=-0.3; ground.receiveShadow=true; world.add(ground);
+  var matA=new THREE.MeshStandardMaterial({color:0x5f626d,roughness:0.95,flatShading:true});
+  var matB=new THREE.MeshStandardMaterial({color:0x53565f,roughness:0.95,flatShading:true});
+  var matR=new THREE.MeshStandardMaterial({color:0x7a7263,roughness:0.9,flatShading:true});
+  var geoT=new THREE.BoxGeometry(0.97,0.3,0.97), geoR=new THREE.BoxGeometry(0.97,0.75,0.97);
+  var stone=new THREE.MeshStandardMaterial({color:0x8d887b,roughness:0.9,flatShading:true});
+  var hlGeo=new THREE.PlaneGeometry(0.94,0.94);
+  var pi=0;
+  for(var z=0;z<NN;z++) for(var x=0;x<NN;x++){
+    var raised=L.isRaised(x,z);
+    var m=new THREE.Mesh(raised?geoR:geoT, raised?matR:((x+z)%2?matA:matB));
+    var top=tileTop(x,z), h=raised?0.75:0.3;
+    m.position.set(x-OFF,top-h/2,z-OFF); m.receiveShadow=true; m.castShadow=raised;
+    m.userData={tile:true,x:x,z:z}; world.add(m); tileMeshes.push(m);
+    var q=new THREE.Mesh(hlGeo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.3,depthWrite:false}));
+    q.rotation.x=-Math.PI/2; q.position.set(x-OFF,top+0.03,z-OFF); q.visible=false; q.renderOrder=3;
+    world.add(q); hlQuads[z*NN+x]=q;
+    if(L.isBlockedTile(x,z)){
+      var g=new THREE.Group(), H=[1.9,1.2,2.3,1.5][pi%4];
+      var base=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.2,0.9),stone); base.position.y=0.1; g.add(base);
+      var shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.36,H,8),stone); shaft.position.y=0.2+H/2; g.add(shaft);
+      if(pi%3!==1){ var cap=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.2,0.8),stone); cap.position.y=0.3+H; g.add(cap); }
+      else for(var r=0;r<3;r++){ var rb=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.16,0.2),stone); rb.position.set((rnd()-0.5)*0.8,0.08,(rnd()-0.5)*0.8); rb.rotation.y=rnd()*3; g.add(rb); }
+      g.traverse(function(o){ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+      g.position.set(x-OFF,0,z-OFF); world.add(g); pi++;
+    }
+  }
+  // broken border walls
+  for(var side=0;side<4;side++){
+    for(var k=-HALF-1;k<=HALF+1;k+=1.05){
+      if(rnd()<0.28) continue;
+      var bh=0.3+rnd()*1.1;
+      var b=new THREE.Mesh(new THREE.BoxGeometry(0.95,bh,0.55),stone);
+      var d=HALF+0.9+rnd()*0.2;
+      if(side===0) b.position.set(k,bh/2-0.3,-d); else if(side===1) b.position.set(k,bh/2-0.3,d);
+      else if(side===2){ b.position.set(-d,bh/2-0.3,k); b.rotation.y=Math.PI/2; } else { b.position.set(d,bh/2-0.3,k); b.rotation.y=Math.PI/2; }
+      b.rotation.y+=(rnd()-0.5)*0.15; b.castShadow=true; b.receiveShadow=true; world.add(b);
+    }
+  }
+  // torches
+  var TD=HALF+1.3;
+  [[-TD,-TD],[TD,-TD],[-TD,TD],[TD,TD]].forEach(function(p){
+    var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.1,1.8,6),new THREE.MeshStandardMaterial({color:0x3b2a1c}));
+    pole.position.set(p[0],0.6,p[1]); pole.castShadow=true; world.add(pole);
+    var fl=glow(0xff9a4a,1.1); fl.position.set(p[0],1.65,p[1]); world.add(fl);
+    var core=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,6),new THREE.MeshBasicMaterial({color:0xffd08a})); core.position.copy(fl.position); world.add(core);
+    var pl=new THREE.PointLight(0xff8a3a,1.1,10,2); pl.position.copy(fl.position); world.add(pl);
+    torches.push({light:pl,sprite:fl,ph:rnd()*10});
+  });
+})();
+
+// ---------------- animation helpers ----------------
+var anims=[];
+function animate(dur,fn){ return new Promise(function(res){ anims.push({t:0,dur:Math.max(0.001,dur),fn:fn,res:res}); }); }
+function wait(ms){ return animate(ms/1000,function(){}); }
+function updateAnims(dt){
+  for(var i=anims.length-1;i>=0;i--){
+    var a=anims[i]; a.t+=dt; var p=Math.min(1,a.t/a.dur);
+    a.fn(p);
+    if(p>=1){ anims.splice(i,1); a.res(); }
+  }
+}
+var ease=function(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; };
+var shakeT=0, shakeOff=new THREE.Vector3();
+
+// ---------------- units ----------------
+var unitViews=new Map(); // id -> view
+var labelsEl=$('labels');
+function buildMage(u){
+  var g=new THREE.Group(), body=new THREE.Group(); g.add(body);
+  var you=u.team===0;
+  var P={warden:{r:0.42,h:0.95},sorcerer:{r:0.33,h:0.92},adept:{r:0.26,h:0.88}}[u.arch];
+  var robeMat=new THREE.MeshStandardMaterial({color:you?0x3d6fe0:0xcf4436,roughness:0.7,flatShading:true,emissive:0x000000});
+  var trimMat=new THREE.MeshStandardMaterial({color:you?0x1f3a80:0x7a1f1a,roughness:0.8,flatShading:true});
+  var skin=new THREE.MeshStandardMaterial({color:0xe6c39c,roughness:0.9});
+  var robe=new THREE.Mesh(new THREE.ConeGeometry(P.r,P.h,10),robeMat); robe.position.y=P.h/2; body.add(robe);
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.155,14,10),skin); head.position.y=P.h+0.1; body.add(head);
+  if(u.arch==='warden'){
+    [-1,1].forEach(function(sd){ var sh=new THREE.Mesh(new THREE.SphereGeometry(0.16,10,8),trimMat); sh.position.set(sd*0.3,P.h-0.1,0); sh.scale.y=0.8; body.add(sh); });
+    var helm=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,0.2,10),trimMat); helm.position.y=P.h+0.2; body.add(helm);
+    var crest=new THREE.Mesh(new THREE.ConeGeometry(0.08,0.2,6),trimMat); crest.position.y=P.h+0.4; body.add(crest);
+  } else if(u.arch==='sorcerer'){
+    var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.03,16),trimMat); brim.position.y=P.h+0.19; body.add(brim);
+    var hat=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.5,10),trimMat); hat.position.y=P.h+0.45; hat.rotation.z=-0.12; body.add(hat);
+  } else {
+    var hat2=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.62,8),trimMat); hat2.position.set(0.04,P.h+0.45,0); hat2.rotation.z=-0.28; body.add(hat2);
+  }
+  var staff=new THREE.Group();
+  var stick=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,1.35,6),new THREE.MeshStandardMaterial({color:0x6b4a2b,roughness:0.9}));
+  stick.position.y=0.675; staff.add(stick);
+  var orbCol=hexNum(elColor(u.spells[0]||'arcane'));
+  var orb=new THREE.Mesh(new THREE.SphereGeometry(0.085,10,8),new THREE.MeshBasicMaterial({color:orbCol}));
+  orb.position.y=1.38; staff.add(orb);
+  var og=glow(orbCol,0.5,0.9); og.position.y=1.38; staff.add(og);
+  staff.position.set(P.r*0.75+0.06,0,0.05); body.add(staff);
+  body.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+  var disc=new THREE.Mesh(new THREE.CircleGeometry(0.44,28),new THREE.MeshBasicMaterial({color:you?0x5b8cff:0xff6b5b,transparent:true,opacity:0.35,depthWrite:false}));
+  disc.rotation.x=-Math.PI/2; disc.position.y=0.02; g.add(disc);
+  var ring=new THREE.Mesh(new THREE.RingGeometry(0.47,0.57,32),new THREE.MeshBasicMaterial({color:0xf2c14e,transparent:true,opacity:0.95,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.03; ring.visible=false; g.add(ring);
+  var bubble=new THREE.Mesh(new THREE.SphereGeometry(0.72,20,14),new THREE.MeshBasicMaterial({color:hexNum(L.ELEM.earth.color),transparent:true,opacity:0.2,depthWrite:false}));
+  bubble.position.y=0.72; bubble.visible=false; g.add(bubble);
+  var ice=new THREE.Group();
+  var iceMat=new THREE.MeshStandardMaterial({color:0xbfefff,emissive:0x3aa6d6,emissiveIntensity:0.6,transparent:true,opacity:0.85,flatShading:true});
+  for(var i=0;i<6;i++){ var sp=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.38,5),iceMat); var a=i/6*Math.PI*2; sp.position.set(Math.cos(a)*0.42,0.16,Math.sin(a)*0.42); sp.rotation.z=Math.cos(a)*0.3; sp.rotation.x=-Math.sin(a)*0.3; ice.add(sp); }
+  ice.visible=false; g.add(ice);
+  g.traverse(function(o){ o.userData.unitId=u.id; });
+  g.position.copy(W(u.x,u.z));
+  g.rotation.y=you?0:Math.PI;
+  world.add(g);
+  var lab=document.createElement('div');
+  lab.className='ulabel '+(you?'you':'foe');
+  lab.innerHTML='<div class="st"></div><div class="n"></div><div class="bar"><i></i><s></s></div>';
+  labelsEl.appendChild(lab);
+  return {id:u.id, g:g, body:body, robeMat:robeMat, ring:ring, bubble:bubble, ice:ice, staff:staff, lab:lab, phase:Math.random()*6, dead:false};
+}
+function clearUnits(){
+  unitViews.forEach(function(v){ world.remove(v.g); v.lab.remove(); });
+  unitViews.clear();
+}
+function buildUnits(){ clearUnits(); state.units.forEach(function(u){ unitViews.set(u.id,buildMage(u)); }); }
+function face(v,x,z){ var dx=x-v.g.position.x, dz=z-v.g.position.z; if(Math.abs(dx)+Math.abs(dz)>0.01) v.g.rotation.y=Math.atan2(dx,dz); }
+function snapUnits(){
+  state.units.forEach(function(u){
+    var v=unitViews.get(u.id); if(!v) return;
+    if(u.alive){ v.g.position.copy(W(u.x,u.z)); v.g.visible=true; v.body.rotation.x=0; }
+  });
+}
+function unitPos(id,y){ var v=unitViews.get(id); return v.g.position.clone().add(new THREE.Vector3(0,y||0,0)); }
+
+// ---------------- persistent effects (walls, meteors, clouds) ----------------
+var persist={walls:new Map(),meteors:new Map(),clouds:new Map(),glyphs:new Map(),pillars:new Map()};
+var patternLines=new THREE.Group(); world.add(patternLines);
+function clearPersist(){
+  ['walls','meteors','clouds','glyphs','pillars'].forEach(function(k){ persist[k].forEach(function(o){ world.remove(o); }); persist[k].clear(); });
+  clearPatternLines();
+}
+function clearPatternLines(){
+  while(patternLines.children.length){ var c=patternLines.children[0]; patternLines.remove(c); c.geometry.dispose(); c.material.dispose(); }
+}
+
+// ---- glyph decals: team-coloured ring + element rune, drawn once per (team, element) ----
+var glyphTex={};
+function glyphTexture(team,el){
+  var key=team+el; if(glyphTex[key]) return glyphTex[key];
+  var c=document.createElement('canvas'); c.width=c.height=128;
+  var g=c.getContext('2d'), col=L.ELEM[el].color, tc=team===0?'#5b8cff':'#ff6b5b';
+  g.translate(64,64);
+  var gr=g.createRadialGradient(0,0,8,0,0,60); gr.addColorStop(0,col+'55'); gr.addColorStop(1,col+'00');
+  g.fillStyle=gr; g.beginPath(); g.arc(0,0,60,0,Math.PI*2); g.fill();
+  g.lineWidth=7; g.strokeStyle=tc; g.beginPath(); g.arc(0,0,54,0,Math.PI*2); g.stroke();
+  g.lineWidth=2; g.strokeStyle=col; g.beginPath(); g.arc(0,0,45,0,Math.PI*2); g.stroke();
+  for(var i=0;i<8;i++){ var a=i/8*Math.PI*2; g.beginPath(); g.moveTo(Math.cos(a)*45,Math.sin(a)*45); g.lineTo(Math.cos(a)*52,Math.sin(a)*52); g.stroke(); }
+  g.strokeStyle=col; g.fillStyle=col; g.lineWidth=6; g.lineCap='round'; g.lineJoin='round';
+  g.beginPath();
+  if(el==='fire'){ g.moveTo(0,-30); g.lineTo(26,20); g.lineTo(-26,20); g.closePath(); g.stroke(); g.beginPath(); g.moveTo(0,-8); g.lineTo(10,12); g.lineTo(-10,12); g.closePath(); g.fill(); }
+  else if(el==='frost'){ for(var k=0;k<3;k++){ var b=k/3*Math.PI; g.moveTo(Math.cos(b)*30,Math.sin(b)*30); g.lineTo(-Math.cos(b)*30,-Math.sin(b)*30); } g.stroke(); }
+  else if(el==='storm'){ g.moveTo(8,-32); g.lineTo(-12,2); g.lineTo(10,2); g.lineTo(-8,32); g.stroke(); }
+  else if(el==='earth'){ g.rect(-22,-22,44,44); g.stroke(); g.beginPath(); g.moveTo(-22,0); g.lineTo(22,0); g.stroke(); }
+  else { g.moveTo(0,-28); g.lineTo(0,28); g.moveTo(-28,0); g.lineTo(28,0); g.stroke(); g.beginPath(); g.arc(0,0,9,0,Math.PI*2); g.fill(); }
+  var t=new THREE.CanvasTexture(c); glyphTex[key]=t; return t;
+}
+var glyphGeo=new THREE.PlaneGeometry(0.92,0.92);
+var pillarGeo=new THREE.CylinderGeometry(0.42,0.52,7,20,1,true);
+function areaQuads(cx,cz,color,op){
+  var g=new THREE.Group(), geo=new THREE.PlaneGeometry(0.98,0.98);
+  for(var dz=-1;dz<=1;dz++) for(var dx=-1;dx<=1;dx++){
+    var x=cx+dx, z=cz+dz; if(x<0||z<0||x>NN-1||z>NN-1) continue;
+    var q=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:op,depthWrite:false}));
+    q.rotation.x=-Math.PI/2; q.position.copy(W(x,z,0.025)); q.renderOrder=1; g.add(q);
+  }
+  return g;
+}
+function syncPersist(){
+  var seen=new Set();
+  state.walls.forEach(function(w){
+    seen.add(w.id);
+    if(persist.walls.has(w.id)) return;
+    var g=new THREE.Group(), mat=new THREE.MeshStandardMaterial({color:0xa8865a,roughness:0.95,flatShading:true});
+    w.tiles.forEach(function(t){
+      var b=new THREE.Mesh(new THREE.BoxGeometry(0.92,1.15,0.92),mat); b.position.copy(W(t.x,t.z,0.575)); b.castShadow=true; b.receiveShadow=true; g.add(b);
+      var top=new THREE.Mesh(new THREE.DodecahedronGeometry(0.28,0),mat); top.position.copy(W(t.x,t.z,1.2)); top.castShadow=true; g.add(top);
+    });
+    g.scale.y=0.01; world.add(g); persist.walls.set(w.id,g);
+    animate(0.35,function(p){ g.scale.y=Math.max(0.01,ease(p)); });
+  });
+  persist.walls.forEach(function(g,id){ if(!seen.has(id)){ persist.walls.delete(id); animate(0.3,function(p){ g.scale.y=Math.max(0.01,1-p); }).then(function(){ world.remove(g); }); } });
+
+  seen=new Set();
+  state.meteors.forEach(function(m){
+    seen.add(m.id);
+    if(persist.meteors.has(m.id)) return;
+    var g=areaQuads(m.x,m.z,0xff4a1a,0.28);
+    var ring=new THREE.Mesh(new THREE.RingGeometry(1.35,1.5,48),new THREE.MeshBasicMaterial({color:0xff6a2b,transparent:true,opacity:0.9,depthWrite:false}));
+    ring.rotation.x=-Math.PI/2; ring.position.copy(W(m.x,m.z,0.05)); ring.renderOrder=3; g.add(ring);
+    var mark=glow(0xff6a2b,1.2,0.8); mark.position.copy(W(m.x,m.z,0.4)); g.add(mark);
+    g.userData.pulse=true; world.add(g); persist.meteors.set(m.id,g);
+  });
+  persist.meteors.forEach(function(g,id){ if(!seen.has(id)){ world.remove(g); persist.meteors.delete(id); } });
+
+  seen=new Set();
+  state.clouds.forEach(function(c){
+    seen.add(c.id);
+    if(persist.clouds.has(c.id)) return;
+    var col=hexNum(L.ELEM.shadow.color);
+    var g=areaQuads(c.x,c.z,col,0.22);
+    for(var i=0;i<7;i++){ var p=glow(i%2?0x9a5cff:col,0.9+Math.random()*0.7,0.45); p.position.copy(W(c.x,c.z,0.35)).add(new THREE.Vector3((Math.random()-0.5)*2.4,Math.random()*0.4,(Math.random()-0.5)*2.4)); p.userData.drift=Math.random()*6; g.add(p); }
+    g.userData.cloud=true; world.add(g); persist.clouds.set(c.id,g);
+  });
+  persist.clouds.forEach(function(g,id){ if(!seen.has(id)){ world.remove(g); persist.clouds.delete(id); } });
+
+  // glyphs
+  seen=new Set();
+  state.glyphs.forEach(function(gl){
+    seen.add(gl.id);
+    if(persist.glyphs.has(gl.id)) return;
+    var m=new THREE.Mesh(glyphGeo,new THREE.MeshBasicMaterial({map:glyphTexture(gl.team,gl.el),transparent:true,depthWrite:false,opacity:0.95}));
+    m.rotation.x=-Math.PI/2; m.position.copy(W(gl.x,gl.z,0.02)); m.renderOrder=1;
+    m.userData={glyph:gl.id, ph:Math.random()*6, born:T};
+    world.add(m); persist.glyphs.set(gl.id,m);
+  });
+  persist.glyphs.forEach(function(m,id){ if(!seen.has(id)){ world.remove(m); m.material.dispose(); persist.glyphs.delete(id); } });
+
+  // lines joining the glyphs of every complete ritual pattern
+  clearPatternLines();
+  [0,1].forEach(function(team){
+    L.teamPatterns(state,team).forEach(function(p){
+      var pts=p.tiles.map(function(t){ return W(t.x,t.z,0.06); });
+      if(p.shape==='line'){ pts.sort(function(a,b){ return (a.x-b.x)||(a.z-b.z); }); }
+      else { // L: draw arm–corner–arm
+        var ci=0; for(var i=0;i<3;i++){ var o1=p.tiles[(i+1)%3], o2=p.tiles[(i+2)%3], c=p.tiles[i]; if(((o1.x===c.x)!==(o1.z===c.z))&&((o2.x===c.x)!==(o2.z===c.z))&&((o1.x===c.x)!==(o2.x===c.x))) ci=i; }
+        pts=[W(p.tiles[(ci+1)%3].x,p.tiles[(ci+1)%3].z,0.06),W(p.tiles[ci].x,p.tiles[ci].z,0.06),W(p.tiles[(ci+2)%3].x,p.tiles[(ci+2)%3].z,0.06)];
+      }
+      var col=p.maj?hexNum(L.ELEM[p.maj].color):(team===0?0x5b8cff:0xff6b5b);
+      var line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.85,depthWrite:false}));
+      line.renderOrder=2; patternLines.add(line);
+    });
+  });
+
+  // pillars of light over channeling mages
+  seen=new Set();
+  state.units.forEach(function(u){
+    if(!u.alive||!u.channel) return;
+    seen.add(u.id);
+    if(persist.pillars.has(u.id)) return;
+    var col=hexNum(L.ELEM[u.channel.el].color), g=new THREE.Group();
+    var cyl=new THREE.Mesh(pillarGeo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+    cyl.position.y=3.5; g.add(cyl);
+    var base=new THREE.Mesh(new THREE.RingGeometry(0.5,0.72,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.8,depthWrite:false,side:THREE.DoubleSide}));
+    base.rotation.x=-Math.PI/2; base.position.y=0.05; g.add(base);
+    var top=glow(col,1.6,0.8); top.position.y=6.5; g.add(top);
+    g.position.copy(W(u.x,u.z)); g.userData={cyl:cyl,base:base};
+    world.add(g); persist.pillars.set(u.id,g);
+    g.scale.y=0.01; animate(0.4,function(p){ g.scale.y=Math.max(0.01,ease(p)); });
+  });
+  persist.pillars.forEach(function(g,id){ if(!seen.has(id)){ persist.pillars.delete(id); animate(0.3,function(p){ g.scale.x=g.scale.z=1+p; g.children.forEach(function(c){ if(c.material) c.material.opacity*=0.85; }); }).then(function(){ world.remove(g); }); } });
+}
+
+// ---------------- FX ----------------
+function burst(pos,color,size,dur){
+  var s=glow(color,0.2,1); s.position.copy(pos); world.add(s);
+  animate(dur||0.4,function(p){ var k=size*(0.3+0.7*p); s.scale.set(k,k,1); s.material.opacity=1-p; }).then(function(){ world.remove(s); });
+}
+function ringFx(pos,color,maxR,dur){
+  var m=new THREE.Mesh(new THREE.RingGeometry(0.85,1,48),new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:0.9,depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.copy(pos); world.add(m);
+  return animate(dur||0.45,function(p){ var k=0.1+maxR*ease(p); m.scale.set(k,k,k); m.material.opacity=0.9*(1-p); }).then(function(){ world.remove(m); });
+}
+function projectile(from,to,color,size,dur,arc){
+  var s=glow(color,size*2.2,1), core=new THREE.Mesh(new THREE.SphereGeometry(size*0.35,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));
+  world.add(s); world.add(core);
+  var tmp=new THREE.Vector3();
+  return animate(dur,function(p){
+    tmp.lerpVectors(from,to,p); tmp.y+=Math.sin(p*Math.PI)*(arc||0.4);
+    s.position.copy(tmp); core.position.copy(tmp);
+    if(Math.random()<0.5) trail(tmp,color,size);
+  }).then(function(){ world.remove(s); world.remove(core); burst(to,color,size*4,0.35); });
+}
+function trail(pos,color,size){
+  var t=glow(color,size*1.3,0.6); t.position.copy(pos); world.add(t);
+  animate(0.25,function(p){ t.material.opacity=0.6*(1-p); }).then(function(){ world.remove(t); });
+}
+function lightning(a,b,color){
+  var pts=[], n=9;
+  for(var i=0;i<=n;i++){ var p=new THREE.Vector3().lerpVectors(a,b,i/n); if(i>0&&i<n) p.add(new THREE.Vector3((Math.random()-0.5)*0.35,(Math.random()-0.5)*0.35,(Math.random()-0.5)*0.35)); pts.push(p); }
+  var line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:color,transparent:true,opacity:1}));
+  var line2=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(function(p){ return p.clone().add(new THREE.Vector3(0,0.03,0)); })),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:1}));
+  world.add(line); world.add(line2); burst(b,color,1.6,0.35);
+  animate(0.35,function(p){ var o=(1-p)*(Math.random()<0.3?0.3:1); line.material.opacity=o; line2.material.opacity=o; }).then(function(){ world.remove(line); world.remove(line2); });
+}
+function sparkles(pos,color,n){
+  for(var i=0;i<n;i++){
+    (function(){
+      var s=glow(color,0.35,1), off=new THREE.Vector3((Math.random()-0.5)*0.8,Math.random()*0.3,(Math.random()-0.5)*0.8);
+      world.add(s);
+      animate(0.8+Math.random()*0.3,function(p){ s.position.copy(pos).add(off); s.position.y+=p*1.3; s.material.opacity=1-p; }).then(function(){ world.remove(s); });
+    })();
+  }
+}
+var floats=[];
+function floatText(text,color,pos,big){
+  var d=document.createElement('div'); d.className='float'; d.textContent=text; d.style.color=color;
+  if(big) d.style.fontSize='22px';
+  labelsEl.appendChild(d);
+  floats.push({el:d,pos:pos.clone(),t:0});
+}
+function flash(v,color){
+  v.robeMat.emissive.set(color);
+  animate(0.35,function(p){ v.robeMat.emissiveIntensity=1-p; }).then(function(){ v.robeMat.emissive.set(0x000000); v.robeMat.emissiveIntensity=1; });
+}
+function castPose(v){ return animate(0.22,function(p){ v.staff.rotation.x=-Math.sin(p*Math.PI)*0.6; v.staff.position.y=Math.sin(p*Math.PI)*0.15; }); }
+
+// ---------------- event playback ----------------
+function logLine(text,cls){
+  var d=document.createElement('div'); d.className=cls||''; d.textContent=text;
+  var el=$('log'); el.appendChild(d); while(el.children.length>60) el.removeChild(el.firstChild); el.scrollTop=el.scrollHeight;
+}
+async function playEvents(evs){
+  if(!evs) return;
+  var gen=battleGen;
+  for(var i=0;i<evs.length;i++){
+    if(gen!==battleGen) return;
+    var e=evs[i];
+    if(e.msg) logLine(e.msg, e.type==='death'?'sys':(e.team===0?'you':e.team===1?'foe':'sys'));
+    switch(e.type){
+      case 'move': await animMove(e); break;
+      case 'cast': await animCast(e); break;
+      case 'damage': fxDamage(e); break;
+      case 'heal': { sparkles(unitPos(e.id,0.4),hexNum(L.ELEM.life.color),e.glyph?3:8); floatText('+'+e.amount+(e.glyph?' (glyph)':''),'#7ee081',unitPos(e.id,1.6)); } break;
+      case 'shield': floatText('+'+e.amount+' 🛡'+(e.glyph?' (glyph)':''),'#e0b877',unitPos(e.id,1.6)); if(!e.glyph) burst(unitPos(e.id,0.7),hexNum(L.ELEM.earth.color),2,0.4); break;
+      case 'root': floatText('Rooted!','#7fd8ff',unitPos(e.id,2.0)); break;
+      case 'resist': floatText('Frost glyph: root resisted','#7fd8ff',unitPos(e.id,2.0)); break;
+      case 'death': await animDeath(e); break;
+      case 'meteorLand': await animMeteor(e); break;
+      case 'glyph': {
+        var gc=hexNum(L.ELEM[e.el].color), gp=W(e.x,e.z,0.1);
+        ringFx(gp,gc,0.8,0.4); sparkles(gp,gc,5);
+        if(e.pattern){ syncPersist(); floatText('Ritual pattern complete!','#f2c14e',W(e.x,e.z,1.4),true); }
+      } break;
+      case 'glyphGone': {
+        var gp2=W(e.x,e.z,0.15);
+        burst(gp2,hexNum(L.ELEM[e.el].color),1.6,0.35);
+        if(e.why==='erase') floatText('Erased','#ffb0a6',W(e.x,e.z,1.0));
+        else if(e.why==='fade') floatText('Oldest glyph crumbles','#98a0b8',W(e.x,e.z,1.0));
+        else if(e.why==='meteor') floatText('Shattered','#ff6a2b',W(e.x,e.z,1.0));
+      } break;
+      case 'ritualBroken': {
+        (e.tiles||[]).forEach(function(t){ burst(W(t.x,t.z,0.2),0xffffff,1.8,0.4); burst(W(t.x,t.z,0.2),hexNum(L.ELEM[e.el].color),2.4,0.5); });
+        floatText('RITUAL BROKEN','#ff5a5a',unitPos(e.id,2.3),true); shakeT=0.25;
+        await wait(250);
+      } break;
+      case 'ritualDone': await animRitual(e); break;
+      case 'channel': floatText('Channeling… '+e.turns,'#f2c14e',unitPos(e.id,2.3)); break;
+      case 'tempest': floatText('+1 Action','#c9a7ff',unitPos(e.id,2.3)); sparkles(unitPos(e.id,0.2),hexNum(L.ELEM.storm.color),5); break;
+      case 'act': await animAct(e); break;
+    }
+    if(gen!==battleGen) return;
+    syncPersist();
+  }
+  await wait(120);
+  if(gen!==battleGen) return;
+  snapUnits(); syncPersist(); refreshUI();
+}
+async function animMove(e){
+  var v=unitViews.get(e.id);
+  for(var i=1;i<e.path.length;i++){
+    var a=W(e.path[i-1].x,e.path[i-1].z), b=W(e.path[i].x,e.path[i].z);
+    face(v,b.x,b.z);
+    await animate(0.13,function(p){ v.g.position.lerpVectors(a,b,p); v.g.position.y+=Math.sin(p*Math.PI)*0.12; });
+  }
+}
+async function animCast(e){
+  var v=unitViews.get(e.id), sp=L.SPELLS[e.spell], col=hexNum(elColor(e.spell));
+  var to=W(e.tx,e.tz,0.8);
+  if(e.spell!=='frostnova'&&e.spell!=='blink') face(v,to.x,to.z);
+  var gen=battleGen;
+  await castPose(v);
+  if(gen!==battleGen) return;
+  var from=v.g.position.clone().add(new THREE.Vector3(0,1.35,0));
+  var tv=null; var tu=L.unitAt(state,e.tx,e.tz); if(tu) tv=unitViews.get(tu.id);
+  switch(e.spell){
+    case 'arcane': await projectile(from,to,col,0.2,0.3,0.3); break;
+    case 'fireball': await projectile(from,to,col,0.35,0.38,0.6); burst(to,col,3.2,0.45); break;
+    case 'icelance': await projectile(from,to,col,0.25,0.25,0.1); burst(to,0xffffff,1.6,0.3); break;
+    case 'chain':
+      var pts=[from].concat((e.chain||[]).map(function(id){ return unitPos(id,0.8); }));
+      for(var i=1;i<pts.length;i++){ lightning(pts[i-1],pts[i],col); await wait(120); }
+      break;
+    case 'meteor': burst(from,col,1.5,0.4); await projectile(from,W(e.tx,e.tz,4),col,0.25,0.35,1.2); break;
+    case 'frostnova': burst(v.g.position.clone().add(new THREE.Vector3(0,0.5,0)),col,2.4,0.4); await ringFx(v.g.position.clone().add(new THREE.Vector3(0,0.1,0)),col,(e.radius||2)+0.6,0.5); break;
+    case 'blink':
+      var src=v.g.position.clone(); burst(src.clone().add(new THREE.Vector3(0,0.7,0)),col,2.2,0.4); sparkles(src,col,6);
+      await animate(0.12,function(p){ v.g.scale.setScalar(1-p*0.95); });
+      v.g.position.copy(W(e.tx,e.tz));
+      burst(W(e.tx,e.tz,0.7),col,2.2,0.4);
+      await animate(0.15,function(p){ v.g.scale.setScalar(0.05+p*0.95); });
+      break;
+    case 'wall': burst(to,col,2,0.4); break;
+    case 'barrier': if(tv) burst(tv.g.position.clone().add(new THREE.Vector3(0,0.7,0)),col,2.2,0.45); break;
+    case 'mend': if(tv) sparkles(tv.g.position.clone(),col,10); break;
+    case 'poison': await projectile(from,W(e.tx,e.tz,0.3),col,0.3,0.45,1.0); burst(W(e.tx,e.tz,0.4),col,3.5,0.6); break;
+    case 'erase': burst(W(e.tx,e.tz,0.3),0xffb0a6,1.8,0.35); break;
+    case 'ritual':
+      (e.tiles||[]).forEach(function(t){ ringFx(W(t.x,t.z,0.08),hexNum(L.ELEM[e.el].color),0.9,0.5); });
+      floatText(L.RITUALS[e.el].icon+' '+L.RITUALS[e.el].name+' — channeling','#f2c14e',unitPos(e.id,2.4),true);
+      break;
+    default:
+      if(sp.target==='inscribe'){ await projectile(from,W(e.tx,e.tz,0.1),col,0.2,0.25,0.5); }
+  }
+}
+async function animRitual(e){
+  var col=hexNum(L.ELEM[e.el].color), c=W(e.x,e.z,0.1);
+  banner(L.RITUALS[e.el].icon+' '+L.RITUALS[e.el].name+'!',L.ELEM[e.el].color);
+  burst(c.clone().add(new THREE.Vector3(0,1,0)),col,5,0.6); ringFx(c,col,6,0.8); shakeT=0.35;
+  if(e.el==='fire'||e.el==='frost'){
+    var foes=state.units.filter(function(o){ return o.alive&&o.team!==e.team; });
+    for(var i=0;i<foes.length;i++){
+      var tp=unitPos(foes[i].id,0.6), sky=tp.clone().add(new THREE.Vector3(1.2,9,0.8));
+      projectile(sky,tp,col,0.35,0.45,0);
+    }
+    await wait(480);
+  } else await wait(300);
+}
+async function animAct(e){
+  if(e.act===2){
+    var c=new THREE.Vector3(0,0.1,0);
+    ringFx(c,0xf2c14e,HALF+2,0.9); burst(new THREE.Vector3(0,1.2,0),0xf2c14e,7,0.7); shakeT=0.3;
+    for(var i=0;i<12;i++){ var a=i/12*Math.PI*2; sparkles(new THREE.Vector3(Math.cos(a)*HALF*0.8,0.2,Math.sin(a)*HALF*0.8),0xf2c14e,2); }
+    await banner('ACT II — The seals break!','#f2c14e');
+  } else {
+    ringFx(new THREE.Vector3(0,0.1,0),0xff5a5a,HALF+2,0.9); shakeT=0.3;
+    await banner('ACT III — The arena unravels','#ff5a5a');
+  }
+  refreshUI();
+}
+function fxDamage(e){
+  var v=unitViews.get(e.id); if(!v) return;
+  var col={meteor:'#ff8a4a',poison:'#b07cff',fireball:'#ff8a4a',icelance:'#9fe4ff',chain:'#d9c2ff',frostnova:'#9fe4ff',ritual:'#f2c14e',unravel:'#ff5a5a'}[e.kind]||'#ff6b5b';
+  if(e.amount>0){ floatText('−'+e.amount,col,unitPos(e.id,1.6),e.amount>=25); flash(v,0xff2a1a); }
+  if(e.absorbed>0) floatText('('+e.absorbed+' blocked)','#e0b877',unitPos(e.id,2.1));
+  if(e.kind==='poison') burst(unitPos(e.id,0.5),hexNum(L.ELEM.shadow.color),1.6,0.4);
+}
+async function animDeath(e){
+  var v=unitViews.get(e.id); if(!v) return;
+  v.dead=true; v.lab.style.display='none';
+  await animate(0.6,function(p){ v.body.rotation.x=-ease(p)*Math.PI/2*0.95; v.g.position.y-=0.004; });
+  animate(0.8,function(p){ v.g.scale.setScalar(1-p*0.99); }).then(function(){ v.g.visible=false; });
+}
+async function animMeteor(e){
+  var target=W(e.x,e.z,0.3), start=target.clone().add(new THREE.Vector3(2.5,11,1.5));
+  var rock=new THREE.Mesh(new THREE.IcosahedronGeometry(0.45,0),new THREE.MeshStandardMaterial({color:0x5a2a12,emissive:0xff5a1a,emissiveIntensity:0.9,flatShading:true}));
+  var gl=glow(0xff6a2b,2.2,1); world.add(rock); world.add(gl);
+  await animate(0.5,function(p){ rock.position.lerpVectors(start,target,p*p); gl.position.copy(rock.position); rock.rotation.x+=0.2; if(Math.random()<0.7) trail(rock.position,0xff6a2b,0.6); });
+  world.remove(rock); world.remove(gl);
+  burst(target,0xff6a2b,6,0.6); burst(target,0xffe0a0,3,0.35); ringFx(W(e.x,e.z,0.1),0xff6a2b,2.2,0.6);
+  shakeT=0.4;
+  await wait(200);
+}
+
+// ---------------- UI state ----------------
+var state=null, phase='loadout', busy=false, sel=null, mode='idle', spellSel=null;
+var reach=new Map(), targets=[], hoverTile=null, hoverUnit=null, aiPreview=null, resultShown=false;
+var loadout={team:L.DEFAULT_TEAM.map(function(m,i){ return {arch:m.arch,spells:m.spells.slice(),name:L.NAMES[0][i]}; }), sel:0, preset:null, tc:'5'};
+loadout.preset=L.PRESETS[Math.floor(Math.random()*L.PRESETS.length)];
+
+function myTurn(){ return state && phase==='battle' && state.turn===0 && state.winner===null && !busy; }
+function selUnit(){ return sel && state ? L.getUnit(state,sel) : null; }
+
+function refreshHighlights(){
+  for(var i=0;i<hlQuads.length;i++) hlQuads[i].visible=false;
+  if(phase!=='battle'||!state) return;
+  var setQ=function(x,z,color,op){ var q=hlQuads[z*NN+x]; if(!q) return; q.visible=true; q.material.color.set(color); q.material.opacity=op; };
+  if(aiPreview){ aiPreview.tiles.forEach(function(t){ setQ(t.x,t.z,aiPreview.color,0.55); }); return; }
+  var u=selUnit();
+  if(u&&u.alive&&myTurn()){
+    if(mode==='target'){
+      var c=elColor(spellSel);
+      targets.forEach(function(t){ setQ(t.x,t.z,c,0.22); });
+      if(hoverTile&&isTarget(hoverTile.x,hoverTile.z)) L.aoeTiles(state,u,spellSel,hoverTile.x,hoverTile.z).forEach(function(t){ setQ(t.x,t.z,c,0.7); });
+      return;
+    }
+    reach.forEach(function(p){ var e=p[p.length-1]; setQ(e.x,e.z,'#4f8cff',0.28); });
+    if(hoverTile&&reach.has(hoverTile.z*NN+hoverTile.x)) reach.get(hoverTile.z*NN+hoverTile.x).forEach(function(t,k){ if(k>0) setQ(t.x,t.z,'#8fb4ff',0.55); });
+  }
+  if(hoverTile&&!(mode==='target')&&!hlQuads[hoverTile.z*NN+hoverTile.x].visible) setQ(hoverTile.x,hoverTile.z,'#ffffff',0.12);
+}
+function isTarget(x,z){ for(var i=0;i<targets.length;i++) if(targets[i].x===x&&targets[i].z===z) return true; return false; }
+
+function refreshUI(){
+  if(phase!=='battle'||!state) return;
+  var u=selUnit();
+  if(u&&u.alive&&u.team===0&&!u.moved) reach=L.reachable(state,u); else reach=new Map();
+  if(mode==='target'&&u) targets=L.castTargets(state,u,spellSel); else targets=[];
+  renderRoster(); renderActions(); renderTurnLabel(); renderActBar(); refreshHighlights();
+  unitViews.forEach(function(v,id){ v.ring.visible=(id===sel); });
+  $('endturn').disabled=!myTurn();
+}
+function renderTurnLabel(){
+  var w=state.winner!==null?'Battle over':state.turn===0?'Your turn':'Enemy turn';
+  $('turnlabel').innerHTML='<div class="r">Round '+state.round+'</div><div class="w" style="color:'+(state.turn===0?'#a9c3ff':'#ffb0a6')+'">'+w+'</div>';
+}
+function renderActBar(){
+  var a=L.actOf(state), el=$('actbar'), r=state.round, P=state.prepRounds;
+  el.className='a'+a;
+  if(a===1){
+    var left=P-r+1;
+    el.innerHTML='<b>ACT I — Preparation</b> <span class="m">· 🔒 damage sealed · '+(left===1?'last round before the Clash':left+' rounds until the Clash')+(r>=P-1?' · rituals can begin now':' · rituals can begin from round '+(P-1))+'</span>';
+  } else if(a===2){
+    var toU=state.unravelRound-r;
+    el.innerHTML='<b>ACT II — Clash</b> <span class="m">· all spells unlocked'+(toU<=5?' · the arena unravels in '+toU+' round'+(toU>1?'s':''):'')+'</span>';
+  } else {
+    el.innerHTML='<b>ACT III — Unraveling</b> <span class="m">· every mage takes '+L.unravelDmg(state)+' damage at the start of its turn (growing)</span>';
+  }
+  var mine=state.glyphs.filter(function(g){ return g.team===0; }).length, theirs=state.glyphs.length-mine;
+  el.innerHTML+='<div class="m" style="font-size:11.5px">Glyphs: you '+mine+'/'+L.GLYPH_CAP+' · enemy '+theirs+'/'+L.GLYPH_CAP+'</div>';
+}
+function spellChip(id){ var sp=L.SPELLS[id]; return '<span style="--el:'+elColor(id)+'">'+sp.icon+' '+sp.name+'</span>'; }
+function renderRoster(){
+  var mk=function(u){
+    var hp=Math.round(u.hp/u.maxHp*100), sh=Math.min(100,Math.round(u.shield/u.maxHp*100));
+    var pips='';
+    if(u.alive&&u.channel) pips='<span class="pip" style="color:#f2c14e">✺ Channeling '+L.RITUALS[u.channel.el].name+' ('+u.channel.turns+') · '+u.channel.taken+'/'+L.CHANNEL_BREAK+' dmg</span>';
+    else if(u.team===0&&u.alive) pips='<span class="pip"><b class="'+(u.moved?'used':'')+'"></b>Move'+(u.bonusMove?' +'+u.bonusMove:'')+'</span><span class="pip"><b class="'+(L.canAct(u)?'':'used')+'"></b>Action'+(u.extra?' ×'+(u.extra+(u.acted?0:1)):'')+'</span>';
+    var cds=u.spells.map(function(id){ var c=u.cd[id]||0; return c?L.SPELLS[id].icon+c:''; }).filter(Boolean).join(' ');
+    var og=u.alive?L.glyphAt(state,u.x,u.z):null;
+    if(og&&og.team===u.team) cds=(cds?cds+' ':'')+'<span title="standing on own glyph" style="color:'+L.ELEM[og.el].color+'">◈'+L.GLYPHS[og.el].icon+'</span>';
+    return '<div class="rcard '+(u.team?'foe':'you')+(u.id===sel?' sel':'')+(u.alive?'':' dead')+'" data-id="'+u.id+'">'+
+      '<div class="rtop"><b>'+u.name+'</b><span>'+L.ARCH[u.arch].name+'</span></div>'+
+      '<div class="rbar"><i style="width:'+hp+'%"></i><s style="width:'+sh+'%"></s></div>'+
+      '<div class="rsub"><span>'+(u.alive?u.hp+'/'+u.maxHp:'defeated')+(u.shield?' +'+u.shield+'🛡':'')+(u.rooted?' ❄':'')+'</span>'+pips+(cds?'<span title="cooldowns / glyph">'+cds+'</span>':'')+'</div>'+
+      '<div class="rsp">'+u.spells.map(spellChip).join('')+'</div></div>';
+  };
+  $('roster-you').innerHTML=state.units.filter(function(u){ return u.team===0; }).map(mk).join('');
+  $('roster-foe').innerHTML=state.units.filter(function(u){ return u.team===1; }).map(mk).join('');
+}
+function renderActions(){
+  var u=selUnit();
+  if(!u||!u.alive||u.team!==0){
+    $('selinfo').innerHTML='<b>No mage selected</b>';
+    $('actions').innerHTML='<div class="hint">'+(state.turn===0?'Click one of your mages (blue) or press Tab.':'Enemy is acting…')+'</div>';
+    return;
+  }
+  if(u.channel){
+    $('selinfo').innerHTML='<b>'+u.name+'</b><div>'+L.ARCH[u.arch].name+' · '+u.hp+'/'+u.maxHp+(u.shield?' +'+u.shield+'🛡':'')+'</div><div class="mv" style="color:#f2c14e">✺ Channeling '+L.RITUALS[u.channel.el].name+'</div>';
+    $('actions').innerHTML='<div class="hint">Completes at the start of your turn in '+u.channel.turns+' turn'+(u.channel.turns>1?'s':'')+'. Breaks if this mage takes '+(L.CHANNEL_BREAK-u.channel.taken)+' more HP damage, is rooted, or loses a glyph.</div>';
+    return;
+  }
+  var mv=u.rooted>0?'❄ Rooted — can’t move':u.moved?'Move used':'Move: click a blue tile'+(u.bonusMove?' (Storm glyph +'+u.bonusMove+')':'');
+  var acts=L.canAct(u)?(u.extra&&u.acted?'Extra action ready (Tempest)':u.extra?'2 actions ready (Tempest)':'Action ready'):'Action used';
+  $('selinfo').innerHTML='<b>'+u.name+'</b><div>'+L.ARCH[u.arch].name+' · '+u.hp+'/'+u.maxHp+(u.shield?' +'+u.shield+'🛡':'')+'</div><div class="mv">'+mv+'</div><div class="mv">'+acts+'</div>';
+  var list=L.actionList(u);
+  $('actions').innerHTML=list.map(function(id,i){
+    var sp=L.SPELLS[id], cd=u.cd[id]||0, sealed=L.isSealed(state,id), hasT=L.castTargets(state,u,id).length>0;
+    var ok=myTurn()&&L.canAct(u)&&cd===0&&hasT;
+    var why=!L.canAct(u)?'Action used':sealed?'🔒 Sealed until Act II':cd?('Ready in '+cd+' turn'+(cd>1?'s':'')):!hasT?utilWhy(u,id):sp.stats;
+    return '<button class="spbtn'+(sp.util?' util':'')+(sealed?' sealed':'')+(mode==='target'&&spellSel===id?' on':'')+'" data-spell="'+id+'" '+(ok?'':'disabled')+' style="--el:'+elColor(id)+'" title="'+sp.text.replace(/"/g,'&quot;')+'">'+
+      '<span class="key">'+(i<9?i+1:'')+'</span><span class="nm">'+sp.icon+' '+sp.name+'</span><span class="st">'+why+'</span>'+(cd?'<span class="cdb">'+cd+'</span>':'')+'</button>';
+  }).join('');
+}
+
+function utilWhy(u,id){
+  var sp=L.SPELLS[id];
+  if(!sp.util) return 'No target in range';
+  if(sp.target==='inscribe') return 'No free tile next to you';
+  if(sp.target==='erase') return 'No enemy glyph next to you';
+  if(state.round<state.prepRounds-1) return 'Possible from round '+(state.prepRounds-1);
+  if(state.units.some(function(o){ return o.alive&&o.team===u.team&&o.channel; })) return 'An ally is already channeling';
+  var g=L.glyphAt(state,u.x,u.z);
+  if(!g||g.team!==u.team) return 'Stand on one of your glyphs';
+  return 'This glyph is not in a pattern';
+}
+function unitDone(u){ return !u.alive||u.channel||(u.moved&&!L.canAct(u)); }
+function select(id){
+  var u=L.getUnit(state,id); if(!u||!u.alive||u.team!==0) return;
+  sel=id; mode='idle'; spellSel=null; refreshUI();
+}
+function selectNext(){
+  var mine=state.units.filter(function(u){ return u.team===0&&u.alive; });
+  if(!mine.length) return;
+  var avail=mine.filter(function(u){ return !unitDone(u); });
+  var list=avail.length?avail:mine;
+  var i=list.findIndex(function(u){ return u.id===sel; });
+  select(list[(i+1)%list.length].id);
+}
+function enterTarget(id){
+  var u=selUnit(); if(!u||!myTurn()||!L.canAct(u)||(u.cd[id]||0)>0) return;
+  if(mode==='target'&&spellSel===id){
+    if(L.SPELLS[id].target==='self'){ doCast(u.x,u.z); return; }
+    cancelTarget(); return;
+  }
+  var t=L.castTargets(state,u,id); if(!t.length) return;
+  mode='target'; spellSel=id; refreshUI();
+}
+function cancelTarget(){ if(mode==='target'){ mode='idle'; spellSel=null; hideTip(); refreshUI(); } }
+
+// battleGen changes whenever a battle starts or is abandoned, so async turn loops from an old battle stop
+var battleGen=0;
+async function doMove(x,z){
+  var gen=battleGen; busy=true; hideTip();
+  var ev=L.performMove(state,sel,x,z);
+  refreshUI(); await playEvents(ev); if(gen!==battleGen) return; busy=false; afterAction();
+}
+async function doCast(x,z){
+  var gen=battleGen, id=spellSel; busy=true; mode='idle'; spellSel=null; hideTip();
+  var ev=L.performCast(state,sel,id,x,z);
+  refreshUI(); await playEvents(ev); if(gen!==battleGen) return; busy=false; afterAction();
+}
+function afterAction(){
+  if(checkEnd()) return;
+  var u=selUnit();
+  if(!u||unitDone(u)){
+    var next=state.units.find(function(o){ return o.team===0&&!unitDone(o); });
+    sel=next?next.id:(u&&u.alive?u.id:null);
+  }
+  refreshUI();
+}
+
+function banner(text,color){
+  var b=$('banner'); b.textContent=text; b.style.color=color||'#ece5d3'; b.classList.add('show');
+  return wait(750).then(function(){ b.classList.remove('show'); return wait(200); });
+}
+
+async function endPlayerTurn(){
+  if(!myTurn()) return;
+  var gen=battleGen;
+  busy=true; mode='idle'; spellSel=null; hideTip(); refreshUI();
+  var ev=L.endTurn(state); await playEvents(ev);
+  if(gen!==battleGen||checkEnd()) return;
+  await banner('Enemy turn','#ffb0a6');
+  while(gen===battleGen&&state.winner===null){
+    var plan=L.aiNextAction(state); if(!plan) break;
+    var u=L.getUnit(state,plan.unitId), v=unitViews.get(u.id);
+    unitViews.forEach(function(w,id){ w.ring.visible=(id===u.id); });
+    if(plan.move){ var e1=L.performMove(state,u.id,plan.move.x,plan.move.z); await playEvents(e1); if(gen!==battleGen) return; }
+    var castOk=false;
+    if(plan.cast&&state.winner===null){
+      aiPreview={color:elColor(plan.cast.spell),tiles:L.aoeTiles(state,u,plan.cast.spell,plan.cast.x,plan.cast.z)};
+      refreshHighlights();
+      logLine(u.name+' prepares '+L.SPELLS[plan.cast.spell].name+'…','foe');
+      await wait(450);
+      if(gen!==battleGen) return;
+      aiPreview=null; refreshHighlights();
+      var e2=L.performCast(state,u.id,plan.cast.spell,plan.cast.x,plan.cast.z);
+      if(e2){ castOk=true; await playEvents(e2); }
+    }
+    if(gen!==battleGen) return;
+    if(!castOk||!L.canAct(u)) L.finishUnit(state,u.id);
+    await wait(300);
+  }
+  if(gen!==battleGen) return;
+  unitViews.forEach(function(w){ w.ring.visible=false; });
+  if(checkEnd()) return;
+  var ev2=L.endTurn(state); await playEvents(ev2);
+  if(gen!==battleGen||checkEnd()) return;
+  await banner(L.actOf(state)===1?'Your turn — Preparation round '+state.round:'Your turn — Round '+state.round,'#a9c3ff');
+  if(gen!==battleGen) return;
+  busy=false;
+  var first=state.units.find(function(o){ return o.team===0&&!unitDone(o); })||state.units.find(function(o){ return o.team===0&&o.alive; });
+  sel=first?first.id:null; mode='idle'; refreshUI();
+}
+
+function checkEnd(){
+  if(!state||state.winner===null) return false;
+  if(resultShown) return true;
+  resultShown=true; busy=true; refreshUI();
+  setTimeout(showResult,900);
+  return true;
+}
+function showResult(){
+  if(!state||phase!=='battle') return;
+  var w=state.winner, r=state.reason;
+  $('res-title').textContent=w===0?'Victory':w===1?'Defeat':'Draw';
+  $('res-title').style.color=w===0?'#f2c14e':w===1?'#ff6b5b':'#ece5d3';
+  var why={elim:w===0?'All enemy mages defeated.':'Your team was defeated.', time:w===0?'The enemy ran out of time.':'Your time bank ran out.', mutual:'Both teams fell in the same blast.', rounds:'Round limit reached.'}[r]||'';
+  var S=state.stats;
+  $('res-why').innerHTML=why+'<br>Rounds: '+state.round+' · Damage dealt: you '+S.dmg[0]+' / enemy '+S.dmg[1]+
+    '<br>Glyphs inscribed: you '+S.inscribed[0]+' / enemy '+S.inscribed[1]+' · erased: you '+S.erased[0]+' / enemy '+S.erased[1]+
+    '<br>Rituals completed: you '+S.completed[0]+' / enemy '+S.completed[1]+' · broken: you '+S.broken[0]+' / enemy '+S.broken[1]+
+    (state.clockOn?'<br>Time left: you '+fmt(state.clock[0])+' · enemy '+fmt(state.clock[1]):'');
+  $('res-tag').textContent='vs '+loadout.preset.name;
+  $('result').classList.remove('hidden');
+}
+
+// ---------------- tooltip ----------------
+var tip=$('tooltip'), mouse={x:0,y:0};
+function showTip(html){ tip.innerHTML=html; tip.style.display='block'; placeTip(); }
+function hideTip(){ tip.style.display='none'; }
+function placeTip(){
+  var x=mouse.x+16, y=mouse.y+16, w=tip.offsetWidth, h=tip.offsetHeight;
+  if(x+w>window.innerWidth-8) x=mouse.x-w-16; if(y+h>window.innerHeight-8) y=mouse.y-h-16;
+  tip.style.left=x+'px'; tip.style.top=y+'px';
+}
+function unitTip(u){
+  var st=[]; if(u.shield) st.push('🛡 '+u.shield+' shield'); if(u.rooted) st.push('❄ rooted');
+  state.clouds.forEach(function(c){ if(c.team!==u.team&&L.cheb(c.x,c.z,u.x,u.z)<=1) st.push('☠ in poison'); });
+  state.meteors.forEach(function(m){ if(L.cheb(m.x,m.z,u.x,u.z)<=1) st.push('☄ under a Meteor!'); });
+  var ch=u.channel?'<div style="color:#f2c14e">✺ Channeling <b>'+L.RITUALS[u.channel.el].name+'</b>: fires in '+u.channel.turns+' of their turns. '+
+    (u.team?'Break it: deal '+(L.CHANNEL_BREAK-u.channel.taken)+' HP damage, root it, or erase one of its glyphs.':'Protect it: '+(L.CHANNEL_BREAK-u.channel.taken)+' more HP damage breaks it.')+'</div>':'';
+  var gl=L.glyphEls(u).map(function(e){ return L.GLYPHS[e].icon; }).join(' ');
+  return '<div class="tt" style="color:'+(u.team?'#ffb0a6':'#a9c3ff')+'">'+u.name+' <span class="m">· '+L.ARCH[u.arch].name+' · glyphs '+gl+'</span></div>'+
+    '<div>HP '+u.hp+'/'+u.maxHp+'</div>'+(st.length?'<div>'+st.join(' · ')+'</div>':'')+ch+
+    u.spells.map(function(id){ var sp=L.SPELLS[id], c=u.cd[id]||0; return '<div><span style="color:'+elColor(id)+'">'+sp.icon+' '+sp.name+'</span> <span class="m">'+(c?'ready in '+c:'ready')+' — '+sp.text+'</span></div>'; }).join('');
+}
+function tileTip(x,z){
+  var parts=[];
+  state.meteors.forEach(function(m){ if(L.cheb(m.x,m.z,x,z)<=1) parts.push('<b style="color:#ff6a2b">☄ Meteor</b> lands here at the start of '+(m.team===0?'your':'the enemy’s')+' next turn ('+m.dmg+' dmg).'); });
+  state.clouds.forEach(function(c){ if(L.cheb(c.x,c.z,x,z)<=1) parts.push('<b style="color:#b07cff">☠ Poison</b> ('+(c.team===0?'yours':'enemy')+'): '+c.dmg+' dmg per turn, '+c.turns+' turn(s) left.'); });
+  var g=L.glyphAt(state,x,z);
+  if(g){
+    var inPat=L.teamPatterns(state,g.team).some(function(p){ return p.ids.indexOf(g.id)>=0; });
+    var chn=L.channelerOf(state,g);
+    parts.push('<b style="color:'+L.ELEM[g.el].color+'">'+L.GLYPHS[g.el].icon+' '+L.GLYPHS[g.el].name+'</b> <span class="m">('+(g.team===0?'yours':'enemy')+')</span>: '+L.GLYPHS[g.el].text+
+      (chn?'<br><b style="color:#f2c14e">Powers '+chn.name+'’s ritual — erase it to break the ritual!</b>':inPat?'<br><span style="color:#f2c14e">Part of a complete ritual pattern.</span>':''));
+  }
+  var w=L.wallAt(state,x,z); if(w) parts.push('<b style="color:#c8a064">🧱 Stone Wall</b>: '+w.turns+' turn(s) left.');
+  if(L.isRaised(x,z)) parts.push('<b>Raised platform</b>: +1 spell range.');
+  if(L.isBlockedTile(x,z)) parts.push('<b>Pillar</b>: blocks movement and line of sight.');
+  return parts.join('<br>');
+}
+function predictTip(x,z){
+  var u=selUnit(); if(!u) return '';
+  var sp=L.SPELLS[spellSel];
+  if(spellSel==='meteor') return '<b style="color:'+elColor(spellSel)+'">'+sp.icon+' Meteor</b><div class="m">Lands at the start of your next turn — enemies can still walk out, rooted ones can’t. Hits your own mages too.</div>';
+  if(spellSel==='poison') return '<b style="color:'+elColor(spellSel)+'">'+sp.icon+' Poison Cloud</b><div class="m">Enemies inside take '+sp.dmg+' at the start of each of their turns (3 turns).</div>';
+  if(spellSel==='wall') return '<b style="color:'+elColor(spellSel)+'">'+sp.icon+' Stone Wall</b><div class="m">Blocks movement and line of sight for 3 turns.</div>';
+  if(spellSel==='blink') return '<b style="color:'+elColor(spellSel)+'">'+sp.icon+' Blink</b><div class="m">Teleport here.</div>';
+  if(sp.target==='inscribe'){
+    var mine=state.glyphs.filter(function(g){ return g.team===0; });
+    var hypo=JSON.parse(JSON.stringify(state)); var old=L.glyphAt(hypo,x,z);
+    if(old) hypo.glyphs.splice(hypo.glyphs.indexOf(old),1);
+    var before=L.teamPatterns(hypo,0).length;
+    hypo.glyphs.push({id:-7,team:0,el:sp.glyph,x:x,z:z,born:0});
+    var pats=L.teamPatterns(hypo,0).filter(function(p){ return p.ids.indexOf(-7)>=0; });
+    var extra=pats.length>0&&L.teamPatterns(hypo,0).length>before?'<div style="color:#f2c14e">✺ Completes a ritual pattern → '+pats.map(function(p){ var el=p.maj||sp.glyph; return L.RITUALS[el].icon+' '+L.RITUALS[el].name; }).join(' / ')+'</div>':'';
+    return '<b style="color:'+elColor(spellSel)+'">'+sp.icon+' '+sp.name+'</b><div class="m">'+L.GLYPHS[sp.glyph].text+'</div>'+
+      (old?'<div style="color:#ffb0a6">Replaces your '+L.GLYPHS[old.el].name+' here.</div>':'')+
+      (mine.length>=L.GLYPH_CAP&&!old?'<div style="color:#ffb0a6">You have '+L.GLYPH_CAP+' glyphs: your oldest one will crumble.</div>':'')+extra;
+  }
+  if(spellSel==='erase'){
+    var eg=L.glyphAt(state,x,z), ec=eg&&L.channelerOf(state,eg);
+    return '<b>⌫ Erase Glyph</b><div class="m">Removes the enemy '+(eg?L.GLYPHS[eg.el].name:'glyph')+'.</div>'+(ec?'<div style="color:#f2c14e">Breaks '+ec.name+'’s '+L.RITUALS[ec.channel.el].name+' ritual!</div>':'');
+  }
+  if(spellSel==='ritual'){
+    var o=L.ritualOptions(state,u,u.x,u.z)[0]; if(!o) return '';
+    var R=L.RITUALS[o.el];
+    return '<b style="color:'+L.ELEM[o.el].color+'">✺ Grand Ritual — '+R.icon+' '+R.name+'</b><div>'+R.text+'</div>'+
+      '<div class="m">'+u.name+' channels (no moving or acting). It fires at the start of your turn in 2 rounds'+(state.round<=state.prepRounds?'':' — the enemy gets 2 turns to break it')+'. It breaks on 25 HP damage, a root, death, or an erased glyph. The 3 glyphs are consumed.</div>';
+  }
+  var res=L.predict(state,u.id,spellSel,x,z); if(!res) return '';
+  var lines=res.map(function(r){
+    if(r.type==='damage') return '<div style="color:'+(r.team===0?'#a9c3ff':'#ffb0a6')+'">'+r.name+': −'+r.amount+(r.absorbed?' <span class="m">('+r.absorbed+' blocked)</span>':'')+'</div>';
+    if(r.type==='death') return '<div style="color:#f2c14e">✖ '+r.name+' is defeated</div>';
+    if(r.type==='heal') return '<div style="color:#7ee081">'+r.name+': +'+r.amount+' HP</div>';
+    if(r.type==='shield') return '<div style="color:#e0b877">'+r.name+': '+r.amount+' shield</div>';
+    if(r.type==='root') return '<div style="color:#7fd8ff">'+r.name+': rooted</div>';
+    return '';
+  }).join('');
+  return '<b style="color:'+elColor(spellSel)+'">'+sp.icon+' '+sp.name+'</b>'+(lines||'<div class="m">No effect.</div>');
+}
+
+// ---------------- picking ----------------
+var ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function pick(ev){
+  var r=canvas.getBoundingClientRect();
+  ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  var alive=[]; unitViews.forEach(function(v){ if(!v.dead) alive.push(v.g); });
+  var hits=ray.intersectObjects(alive,true);
+  if(hits.length){ var u=L.getUnit(state,hits[0].object.userData.unitId); if(u&&u.alive) return {x:u.x,z:u.z}; }
+  hits=ray.intersectObjects(tileMeshes,false);
+  if(hits.length) return {x:hits[0].object.userData.x,z:hits[0].object.userData.z};
+  return null;
+}
+canvas.addEventListener('pointermove',function(ev){
+  mouse.x=ev.clientX; mouse.y=ev.clientY;
+  if(phase!=='battle'||!state) return;
+  var t=pick(ev), changed=(!t!==!hoverTile)||(t&&hoverTile&&(t.x!==hoverTile.x||t.z!==hoverTile.z));
+  hoverTile=t;
+  if(changed) refreshHighlights();
+  if(!t){ hideTip(); return; }
+  var html='';
+  if(mode==='target'&&isTarget(t.x,t.z)) html=predictTip(t.x,t.z);
+  else {
+    var u=L.unitAt(state,t.x,t.z);
+    if(u) html=unitTip(u);
+    var tt=tileTip(t.x,t.z); if(tt) html+=(html?'<hr style="border:0;border-top:1px solid #2b3452">':'')+tt;
+  }
+  if(html) showTip(html); else hideTip();
+});
+canvas.addEventListener('pointerleave',function(){ hoverTile=null; hideTip(); refreshHighlights(); });
+canvas.addEventListener('click',function(ev){
+  if(!myTurn()) return;
+  var t=pick(ev);
+  if(!t){ cancelTarget(); return; }
+  if(mode==='target'){ if(isTarget(t.x,t.z)) doCast(t.x,t.z); else cancelTarget(); return; }
+  var u=L.unitAt(state,t.x,t.z);
+  if(u&&u.team===0){ select(u.id); return; }
+  if(sel&&reach.has(t.z*10+t.x)){ doMove(t.x,t.z); return; }
+});
+
+// ---------------- HUD buttons & keys ----------------
+$('actions').addEventListener('click',function(ev){
+  var b=ev.target.closest('.spbtn'); if(!b||b.disabled) return; b.blur(); enterTarget(b.dataset.spell);
+});
+$('roster-you').addEventListener('click',function(ev){
+  var c=ev.target.closest('.rcard'); if(!c||busy) return; select(+c.dataset.id);
+});
+$('endturn').addEventListener('click',function(){ $('endturn').blur(); endPlayerTurn(); });
+$('btn-loadout').addEventListener('click',function(){
+  if(phase==='battle'&&state&&state.winner===null&&!confirm('Leave this battle and go back to the loadout?')) return;
+  openLoadout();
+});
+function toggleCodex(force){ var c=$('codex'); c.classList.toggle('hidden',force===undefined?!c.classList.contains('hidden'):!force); }
+$('btn-codex').addEventListener('click',function(){ $('btn-codex').blur(); toggleCodex(); });
+$('codex-x').addEventListener('click',function(){ toggleCodex(false); });
+(function fillCodex(){
+  $('codex-glyphs').innerHTML=L.GLYPH_ELS.map(function(el){
+    return '<div class="row"><span class="k" style="color:'+L.ELEM[el].color+'">'+L.GLYPHS[el].icon+' '+L.ELEM[el].name+'</span><span>'+L.GLYPHS[el].text.replace(/^Your mage (standing here|that starts its turn here) /,'')+'</span></div>';
+  }).join('');
+  $('codex-rituals').innerHTML=L.GLYPH_ELS.map(function(el){
+    var R=L.RITUALS[el];
+    return '<div class="row"><span class="k" style="color:'+L.ELEM[el].color+'">'+R.icon+' '+R.name+'</span><span>'+R.text+'</span></div>';
+  }).join('');
+  var pat=function(id,cells){ $(id).innerHTML=Array.from({length:25},function(_,i){ return '<i class="'+(cells.indexOf(i)>=0?'g':'')+'"></i>'; }).join(''); };
+  pat('pat-line',[11,12,13]); pat('pat-gap',[10,12,13]); pat('pat-diag',[6,12,18]); pat('pat-l',[6,16,17]);
+})();
+window.addEventListener('keydown',function(ev){
+  if(phase!=='battle') return;
+  if(ev.key==='Escape'){ cancelTarget(); return; }
+  if(ev.key==='g'||ev.key==='G'){ toggleCodex(); return; }
+  if(!myTurn()) return;
+  if(ev.key==='Tab'){ ev.preventDefault(); selectNext(); return; }
+  if(ev.key===' '||ev.key==='Enter'){ ev.preventDefault(); endPlayerTurn(); return; }
+  var u=selUnit(); if(!u) return;
+  var list=L.actionList(u);
+  var k=parseInt(ev.key,10); if(k>=1&&k<=list.length&&k<=9) enterTarget(list[k-1]);
+});
+
+// ---------------- loadout screen ----------------
+function glyphLine(spells){
+  var els=L.glyphEls({spells:spells});
+  return '<div class="gl-els">Can inscribe: '+(els.length?els.map(function(e){ return '<span style="--el:'+L.ELEM[e].color+'">'+L.GLYPHS[e].icon+' '+L.ELEM[e].name+'</span>'; }).join(''):'—')+'</div>';
+}
+function renderLoadout(){
+  var t=loadout.team;
+  $('lo-team').innerHTML=t.map(function(m,i){
+    return '<div class="mcard'+(i===loadout.sel?' sel':'')+'" data-i="'+i+'">'+
+      '<div class="mhead"><span class="mname">'+m.name+'</span><span class="mstat">Slot '+(i+1)+'</span></div>'+
+      '<div class="archrow">'+['warden','sorcerer','adept'].map(function(a){ return '<button class="archbtn'+(m.arch===a?' on':'')+'" data-i="'+i+'" data-a="'+a+'">'+L.ARCH[a].name+'</button>'; }).join('')+'</div>'+
+      '<div class="adesc">'+L.ARCH[m.arch].desc+'</div>'+
+      '<div class="slots">'+[0,1].map(function(k){
+        var id=m.spells[k];
+        if(!id) return '<div class="slot empty">Empty — pick a spell</div>';
+        return '<div class="slot" data-i="'+i+'" data-k="'+k+'" style="--el:'+elColor(id)+'">'+L.SPELLS[id].icon+' '+L.SPELLS[id].name+'<span class="x">✕</span></div>';
+      }).join('')+'</div>'+glyphLine(m.spells)+'</div>';
+  }).join('');
+  var cur=t[loadout.sel];
+  $('lo-target').textContent=cur.name+' ('+L.ARCH[cur.arch].name+') — '+cur.spells.length+'/2';
+  $('lo-pool').innerHTML=L.POOL.map(function(id){
+    var sp=L.SPELLS[id], who=t.map(function(m,i){ return m.spells.indexOf(id)>=0?m.name[0]:''; }).filter(Boolean);
+    return '<div class="scard'+(cur.spells.indexOf(id)>=0?' eq':'')+'" data-id="'+id+'" style="--el:'+elColor(id)+'">'+
+      '<div class="t">'+sp.icon+' '+sp.name+'<span class="el">'+L.ELEM[sp.el].name+'</span></div>'+
+      '<div class="d">'+sp.text+'</div><div class="n">'+sp.stats+'</div>'+
+      '<div class="who">'+who.map(function(w){ return '<span>'+w+'</span>'; }).join('')+'</div></div>';
+  }).join('');
+  var p=loadout.preset;
+  $('lo-preset').textContent='“'+p.name+'”';
+  $('lo-pdesc').textContent=p.desc;
+  $('lo-enemy').innerHTML=p.team.map(function(m,i){
+    return '<div class="mcard foe"><div class="mhead"><span class="mname">'+L.NAMES[1][i]+'</span><span class="mstat">'+L.ARCH[m.arch].name+'</span></div>'+
+      '<div class="adesc">'+L.ARCH[m.arch].desc+'</div>'+
+      '<div class="slots">'+m.spells.map(function(id){ return '<div class="slot" style="--el:'+elColor(id)+'" title="'+L.SPELLS[id].text.replace(/"/g,'&quot;')+'">'+L.SPELLS[id].icon+' '+L.SPELLS[id].name+'</div>'; }).join('')+'</div>'+glyphLine(m.spells)+'</div>';
+  }).join('');
+  var missing=t.filter(function(m){ return m.spells.length<2; }).map(function(m){ return m.name; });
+  $('lo-fight').disabled=missing.length>0;
+  $('lo-why').textContent=missing.length?('Equip 2 spells on: '+missing.join(', ')):'';
+  $('lo-tc').value=loadout.tc;
+}
+$('lo-team').addEventListener('click',function(ev){
+  var slot=ev.target.closest('.slot[data-k]');
+  if(slot){ var m=loadout.team[+slot.dataset.i]; m.spells.splice(+slot.dataset.k,1); loadout.sel=+slot.dataset.i; renderLoadout(); return; }
+  var ab=ev.target.closest('.archbtn');
+  if(ab){ loadout.team[+ab.dataset.i].arch=ab.dataset.a; loadout.sel=+ab.dataset.i; renderLoadout(); return; }
+  var card=ev.target.closest('.mcard'); if(card){ loadout.sel=+card.dataset.i; renderLoadout(); }
+});
+$('lo-pool').addEventListener('click',function(ev){
+  var c=ev.target.closest('.scard'); if(!c) return;
+  var id=c.dataset.id, m=loadout.team[loadout.sel], k=m.spells.indexOf(id);
+  if(k>=0) m.spells.splice(k,1);
+  else { if(m.spells.length>=2) m.spells.shift(); m.spells.push(id); }
+  if(m.spells.length===2){ var nxt=loadout.team.findIndex(function(o){ return o.spells.length<2; }); if(nxt>=0) loadout.sel=nxt; }
+  renderLoadout();
+});
+$('lo-reroll').addEventListener('click',function(){
+  var others=L.PRESETS.filter(function(p){ return p!==loadout.preset; });
+  loadout.preset=others[Math.floor(Math.random()*others.length)]; renderLoadout();
+});
+$('lo-tc').addEventListener('change',function(ev){ loadout.tc=ev.target.value; });
+$('lo-fight').addEventListener('click',startBattle);
+$('res-rematch').addEventListener('click',startBattle);
+$('res-change').addEventListener('click',openLoadout);
+
+function openLoadout(){
+  battleGen++;
+  phase='loadout'; busy=false; state=null; sel=null; mode='idle'; aiPreview=null;
+  clearUnits(); clearPersist(); refreshHighlights(); hideTip();
+  $('hud').classList.add('hidden'); $('result').classList.add('hidden'); $('loadout').classList.remove('hidden');
+  controls.autoRotate=true;
+  renderLoadout();
+}
+function startBattle(){
+  battleGen++;
+  var tc=TC[loadout.tc]||TC['5'];
+  state=L.createBattle({
+    teams:[loadout.team.map(function(m){ return {arch:m.arch,spells:m.spells.slice(),name:m.name}; }),
+           loadout.preset.team.map(function(m,i){ return {arch:m.arch,spells:m.spells.slice(),name:L.NAMES[1][i]}; })],
+    clockMs:tc[0]*1000, incMs:tc[1]*1000
+  });
+  phase='battle'; busy=false; resultShown=false; mode='idle'; spellSel=null; aiPreview=null;
+  clearUnits(); clearPersist(); buildUnits(); syncPersist();
+  $('log').innerHTML='';
+  logLine('Battle vs “'+loadout.preset.name+'”. You move first.','sys');
+  logLine('ACT I — Preparation: damage is sealed for '+state.prepRounds+' rounds. Inscribe glyphs and build a ritual pattern!','sys');
+  toggleCodex(true);
+  $('loadout').classList.add('hidden'); $('result').classList.add('hidden'); $('hud').classList.remove('hidden');
+  $('clk0').style.display=$('clk1').style.display=state.clockOn?'':'none';
+  controls.autoRotate=false; camera.position.copy(CAM_HOME); controls.target.set(0,0,0.3); controls.update();
+  sel=state.units[0].id; refreshUI();
+  banner('ACT I — Preparation','#f2c14e');
+}
+
+// ---------------- frame loop ----------------
+function fmt(ms){
+  var s=Math.max(0,ms)/1000;
+  if(s<10) return s.toFixed(1);
+  var m=Math.floor(s/60), r=Math.floor(s%60); return m+':'+(r<10?'0':'')+r;
+}
+var vtmp=new THREE.Vector3(), last=performance.now(), T=0;
+function toScreen(p){ vtmp.copy(p).project(camera); return {x:(vtmp.x*0.5+0.5)*window.innerWidth, y:(-vtmp.y*0.5+0.5)*window.innerHeight, ok:vtmp.z<1}; }
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt=Math.min(0.1,(now-last)/1000); last=now; T+=dt;
+  updateAnims(dt);
+  // clocks: only the side to move, only while it is actually deciding (not during animations)
+  if(phase==='battle'&&state&&state.winner===null&&!busy){
+    L.tick(state,dt*1000);
+    if(state.winner!==null) checkEnd();
+  }
+  if(phase==='battle'&&state&&state.clockOn){
+    for(var t=0;t<2;t++){
+      var el=$('clk'+t);
+      el.querySelector('.t').textContent=fmt(state.clock[t]);
+      el.classList.toggle('active',state.turn===t&&state.winner===null);
+      el.classList.toggle('low',state.clock[t]<30000);
+    }
+  }
+  // idle motion + status visuals
+  if(state){
+    unitViews.forEach(function(v){
+      var u=L.getUnit(state,v.id); if(!u) return;
+      if(!v.dead) v.body.position.y=Math.sin(T*2+v.phase)*0.025;
+      v.bubble.visible=u.alive&&u.shield>0;
+      if(v.bubble.visible){ v.bubble.material.opacity=0.14+0.06*Math.sin(T*3); }
+      v.ice.visible=u.alive&&u.rooted>0;
+      if(v.ring.visible) v.ring.material.opacity=0.65+0.3*Math.sin(T*5);
+    });
+  }
+  persist.meteors.forEach(function(g){ var k=0.25+0.15*Math.sin(T*6); g.children.forEach(function(c){ if(c.material&&c.isMesh&&c.geometry.type==='PlaneGeometry') c.material.opacity=k; }); });
+  persist.clouds.forEach(function(g){ g.children.forEach(function(c){ if(c.isSprite){ c.position.y+=Math.sin(T+c.userData.drift)*0.002; c.material.rotation+=0.003; } }); });
+  if(state){
+    var inPat=new Set();
+    [0,1].forEach(function(team){ L.teamPatterns(state,team).forEach(function(p){ p.ids.forEach(function(id){ inPat.add(id); }); }); });
+    persist.glyphs.forEach(function(m,id){
+      var age=T-m.userData.born, s=age<0.35?0.3+0.7*ease(age/0.35):1;
+      m.scale.set(s,s,s); m.rotation.z+=0.002;
+      m.material.opacity=inPat.has(id)?0.75+0.25*Math.sin(T*4+m.userData.ph):0.85;
+    });
+    persist.pillars.forEach(function(g){ if(g.userData.cyl){ g.userData.cyl.material.opacity=0.16+0.08*Math.sin(T*5); g.userData.cyl.rotation.y+=0.01; g.userData.base.rotation.z-=0.02; } });
+  }
+  torches.forEach(function(t){ var f=0.9+0.25*Math.sin(T*9+t.ph)+0.1*Math.sin(T*23+t.ph); t.light.intensity=f; t.sprite.scale.setScalar(1+0.12*Math.sin(T*11+t.ph)); });
+
+  controls.update();
+  if(shakeT>0){ shakeT-=dt; shakeOff.set((Math.random()-0.5)*0.25,(Math.random()-0.5)*0.25,(Math.random()-0.5)*0.25).multiplyScalar(Math.max(0,shakeT)/0.4); } else shakeOff.set(0,0,0);
+  camera.position.add(shakeOff);
+
+  // labels above heads
+  if(state){
+    unitViews.forEach(function(v){
+      var u=L.getUnit(state,v.id); if(!u||v.dead) return;
+      var p=toScreen(vtmp.set(v.g.position.x,v.g.position.y+1.95,v.g.position.z));
+      if(!p.ok){ v.lab.style.display='none'; return; }
+      v.lab.style.display=''; v.lab.style.left=p.x+'px'; v.lab.style.top=p.y+'px';
+      v.lab.children[1].textContent=u.name;
+      v.lab.querySelector('i').style.width=Math.round(u.hp/u.maxHp*100)+'%';
+      v.lab.querySelector('s').style.width=Math.min(100,Math.round(u.shield/u.maxHp*100))+'%';
+      var st=(u.channel?'✺'+u.channel.turns+' ':'')+(u.shield?'🛡':'')+(u.rooted?'❄':'');
+      state.clouds.forEach(function(c){ if(c.team!==u.team&&L.cheb(c.x,c.z,u.x,u.z)<=1) st+='☠'; });
+      if(state.meteors.some(function(m){ return L.cheb(m.x,m.z,u.x,u.z)<=1; })) st+='☄';
+      v.lab.children[0].textContent=st;
+    });
+  }
+  for(var i=floats.length-1;i>=0;i--){
+    var f=floats[i]; f.t+=dt;
+    var q=toScreen(vtmp.copy(f.pos).add(new THREE.Vector3(0,f.t*0.9,0)));
+    f.el.style.left=q.x+'px'; f.el.style.top=q.y+'px'; f.el.style.opacity=String(Math.max(0,1-Math.max(0,f.t-0.6)/0.6));
+    if(f.t>1.2){ f.el.remove(); floats.splice(i,1); }
+  }
+  renderer.render(scene,camera);
+  camera.position.sub(shakeOff);
+}
+requestAnimationFrame(frame);
+
+// ---------------- boot ----------------
+if(params.has('quick')) startBattle(); else openLoadout();
+})();
+</script>
+</body>
+</html>

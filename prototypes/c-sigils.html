@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sigils — Prototype C</title>
+<style>
+  :root {
+    --bg: #0c0f1d;
+    --panel: #141933;
+    --panel2: #1a2040;
+    --line: #2a3157;
+    --text: #e9e0c9;
+    --muted: #9c96ad;
+    --accent: #a78bfa;
+    --danger: #f87171;
+    --sqA: #1d2344;
+    --sqB: #161b36;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header { max-width: 1200px; margin: 0 auto; padding: 28px 24px 4px; }
+  h1 {
+    font-family: ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
+    font-weight: 600; font-size: 30px; margin: 0 0 8px; letter-spacing: .01em;
+  }
+  h1 .tag {
+    font: 600 11px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 4px 9px;
+    vertical-align: middle; margin-left: 10px;
+  }
+  .lede { color: var(--muted); max-width: 78ch; margin: 0; }
+  .lede strong { color: var(--text); font-weight: 600; }
+
+  main.layout {
+    max-width: 1200px; margin: 0 auto; padding: 20px 24px 48px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 32px; align-items: start;
+  }
+  @media (max-width: 920px) { main.layout { grid-template-columns: 1fr; } }
+
+  .board-wrap { display: flex; flex-direction: column; gap: 12px; }
+  #board { width: 100%; max-width: 660px; height: auto; display: block; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .status {
+    max-width: 660px; min-height: 48px; padding: 12px 16px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  }
+  .status strong { color: var(--text); }
+  .status.over { border-color: var(--accent); color: var(--text); }
+
+  .panel { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+
+  .controls { display: grid; gap: 10px; }
+  .controls label { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); }
+  .controls label.check { justify-content: flex-start; color: var(--text); cursor: pointer; }
+  select, button {
+    font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 7px; padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover, select:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #140f24; border-color: var(--accent); font-weight: 600; }
+  .btns { display: flex; gap: 8px; }
+  .btns button { flex: 1; }
+  input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .small { font-size: 12.5px; color: var(--muted); }
+
+  .clocks { display: grid; gap: 8px; }
+  .clock {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2);
+    opacity: .55;
+  }
+  .clock .who { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .clock .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; }
+  .clock.L .dot { background: #ece2c6; border-color: #6f6347; }
+  .clock.S .dot { background: #1b1530; border-color: #d8ccf2; }
+  .clock .time { font: 600 28px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .clock.active { opacity: 1; border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+  .clock.low .time { color: var(--danger); }
+  .turn { margin-top: 10px; color: var(--muted); }
+  .turn strong { color: var(--text); }
+
+  .hint { color: var(--muted); min-height: 3.2em; }
+  .hint ul { margin: 6px 0 0; padding-left: 18px; color: var(--text); }
+  .hint .none { color: var(--muted); }
+
+  details summary { cursor: pointer; font-weight: 600; list-style-position: outside; }
+  details[open] summary { margin-bottom: 8px; }
+  .rules p { margin: 8px 0; }
+  .rules b { color: var(--accent); font-weight: 600; }
+  .diagram { display: flex; gap: 14px; align-items: center; margin: 10px 0 4px; }
+  .diagram svg { flex: none; }
+  .diagram .cap { font-size: 13px; color: var(--muted); }
+
+  .log { max-height: 320px; overflow-y: auto; margin: 0; padding-left: 26px; font-size: 13.5px; }
+  .log li { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .log li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .log li.sig { color: var(--text); }
+  .log li.sig .k { color: var(--accent); font-weight: 600; }
+  .log li.plain { color: var(--muted); }
+  .log li.end { list-style: none; color: var(--accent); font-weight: 600; margin-left: -26px; }
+
+  /* ---- board svg ---- */
+  .sq-a { fill: var(--sqA); }
+  .sq-b { fill: var(--sqB); }
+  .home-L, .home-S { fill: none; stroke: rgba(233,224,201,.06); }
+  .lastmove { fill: var(--accent); fill-opacity: .10; }
+  .sel { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-width: 2.5; }
+  .dest { fill: var(--accent); fill-opacity: .6; }
+  .dest-cap { fill: none; stroke: var(--accent); stroke-width: 3; stroke-opacity: .85; }
+  .hovercell { fill: var(--accent); fill-opacity: .16; }
+  .lbl { fill: var(--muted); font: 12px ui-monospace, Menlo, monospace; }
+
+  .pc-L { fill: #ece2c6; stroke: #6f6347; stroke-width: 2; }
+  .pc-S { fill: #1b1530; stroke: #d8ccf2; stroke-width: 2; }
+  .core-L { fill: #6f6347; }
+  .core-S { fill: #d8ccf2; }
+  .ring-L { fill: none; stroke: #6f6347; stroke-width: 1.5; }
+  .ring-S { fill: none; stroke: #d8ccf2; stroke-width: 1.5; }
+
+  .beam { stroke: var(--accent); stroke-linecap: round; fill: none; }
+  .linecell { fill: none; stroke: var(--accent); stroke-width: 2; }
+  .xmark { stroke: var(--accent); stroke-width: 3.5; stroke-linecap: round; }
+  .ghostpc { opacity: .22; }
+  .bloomsq { fill: var(--accent); fill-opacity: .07; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5; }
+  .summon { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+
+  .fx .beam { stroke-width: 3.5; opacity: .45; }
+  .fx .linecell { opacity: .55; }
+  .fx.flash .beam { animation: beamflash 1.6s ease-out both; }
+  .fx.flash .xmark, .fx.flash .summon { animation: markflash 1.6s ease-out both; }
+  @keyframes beamflash { 0% { stroke-width: 10; opacity: 1; } 100% { stroke-width: 3.5; opacity: .45; } }
+  @keyframes markflash { 0% { stroke-width: 6; opacity: 1; } 100% { opacity: .75; } }
+
+  .pv { pointer-events: none; }
+  .pv .beam { stroke-width: 3; stroke-dasharray: 7 6; opacity: .8; }
+  .pv .linecell { stroke-dasharray: 5 4; opacity: .8; }
+  .pv .xmark { opacity: .9; }
+  .pv .summon { stroke-dasharray: 5 4; }
+
+  .overlay-bg { fill: #0c0f1d; fill-opacity: .72; }
+  .overlay-txt { fill: var(--text); font: 600 26px ui-serif, Georgia, serif; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sigils: Geometry is Magic <span class="tag">Prototype C of 3</span></h1>
+  <p class="lede">
+    <strong>What this prototype tests:</strong> is it fun when spells aren't picked from a hand or a menu, but
+    <strong>emerge from the shapes your pieces make on the board</strong>? There are no cards and no mana, just two
+    sigils. When a move completes a <strong>LINE</strong> or a <strong>SQUARE</strong> of your Adepts, the sigil fires at once.
+    Things to notice: do you start reading the board as geometry (open files and diagonals, half-built squares)?
+    Does the clock make you miss or rush a sigil? Does it feel like its own game, or chess with extra steps?
+  </p>
+</header>
+
+<main class="layout">
+  <section class="board-wrap">
+    <svg id="board" xmlns="http://www.w3.org/2000/svg" aria-label="Game board"></svg>
+    <div class="status" id="status"></div>
+  </section>
+
+  <aside class="panel">
+    <div class="card">
+      <h2>Setup</h2>
+      <div class="controls">
+        <label>Time control
+          <select id="tc">
+            <option value="3+2">3 min + 2 s</option>
+            <option value="5+3">5 min + 3 s</option>
+            <option value="10+5" selected>10 min + 5 s</option>
+            <option value="30+0">30 min + 0 s</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="bot" checked> Shadow is a bot</label>
+        <div class="btns">
+          <button id="new" class="primary">New game</button>
+          <button id="pause">Pause</button>
+        </div>
+        <div class="small">Time control changes take effect on New game. Each side gets the increment after every move (Fischer).</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Clock</h2>
+      <div class="clocks">
+        <div class="clock S" id="clock-S"><span class="who"><span class="dot"></span>Shadow</span><span class="time">10:00</span></div>
+        <div class="clock L" id="clock-L"><span class="who"><span class="dot"></span>Light</span><span class="time">10:00</span></div>
+      </div>
+      <div class="turn" id="turn"></div>
+    </div>
+
+    <div class="card">
+      <h2>Sigil preview</h2>
+      <div class="hint" id="hint"></div>
+    </div>
+
+    <div class="card">
+      <details id="howto" open>
+        <summary>How to play</summary>
+        <div class="rules">
+          <p><b>Pieces.</b> Each side has 6 Adepts (round) and 1 Oracle (diamond). Adepts step 1 square in any of 8 directions. The Oracle steps 1 square orthogonally. Move onto an enemy piece to capture it.</p>
+          <p><b>You never cast spells. Shapes do.</b> After you move an <i>Adept</i>, every sigil that <i>includes that Adept</i> and is made only of your Adepts fires automatically. The Oracle never counts. Formations that are already standing stay dormant until you move a piece into or within them.</p>
+          <div class="diagram"><span id="dg-line"></span>
+            <div class="cap"><b>LINE: Beam.</b> 3 or more Adepts in a straight row (orthogonal or diagonal). A beam fires out of <i>both</i> ends and destroys the first enemy it meets. Your own pieces block it.</div></div>
+          <div class="diagram"><span id="dg-diag"></span>
+            <div class="cap">Diagonals count too. A beam that reaches the enemy Oracle wins the game.</div></div>
+          <div class="diagram"><span id="dg-square"></span>
+            <div class="cap"><b>SQUARE: Bloom.</b> A 2×2 block of your Adepts summons a new Adept on your home row, on the free square closest to the centre (max 8 Adepts).</div></div>
+          <p><b>Winning.</b> Destroy the enemy Oracle (by capture or beam), wipe out every enemy Adept, or let the enemy's clock run out. A player with no legal moves loses. After 150 moves in total the game is a draw.</p>
+          <p class="small">Tip: select a piece, then hover a highlighted square. The board shows the sigils that move would form.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Move log</h2>
+      <ol class="log" id="log"></ol>
+    </div>
+  </aside>
+</main>
+
+<script id="game-logic">
+/* =====================================================================
+   GAME LOGIC — pure, no DOM
+   Board: 49 cells, index = y*7 + x. x=0..6 → files a..g, y=0..6 → ranks 1..7.
+   Light (L) starts on rank 1 and moves first. Shadow (S) starts on rank 7.
+   Piece: { side: 'L'|'S', kind: 'A' (Adept) | 'O' (Oracle) }
+   Action: { from, to } (cell indices)
+   ===================================================================== */
+const Sigils = (() => {
+  const SIZE = 7;
+  const FILES = 'abcdefg';
+  const MAX_ADEPTS = 8;
+  const TURN_CAP = 150; // total moves (both sides) before a draw
+  const KING_STEPS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const ORTHO_STEPS = [[1,0],[-1,0],[0,1],[0,-1]];
+  const AXES = [
+    { dir: [1, 0], name: 'horizontal' },
+    { dir: [0, 1], name: 'vertical' },
+    { dir: [1, 1], name: 'diagonal ↗' },
+    { dir: [1, -1], name: 'diagonal ↘' },
+  ];
+  const BLOOM_ORDER = [3, 2, 4, 1, 5, 0, 6]; // home-row files, closest to centre first
+
+  const other = s => (s === 'L' ? 'S' : 'L');
+  const idx = (x, y) => y * SIZE + x;
+  const xOf = i => i % SIZE;
+  const yOf = i => (i - (i % SIZE)) / SIZE;
+  const inBounds = (x, y) => x >= 0 && y >= 0 && x < SIZE && y < SIZE;
+  const sqName = i => FILES[xOf(i)] + (yOf(i) + 1);
+  const homeRow = side => (side === 'L' ? 0 : SIZE - 1);
+  const isAdeptOf = (p, side) => !!p && p.side === side && p.kind === 'A';
+  const countAdepts = (board, side) => board.reduce((n, p) => n + (isAdeptOf(p, side) ? 1 : 0), 0);
+  const hasOracle = (board, side) => board.some(p => p && p.side === side && p.kind === 'O');
+
+  function initialState(opts = {}) {
+    const baseMs = (opts.minutes ?? 10) * 60000;
+    const incMs = (opts.increment ?? 5) * 1000;
+    const board = Array(SIZE * SIZE).fill(null);
+    for (let x = 0; x < SIZE; x++) {
+      const kind = x === 3 ? 'O' : 'A';
+      board[idx(x, 0)] = { side: 'L', kind };
+      board[idx(x, SIZE - 1)] = { side: 'S', kind };
+    }
+    return {
+      board, turn: 'L', clocks: { L: baseMs, S: baseMs }, incMs,
+      ply: 0, winner: null, reason: null, lastAction: null, lastEffects: [],
+    };
+  }
+
+  function legalActions(state) {
+    if (state.winner) return [];
+    const out = [];
+    state.board.forEach((p, i) => {
+      if (!p || p.side !== state.turn) return;
+      for (const [dx, dy] of (p.kind === 'A' ? KING_STEPS : ORTHO_STEPS)) {
+        const x = xOf(i) + dx, y = yOf(i) + dy;
+        if (!inBounds(x, y)) continue;
+        const t = idx(x, y), q = state.board[t];
+        if (q && q.side === p.side) continue;
+        out.push({ from: i, to: t });
+      }
+    });
+    return out;
+  }
+
+  // Maximal contiguous lines of `side` Adepts through `at`, one per axis, length ≥ 3.
+  function findLines(board, at, side) {
+    const lines = [];
+    for (const ax of AXES) {
+      const [dx, dy] = ax.dir;
+      const cells = [at];
+      let x = xOf(at) - dx, y = yOf(at) - dy;
+      while (inBounds(x, y) && isAdeptOf(board[idx(x, y)], side)) { cells.unshift(idx(x, y)); x -= dx; y -= dy; }
+      x = xOf(at) + dx; y = yOf(at) + dy;
+      while (inBounds(x, y) && isAdeptOf(board[idx(x, y)], side)) { cells.push(idx(x, y)); x += dx; y += dy; }
+      if (cells.length >= 3) lines.push({ axis: ax.name, dir: ax.dir, cells });
+    }
+    return lines;
+  }
+
+  function traceBeam(board, origin, dir, side) {
+    const [dx, dy] = dir;
+    const path = [];
+    let x = xOf(origin) + dx, y = yOf(origin) + dy;
+    while (inBounds(x, y)) {
+      const i = idx(x, y), p = board[i];
+      if (!p) { path.push(i); x += dx; y += dy; continue; }
+      if (p.side === side) return { origin, dir, path, hit: null, stoppedBy: 'ally' };
+      return { origin, dir, path, hit: i, hitPiece: { ...p }, stoppedBy: 'enemy' };
+    }
+    return { origin, dir, path, hit: null, stoppedBy: 'edge' };
+  }
+
+  // Every 2x2 block containing `at` made only of `side` Adepts.
+  function findSquares(board, at, side) {
+    const out = [];
+    for (const [ox, oy] of [[0, 0], [-1, 0], [0, -1], [-1, -1]]) {
+      const x = xOf(at) + ox, y = yOf(at) + oy;
+      if (!inBounds(x, y) || !inBounds(x + 1, y + 1)) continue;
+      const cells = [idx(x, y), idx(x + 1, y), idx(x, y + 1), idx(x + 1, y + 1)];
+      if (cells.every(c => isAdeptOf(board[c], side))) out.push(cells);
+    }
+    return out;
+  }
+
+  // Returns a NEW state. `lastEffects` describes what happened, in order:
+  //   {type:'move', side, kind, from, to, captured}
+  //   {type:'line', side, axis, cells, beams:[{origin, dir, path, hit, hitPiece, stoppedBy}]}
+  //   {type:'destroyed', list:[{at, piece}]}
+  //   {type:'bloom', side, squares, summonAt, fizzle}
+  function applyAction(state, action) {
+    const { from, to } = action;
+    const me = state.turn, foe = other(me);
+    const board = state.board.slice();
+    const mover = board[from];
+    const captured = board[to];
+    board[to] = mover;
+    board[from] = null;
+    const effects = [{ type: 'move', side: me, kind: mover.kind, from, to, captured: captured ? { ...captured } : null }];
+
+    if (mover.kind === 'A') {
+      // 1. Beams: all traced against the same post-move board, then resolved together.
+      const hits = new Set();
+      for (const ln of findLines(board, to, me)) {
+        const [dx, dy] = ln.dir;
+        const beams = [
+          traceBeam(board, ln.cells[ln.cells.length - 1], [dx, dy], me),
+          traceBeam(board, ln.cells[0], [-dx, -dy], me),
+        ];
+        beams.forEach(b => { if (b.hit !== null) hits.add(b.hit); });
+        effects.push({ type: 'line', side: me, axis: ln.axis, cells: ln.cells, beams });
+      }
+      if (hits.size) {
+        effects.push({ type: 'destroyed', list: [...hits].map(i => ({ at: i, piece: { ...board[i] } })) });
+        hits.forEach(i => { board[i] = null; });
+      }
+      // 2. Bloom: at most one summon per move.
+      const squares = findSquares(board, to, me);
+      if (squares.length) {
+        let summonAt = null, fizzle = null;
+        if (countAdepts(board, me) >= MAX_ADEPTS) fizzle = 'already at 8 Adepts';
+        else {
+          const row = homeRow(me);
+          for (const x of BLOOM_ORDER) if (!board[idx(x, row)]) { summonAt = idx(x, row); break; }
+          if (summonAt === null) fizzle = 'home row is full';
+        }
+        if (summonAt !== null) board[summonAt] = { side: me, kind: 'A' };
+        effects.push({ type: 'bloom', side: me, squares, summonAt, fizzle });
+      }
+    }
+
+    const clocks = { ...state.clocks };
+    clocks[me] += state.incMs;
+    let winner = null, reason = null;
+    if (!hasOracle(board, foe)) { winner = me; reason = captured && captured.kind === 'O' ? 'oracle-captured' : 'oracle-beamed'; }
+    else if (countAdepts(board, foe) === 0) { winner = me; reason = 'no-adepts'; }
+
+    const next = { ...state, board, turn: foe, clocks, ply: state.ply + 1, winner, reason, lastAction: { from, to }, lastEffects: effects };
+    if (!winner) {
+      if (legalActions(next).length === 0) { next.winner = me; next.reason = 'no-moves'; }
+      else if (next.ply >= TURN_CAP) { next.winner = 'draw'; next.reason = 'turn-cap'; }
+    }
+    return next;
+  }
+
+  // Only the side to move loses time.
+  function tick(state, elapsedMs) {
+    if (state.winner) return state;
+    const clocks = { ...state.clocks };
+    clocks[state.turn] -= elapsedMs;
+    if (clocks[state.turn] <= 0) {
+      clocks[state.turn] = 0;
+      return { ...state, clocks, winner: other(state.turn), reason: 'time' };
+    }
+    return { ...state, clocks };
+  }
+
+  function getWinner(state) {
+    return state.winner ? { winner: state.winner, reason: state.reason } : null;
+  }
+
+  // ---- Bot: greedy, looks one reply ahead to avoid obvious blunders ----
+  function evaluate(s, me) {
+    if (s.winner === me) return 1000;
+    if (s.winner === other(me)) return -1000;
+    if (s.winner === 'draw') return 0;
+    let score = 10 * (countAdepts(s.board, me) - countAdepts(s.board, other(me)));
+    s.board.forEach((p, i) => {
+      if (!p) return;
+      const sign = p.side === me ? 1 : -1;
+      const adv = p.side === 'L' ? yOf(i) : SIZE - 1 - yOf(i);
+      if (p.kind === 'A') score += sign * 0.12 * Math.min(adv, 4);
+      else score -= sign * 0.3 * adv; // keep the Oracle home
+    });
+    return score;
+  }
+
+  function botChoose(state, rand = Math.random) {
+    const me = state.turn, foe = other(me);
+    let best = null, bestScore = -Infinity;
+    for (const a of legalActions(state)) {
+      const s = applyAction(state, a);
+      let score = evaluate(s, me);
+      if (!s.winner) {
+        let worst = Infinity;
+        for (const b of legalActions(s)) {
+          const t = applyAction(s, b);
+          const v = evaluate(t, me);
+          if (v < worst) worst = v;
+          if (t.winner === foe) break;
+        }
+        if (worst === -1000) score = -900; // opponent could destroy our Oracle next move
+        else if (worst !== Infinity) score = 0.4 * score + 0.6 * worst;
+      }
+      score += rand() * 1.5;
+      if (score > bestScore) { bestScore = score; best = a; }
+    }
+    return best;
+  }
+
+  return {
+    SIZE, TURN_CAP, other, idx, xOf, yOf, sqName, countAdepts,
+    initialState, legalActions, applyAction, tick, getWinner, botChoose,
+  };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = Sigils;
+</script>
+
+<script id="ui-shell">
+/* ===================== UI SHELL (throwaway) ===================== */
+const G = Sigils;
+const NS = 'http://www.w3.org/2000/svg';
+const C = 60, M = 26, T = 6; // cell size, left/bottom label margin, top/right margin
+const W = M + G.SIZE * C + T;
+const SIDE = { L: 'Light', S: 'Shadow' };
+const KIND = { A: 'Adept', O: 'Oracle' };
+const REASON = {
+  'oracle-captured': 'captured the enemy Oracle',
+  'oracle-beamed': 'destroyed the enemy Oracle with a beam',
+  'no-adepts': 'destroyed every enemy Adept',
+  'no-moves': 'left the opponent with no legal moves',
+  'time': 'won on time',
+};
+
+const svg = document.getElementById('board');
+svg.setAttribute('viewBox', `0 0 ${W} ${W}`);
+const layers = {};
+for (const name of ['squares', 'marks', 'effects', 'pieces', 'preview', 'labels', 'overlay']) {
+  const g = document.createElementNS(NS, 'g');
+  layers[name] = g;
+  svg.appendChild(g);
+}
+const $ = id => document.getElementById(id);
+
+let state, selected = null, hover = null, paused = false, botOn = true;
+let gameId = 0, botTimer = null, lastNow = performance.now();
+
+const cx = i => M + G.xOf(i) * C + C / 2;
+const cy = i => T + (G.SIZE - 1 - G.yOf(i)) * C + C / 2;
+const sq = G.sqName;
+const humanTurn = () => !state.winner && !paused && (state.turn === 'L' || !botOn);
+
+/* ---------- drawing helpers ---------- */
+function pieceSVG(p, i, extraClass = '') {
+  const x = cx(i), y = cy(i), s = p.side;
+  if (p.kind === 'A') {
+    return `<g class="${extraClass}"><circle cx="${x}" cy="${y}" r="17" class="pc-${s}"/><circle cx="${x}" cy="${y}" r="4.5" class="core-${s}"/></g>`;
+  }
+  const d = 10;
+  return `<g class="${extraClass}"><circle cx="${x}" cy="${y}" r="22" class="pc-${s}"/>` +
+    `<circle cx="${x}" cy="${y}" r="17" class="ring-${s}"/>` +
+    `<path d="M${x} ${y - d} L${x + d} ${y} L${x} ${y + d} L${x - d} ${y} Z" class="core-${s}"/></g>`;
+}
+
+function beamEnd(b) {
+  if (b.hit !== null) return [cx(b.hit), cy(b.hit)];
+  const last = b.path.length ? b.path[b.path.length - 1] : b.origin;
+  return [cx(last) + b.dir[0] * C / 2, cy(last) - b.dir[1] * C / 2];
+}
+
+function xMark(i) {
+  const x = cx(i), y = cy(i), r = 13;
+  return `<line x1="${x - r}" y1="${y - r}" x2="${x + r}" y2="${y + r}" class="xmark"/><line x1="${x - r}" y1="${y + r}" x2="${x + r}" y2="${y - r}" class="xmark"/>`;
+}
+
+// Draw the sigil effects list (from a real move or a preview).
+function effectsSVG(effects, isPreview) {
+  let out = '';
+  for (const e of effects) {
+    if (e.type === 'line') {
+      for (const c of e.cells) out += `<rect x="${cx(c) - C / 2 + 5}" y="${cy(c) - C / 2 + 5}" width="${C - 10}" height="${C - 10}" rx="8" class="linecell"/>`;
+      for (const b of e.beams) {
+        const [x2, y2] = beamEnd(b);
+        out += `<line x1="${cx(b.origin)}" y1="${cy(b.origin)}" x2="${x2}" y2="${y2}" class="beam"/>`;
+        if (isPreview && b.hit !== null) out += xMark(b.hit);
+      }
+    } else if (e.type === 'destroyed' && !isPreview) {
+      for (const d of e.list) out += pieceSVG(d.piece, d.at, 'ghostpc') + xMark(d.at);
+    } else if (e.type === 'bloom') {
+      for (const s of e.squares) {
+        const xs = s.map(cx), ys = s.map(cy);
+        const x0 = Math.min(...xs) - C / 2 + 3, y0 = Math.min(...ys) - C / 2 + 3;
+        out += `<rect x="${x0}" y="${y0}" width="${2 * C - 6}" height="${2 * C - 6}" rx="10" class="bloomsq"/>`;
+      }
+      if (e.summonAt !== null) {
+        out += `<circle cx="${cx(e.summonAt)}" cy="${cy(e.summonAt)}" r="25" class="summon"/>`;
+        if (isPreview) out += pieceSVG({ side: e.side, kind: 'A' }, e.summonAt, 'ghostpc');
+      }
+    }
+  }
+  return out;
+}
+
+/* ---------- rendering ---------- */
+function renderSquaresAndLabels() {
+  let s = '', l = '';
+  for (let i = 0; i < G.SIZE * G.SIZE; i++) {
+    const dark = (G.xOf(i) + G.yOf(i)) % 2 === 0;
+    s += `<rect x="${cx(i) - C / 2}" y="${cy(i) - C / 2}" width="${C}" height="${C}" class="${dark ? 'sq-b' : 'sq-a'}"/>`;
+  }
+  for (let x = 0; x < G.SIZE; x++) l += `<text x="${M + x * C + C / 2}" y="${T + G.SIZE * C + 17}" text-anchor="middle" class="lbl">${'abcdefg'[x]}</text>`;
+  for (let y = 0; y < G.SIZE; y++) l += `<text x="${M - 13}" y="${T + (G.SIZE - 1 - y) * C + C / 2 + 4}" text-anchor="middle" class="lbl">${y + 1}</text>`;
+  layers.squares.innerHTML = s;
+  layers.labels.innerHTML = l;
+}
+
+function destsOf(i) {
+  return G.legalActions(state).filter(a => a.from === i).map(a => a.to);
+}
+
+function renderBoard() {
+  let marks = '';
+  if (state.lastAction) {
+    for (const i of [state.lastAction.from, state.lastAction.to]) {
+      marks += `<rect x="${cx(i) - C / 2}" y="${cy(i) - C / 2}" width="${C}" height="${C}" class="lastmove"/>`;
+    }
+  }
+  if (selected !== null) {
+    marks += `<rect x="${cx(selected) - C / 2 + 1.5}" y="${cy(selected) - C / 2 + 1.5}" width="${C - 3}" height="${C - 3}" class="sel"/>`;
+    for (const t of destsOf(selected)) {
+      if (t === hover) marks += `<rect x="${cx(t) - C / 2}" y="${cy(t) - C / 2}" width="${C}" height="${C}" class="hovercell"/>`;
+      marks += state.board[t]
+        ? `<circle cx="${cx(t)}" cy="${cy(t)}" r="26" class="dest-cap"/>`
+        : `<circle cx="${cx(t)}" cy="${cy(t)}" r="7" class="dest"/>`;
+    }
+  }
+  layers.marks.innerHTML = marks;
+  layers.pieces.innerHTML = state.board.map((p, i) => (p ? pieceSVG(p, i) : '')).join('');
+
+  let ov = '';
+  if (paused && !state.winner) {
+    ov = `<rect x="${M}" y="${T}" width="${G.SIZE * C}" height="${G.SIZE * C}" class="overlay-bg"/>` +
+      `<text x="${M + G.SIZE * C / 2}" y="${T + G.SIZE * C / 2 + 9}" text-anchor="middle" class="overlay-txt">Paused</text>`;
+  }
+  layers.overlay.innerHTML = ov;
+}
+
+function renderEffects() {
+  layers.effects.innerHTML = `<g class="fx flash">${effectsSVG(state.lastEffects, false)}</g>`;
+}
+
+function renderPreview() {
+  const hint = $('hint');
+  if (selected === null || hover === null || !destsOf(selected).includes(hover)) {
+    layers.preview.innerHTML = '';
+    hint.innerHTML = selected === null
+      ? 'Select one of your pieces, then hover a highlighted square. The board shows any sigil that move would form.'
+      : 'Hover a highlighted square to preview the sigils that move would form.';
+    return;
+  }
+  const next = G.applyAction(state, { from: selected, to: hover });
+  layers.preview.innerHTML = `<g class="pv">${effectsSVG(next.lastEffects, true)}</g>`;
+  const parts = describeSigils(next.lastEffects);
+  const mv = next.lastEffects[0];
+  let head = `${KIND[mv.kind]} ${sq(mv.from)}→${sq(mv.to)}`;
+  if (mv.captured) head += `, captures ${SIDE[mv.captured.side]} ${KIND[mv.captured.kind]}`;
+  hint.innerHTML = `<strong>${head}</strong>` + (parts.length
+    ? `<ul>${parts.map(p => `<li>${p}</li>`).join('')}</ul>`
+    : `<div class="none">No sigil formed.</div>`) +
+    (next.winner && next.winner !== 'draw' ? `<div style="color:var(--accent);margin-top:6px"><strong>This move wins the game.</strong></div>` : '');
+}
+
+function fmt(ms) {
+  if (ms < 10000) return (Math.max(0, ms) / 1000).toFixed(1);
+  const total = Math.ceil(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function renderClocks() {
+  for (const s of ['L', 'S']) {
+    const el = $('clock-' + s);
+    el.querySelector('.time').textContent = fmt(state.clocks[s]);
+    el.classList.toggle('active', !state.winner && state.turn === s);
+    el.classList.toggle('low', state.clocks[s] < 30000);
+  }
+}
+
+function renderStatus() {
+  const st = $('status'), turn = $('turn');
+  st.classList.toggle('over', !!state.winner);
+  if (state.winner === 'draw') {
+    st.innerHTML = `<strong>Draw.</strong> The 150-move limit was reached.`;
+    turn.innerHTML = 'Game over.';
+  } else if (state.winner) {
+    st.innerHTML = `<strong>${SIDE[state.winner]} wins</strong>: ${REASON[state.reason]}.`;
+    turn.innerHTML = 'Game over.';
+  } else {
+    const who = SIDE[state.turn];
+    const thinking = botOn && state.turn === 'S';
+    turn.innerHTML = paused ? '<strong>Paused.</strong> Clocks are stopped.'
+      : thinking ? `<strong>Shadow</strong> is thinking…` : `<strong>${who}</strong> to move.`;
+    st.innerHTML = `Move ${state.ply + 1} of ${G.TURN_CAP}. ` +
+      `Adepts: Light <strong>${G.countAdepts(state.board, 'L')}</strong>, Shadow <strong>${G.countAdepts(state.board, 'S')}</strong>.`;
+  }
+}
+
+function renderAll() {
+  renderBoard();
+  renderPreview();
+  renderClocks();
+  renderStatus();
+}
+
+/* ---------- plain-language log ---------- */
+function describeSigils(effects) {
+  const parts = [];
+  for (const e of effects) {
+    if (e.type === 'line') {
+      const hits = e.beams.filter(b => b.hit !== null);
+      const what = hits.length
+        ? hits.map(b => `destroys ${SIDE[b.hitPiece.side]} ${KIND[b.hitPiece.kind]} at ${sq(b.hit)}`).join(' and ')
+        : 'hits nothing';
+      parts.push(`<span class="k">LINE</span> formed (${e.axis}, ${e.cells.length} Adepts): Beam ${what}`);
+    } else if (e.type === 'bloom') {
+      parts.push(e.summonAt !== null
+        ? `<span class="k">SQUARE</span> formed: Bloom summons an Adept at ${sq(e.summonAt)}`
+        : `<span class="k">SQUARE</span> formed: Bloom fizzles (${e.fizzle})`);
+    }
+  }
+  return parts;
+}
+
+function addLog(html, cls) {
+  const li = document.createElement('li');
+  li.className = cls;
+  li.innerHTML = html;
+  const log = $('log');
+  log.appendChild(li);
+  log.scrollTop = log.scrollHeight;
+}
+
+function logMove(s) {
+  const mv = s.lastEffects[0];
+  let t = `${SIDE[mv.side]} ${KIND[mv.kind]} ${sq(mv.from)}→${sq(mv.to)}`;
+  if (mv.captured) t += `, captures ${SIDE[mv.captured.side]} ${KIND[mv.captured.kind]}`;
+  const parts = describeSigils(s.lastEffects);
+  addLog(parts.length ? `${t}. ${parts.join('; ')}` : t, parts.length ? 'sig' : 'plain');
+}
+
+function logEnd() {
+  if (!state.winner) return;
+  addLog(state.winner === 'draw' ? 'Draw: 150-move limit.' : `${SIDE[state.winner]} wins: ${REASON[state.reason]}.`, 'end');
+}
+
+/* ---------- flow ---------- */
+function commit(action) {
+  state = G.applyAction(state, action);
+  selected = null;
+  hover = null;
+  logMove(state);
+  logEnd();
+  renderEffects();
+  renderAll();
+  scheduleBot();
+}
+
+function scheduleBot() {
+  clearTimeout(botTimer);
+  botTimer = null;
+  if (!botOn || paused || state.winner || state.turn !== 'S') return;
+  const id = gameId;
+  botTimer = setTimeout(() => {
+    if (id !== gameId || !botOn || paused || state.winner || state.turn !== 'S') return;
+    const a = G.botChoose(state);
+    if (a) commit(a);
+  }, 800 + Math.random() * 1200);
+}
+
+function newGame() {
+  const [min, inc] = $('tc').value.split('+').map(Number);
+  gameId++;
+  clearTimeout(botTimer);
+  state = G.initialState({ minutes: min, increment: inc });
+  selected = null;
+  hover = null;
+  paused = false;
+  $('pause').textContent = 'Pause';
+  $('log').innerHTML = '';
+  layers.effects.innerHTML = '';
+  lastNow = performance.now();
+  renderAll();
+  scheduleBot();
+}
+
+function cellAt(evt) {
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const x = Math.floor((p.x - M) / C), row = Math.floor((p.y - T) / C);
+  if (x < 0 || x >= G.SIZE || row < 0 || row >= G.SIZE) return null;
+  return G.idx(x, G.SIZE - 1 - row);
+}
+
+svg.addEventListener('click', evt => {
+  if (!humanTurn()) return;
+  const i = cellAt(evt);
+  if (i === null) return;
+  if (selected !== null && destsOf(selected).includes(i)) {
+    commit({ from: selected, to: i });
+    return;
+  }
+  const p = state.board[i];
+  selected = p && p.side === state.turn && selected !== i ? i : null;
+  hover = null;
+  renderBoard();
+  renderPreview();
+});
+
+svg.addEventListener('mousemove', evt => {
+  const i = cellAt(evt);
+  const canAct = humanTurn() && i !== null &&
+    ((state.board[i] && state.board[i].side === state.turn) || (selected !== null && destsOf(selected).includes(i)));
+  svg.style.cursor = canAct ? 'pointer' : 'default';
+  if (i === hover) return;
+  hover = i;
+  if (selected !== null) { renderBoard(); renderPreview(); }
+});
+svg.addEventListener('mouseleave', () => {
+  if (hover === null) return;
+  hover = null;
+  if (selected !== null) { renderBoard(); renderPreview(); }
+});
+
+$('new').addEventListener('click', newGame);
+$('pause').addEventListener('click', () => {
+  if (state.winner) return;
+  paused = !paused;
+  $('pause').textContent = paused ? 'Resume' : 'Pause';
+  if (paused) { clearTimeout(botTimer); selected = null; hover = null; }
+  lastNow = performance.now();
+  renderAll();
+  scheduleBot();
+});
+$('bot').addEventListener('change', e => {
+  botOn = e.target.checked;
+  selected = null;
+  renderAll();
+  scheduleBot();
+});
+
+setInterval(() => {
+  const now = performance.now();
+  const dt = now - lastNow;
+  lastNow = now;
+  if (paused || state.winner) return;
+  state = G.tick(state, dt);
+  if (state.winner) {
+    clearTimeout(botTimer);
+    selected = null;
+    logEnd();
+    renderAll();
+  } else {
+    renderClocks();
+  }
+}, 100);
+
+/* ---------- rules diagrams ---------- */
+function mini(cols, rows, items) {
+  const c = 20, H = rows * c;
+  const px = x => x * c + c / 2, py = y => H - (y * c + c / 2);
+  let s = `<svg width="${cols * c}" height="${H}" viewBox="0 0 ${cols * c} ${H}">`;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    s += `<rect x="${x * c}" y="${H - (y + 1) * c}" width="${c}" height="${c}" class="${(x + y) % 2 ? 'sq-a' : 'sq-b'}"/>`;
+  }
+  for (const it of items) {
+    if (it.t === 'beam') s += `<line x1="${px(it.x1)}" y1="${py(it.y1)}" x2="${px(it.x2)}" y2="${py(it.y2)}" class="beam" style="stroke-width:2.5"/>`;
+    if (it.t === 'sq') s += `<rect x="${it.x * c + 1}" y="${H - (it.y + 2) * c + 1}" width="${2 * c - 2}" height="${2 * c - 2}" rx="4" class="bloomsq" style="stroke-width:1.5;stroke-dasharray:3 3"/>`;
+  }
+  for (const it of items) {
+    if (it.t === 'A') s += `<circle cx="${px(it.x)}" cy="${py(it.y)}" r="6" class="pc-${it.s}" style="stroke-width:1.5"/>`;
+    if (it.t === 'O') s += `<path d="M${px(it.x)} ${py(it.y) - 7} l7 7 l-7 7 l-7 -7 Z" class="pc-${it.s}" style="stroke-width:1.5"/>`;
+    if (it.t === 'x') {
+      const x = px(it.x), y = py(it.y), r = 5;
+      s += `<path d="M${x - r} ${y - r} L${x + r} ${y + r} M${x - r} ${y + r} L${x + r} ${y - r}" class="xmark" style="stroke-width:2"/>`;
+    }
+    if (it.t === 'new') s += `<circle cx="${px(it.x)}" cy="${py(it.y)}" r="8.5" class="summon" style="stroke-width:1.5"/><circle cx="${px(it.x)}" cy="${py(it.y)}" r="6" class="pc-L" style="stroke-width:1.5"/>`;
+  }
+  return s + '</svg>';
+}
+$('dg-line').innerHTML = mini(3, 6, [
+  { t: 'beam', x1: 1, y1: 2, x2: 1, y2: 5 }, { t: 'beam', x1: 1, y1: 0, x2: 1, y2: -0.5 },
+  { t: 'A', s: 'L', x: 1, y: 0 }, { t: 'A', s: 'L', x: 1, y: 1 }, { t: 'A', s: 'L', x: 1, y: 2 },
+  { t: 'A', s: 'S', x: 1, y: 5 }, { t: 'x', x: 1, y: 5 }, { t: 'A', s: 'S', x: 2, y: 4 },
+]);
+$('dg-diag').innerHTML = mini(5, 5, [
+  { t: 'beam', x1: 2, y1: 2, x2: 4, y2: 4 }, { t: 'beam', x1: 0, y1: 0, x2: -0.5, y2: -0.5 },
+  { t: 'A', s: 'L', x: 0, y: 0 }, { t: 'A', s: 'L', x: 1, y: 1 }, { t: 'A', s: 'L', x: 2, y: 2 },
+  { t: 'O', s: 'S', x: 4, y: 4 }, { t: 'x', x: 4, y: 4 },
+]);
+$('dg-square').innerHTML = mini(5, 4, [
+  { t: 'sq', x: 1, y: 2 },
+  { t: 'A', s: 'L', x: 1, y: 2 }, { t: 'A', s: 'L', x: 2, y: 2 }, { t: 'A', s: 'L', x: 1, y: 3 }, { t: 'A', s: 'L', x: 2, y: 3 },
+  { t: 'new', x: 2, y: 0 },
+]);
+
+renderSquaresAndLabels();
+newGame();
+</script>
+</body>
+</html>

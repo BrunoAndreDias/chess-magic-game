@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elemental Chess (Prototype A)</title>
+<style>
+  :root {
+    --bg: #0e1323;
+    --panel: #151b2f;
+    --panel2: #1a2139;
+    --ink: #ebe3cd;
+    --muted: #a39b86;
+    --line: #2a3252;
+    --accent: #e8833a;
+    --sqA: #1c2340;
+    --sqB: #242c4d;
+    --fire: #d9533b;
+    --water: #4d8fd8;
+    --earth: #8da25a;
+    --monarch: #d9b75c;
+    --danger: #e25b5b;
+    --s: min(66px, calc((100vw - 56px) / 7));
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 30px; margin: 0 0 4px; letter-spacing: .5px; }
+  h1 small { font-family: system-ui, sans-serif; font-size: 13px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-left: 10px; }
+  .intro { color: var(--muted); max-width: 760px; margin: 0 0 24px; }
+  .intro b { color: var(--ink); font-weight: 600; }
+  .game { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+  @media (max-width: 880px) { .game { grid-template-columns: 1fr; } }
+
+  /* Board */
+  .boardwrap { position: relative; display: grid; grid-template-columns: 18px auto; grid-template-rows: auto 18px; gap: 4px; justify-content: start; }
+  .ranks { display: grid; grid-template-rows: repeat(7, var(--s)); align-items: center; color: var(--muted); font-size: 11px; text-align: center; }
+  .files { grid-column: 2; display: grid; grid-template-columns: repeat(7, var(--s)); color: var(--muted); font-size: 11px; text-align: center; }
+  .board { display: grid; grid-template-columns: repeat(7, var(--s)); grid-template-rows: repeat(7, var(--s)); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .sq { position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .sq.a { background: var(--sqA); }
+  .sq.b { background: var(--sqB); }
+  .sq.last { background: #2e3558; }
+  .sq.sel { box-shadow: inset 0 0 0 3px var(--accent); }
+  .sq.move::after { content: ""; width: 22%; height: 22%; border-radius: 50%; background: var(--accent); opacity: .55; }
+  .sq.cap { box-shadow: inset 0 0 0 3px rgba(232, 131, 58, .8); }
+  .sq.abil { background: rgba(232, 131, 58, .28); box-shadow: inset 0 0 0 2px var(--accent); }
+  .sq.affect { background: rgba(232, 131, 58, .14); }
+  .sq.flash { animation: flash .7s ease-out; }
+  @keyframes flash { from { background: rgba(232, 131, 58, .75); } }
+  .wall { width: 86%; height: 86%; border-radius: 4px;
+    background: repeating-linear-gradient(45deg, #5b5f6e 0 6px, #4a4e5c 6px 12px);
+    box-shadow: inset 0 0 0 2px #6d7182; }
+  .tok { position: relative; width: 76%; height: 76%; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: calc(var(--s) * .34); user-select: none; }
+  .tok.L { background: var(--c); color: #141830; border: 3px solid #f2e9d3; }
+  .tok.S { background: #0a0d19; color: var(--c); border: 3px solid var(--c); }
+  .tok.monarch { font-size: calc(var(--s) * .42); }
+  .tok .dot { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 6px 2px rgba(232, 131, 58, .7); border: 1px solid #0e1323; }
+  .overlay { position: absolute; left: 22px; top: 0; width: calc(var(--s) * 7); height: calc(var(--s) * 7); display: flex; align-items: center; justify-content: center;
+    background: rgba(8, 10, 20, .72); font-family: Georgia, serif; font-size: 26px; border-radius: 6px; text-align: center; padding: 20px; }
+  .overlay[hidden] { display: none; }
+
+  /* Panel */
+  .panel { display: grid; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .setup { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  select, button { font: inherit; color: var(--ink); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: #1a1208; border-color: var(--accent); font-weight: 600; }
+  label.chk { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .clock { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel2); }
+  .clock .who { font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .clock .t { font-size: 30px; font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, monospace; }
+  .clock.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .clock.low .t { color: var(--danger); }
+  .status { margin-top: 10px; font-weight: 600; }
+  .status.over { color: var(--accent); font-family: Georgia, serif; font-size: 18px; font-weight: 400; }
+  .info dl { display: grid; grid-template-columns: 84px 1fr; gap: 4px 10px; margin: 0 0 12px; }
+  .info dt { color: var(--muted); }
+  .info dd { margin: 0; }
+  .muted { color: var(--muted); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hint { margin-top: 10px; color: var(--muted); font-size: 13px; min-height: 1.5em; }
+  .cycle { display: flex; gap: 14px; align-items: center; }
+  .cycle svg { flex: none; }
+  .cycle p { margin: 0; font-size: 13px; color: var(--muted); }
+  details summary { cursor: pointer; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  details ul { padding-left: 18px; margin: 10px 0 0; }
+  details li { margin-bottom: 6px; }
+  .log { max-height: 240px; overflow-y: auto; margin: 0; padding-left: 0; list-style: none; font-size: 13px; }
+  .log li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .log li:last-child { border-bottom: 0; }
+  .log .n { color: var(--muted); display: inline-block; min-width: 30px; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Elemental Chess <small>Prototype A</small></h1>
+  <p class="intro">
+    <b>What this prototype tests:</b> do rock‑paper‑scissors <b>types</b> (Water › Fire › Earth › Water) plus a single
+    <b>one‑shot ability</b> per piece turn a small chess‑like board into interesting decisions — under a chess clock?
+    Each piece can either move or spend its once‑per‑game ability. Capture the enemy Monarch, or let their clock run out.
+  </p>
+
+  <div class="game">
+    <div class="boardwrap">
+      <div class="ranks" id="ranks"></div>
+      <div class="board" id="board"></div>
+      <div class="files" id="files"></div>
+      <div class="overlay" id="overlay" hidden></div>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <h3>Setup</h3>
+        <div class="setup">
+          <select id="tc" aria-label="Time control">
+            <option value="3+2">3 + 2</option>
+            <option value="5+3">5 + 3</option>
+            <option value="10+5" selected>10 + 5</option>
+            <option value="30+0">30 + 0 (relaxed)</option>
+          </select>
+          <label class="chk"><input type="checkbox" id="bot" checked> Shadow is a bot</label>
+          <button class="primary" id="newgame">New game</button>
+          <button id="pause">Pause</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="clocks">
+          <div class="clock" id="clockL"><div class="who">Light</div><div class="t" id="tL">10:00</div></div>
+          <div class="clock" id="clockS"><div class="who">Shadow</div><div class="t" id="tS">10:00</div></div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card info">
+        <h3>Selected piece</h3>
+        <div id="info"><p class="muted" style="margin:0">Click a piece to see what it does.</p></div>
+        <div class="actions">
+          <button id="ability" disabled>Use ability</button>
+          <button id="cancel" disabled>Cancel</button>
+        </div>
+        <div class="hint" id="hint"></div>
+      </div>
+
+      <div class="card">
+        <h3>Type cycle</h3>
+        <div class="cycle">
+          <svg width="150" height="124" viewBox="0 0 150 124" aria-label="Water beats Fire, Fire beats Earth, Earth beats Water">
+            <defs>
+              <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#a39b86"/>
+              </marker>
+            </defs>
+            <line x1="84" y1="30" x2="118" y2="86" stroke="#a39b86" stroke-width="1.6" marker-end="url(#ar)"/>
+            <line x1="106" y1="102" x2="44" y2="102" stroke="#a39b86" stroke-width="1.6" marker-end="url(#ar)"/>
+            <line x1="32" y1="86" x2="66" y2="30" stroke="#a39b86" stroke-width="1.6" marker-end="url(#ar)"/>
+            <circle cx="75" cy="18" r="15" fill="#4d8fd8"/><text x="75" y="23" text-anchor="middle" font-size="14" font-weight="700" fill="#141830">W</text>
+            <circle cx="126" cy="102" r="15" fill="#d9533b"/><text x="126" y="107" text-anchor="middle" font-size="14" font-weight="700" fill="#141830">F</text>
+            <circle cx="24" cy="102" r="15" fill="#8da25a"/><text x="24" y="107" text-anchor="middle" font-size="14" font-weight="700" fill="#141830">E</text>
+          </svg>
+          <p>Arrow = <b style="color:var(--ink)">beats</b>. A piece can’t capture the type that beats it (Fire can’t take Water). Same types trade freely. Anyone can take a Monarch; the Monarch can take anything.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <details>
+          <summary>How to play</summary>
+          <ul>
+            <li><b>Turn:</b> either move one piece, or spend one piece’s ability (each piece has one charge per game — the glowing dot).</li>
+            <li><b>Fire</b> (F): slides diagonally up to 2. <i>Ignite</i> — destroy an enemy non‑Monarch within 2 squares (any direction, ignores blockers). Water is immune.</li>
+            <li><b>Water</b> (W): slides straight up to 3. <i>Tide</i> — push every orthogonally adjacent enemy 1 square away; pushed off the board = destroyed (a Monarch just holds).</li>
+            <li><b>Earth</b> (E): steps 1 in any direction. <i>Raise Wall</i> — put a permanent stone wall on an empty adjacent square.</li>
+            <li><b>Monarch</b> (♛): steps 1 in any direction, captures anything. <i>Royal Swap</i> — trade places with any friendly piece.</li>
+            <li><b>Win:</b> take the enemy Monarch, or the opponent’s clock hits 0, or the opponent has no legal action. 150 turns = draw.</li>
+            <li><b>Clock:</b> only the side to move burns time; you gain the increment after each turn you complete.</li>
+          </ul>
+        </details>
+      </div>
+
+      <div class="card">
+        <h3>Move log</h3>
+        <ol class="log" id="log"></ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================================
+// GAME LOGIC — pure, no DOM
+// initialState(opts), legalActions(state), applyAction(state, action),
+// getWinner(state), tick(state, elapsedMs), chooseBotAction(state, rng)
+// ===================================================================
+const Game = (() => {
+  const N = 7;
+  const DRAW_CAP = 150;
+  const OTHER = { L: 'S', S: 'L' };
+  const SIDE = { L: 'Light', S: 'Shadow' };
+  const TYPE = { fire: 'Fire', water: 'Water', earth: 'Earth', monarch: 'Monarch' };
+  const BEATS = { water: 'fire', fire: 'earth', earth: 'water' };
+  const ORTH = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  const ALL8 = ORTH.concat(DIAG);
+  const MOVES = {
+    fire: { dirs: DIAG, range: 2 },
+    water: { dirs: ORTH, range: 3 },
+    earth: { dirs: ALL8, range: 1 },
+    monarch: { dirs: ALL8, range: 1 },
+  };
+  const RULES = {
+    fire: { move: 'Slides diagonally up to 2 squares.', ability: 'Ignite', abilityText: 'Destroy an enemy non-Monarch within 2 squares (ignores blockers). Water is immune.' },
+    water: { move: 'Slides straight up to 3 squares.', ability: 'Tide', abilityText: 'Push every orthogonally adjacent enemy 1 square away. Off the board = destroyed (a Monarch holds).' },
+    earth: { move: 'Steps 1 square in any direction.', ability: 'Raise Wall', abilityText: 'Place a permanent stone wall on an empty adjacent square.' },
+    monarch: { move: 'Steps 1 square in any direction. Captures anything.', ability: 'Royal Swap', abilityText: 'Swap places with any friendly piece on the board.' },
+  };
+
+  const idx = (r, c) => r * N + c;
+  const rc = i => [Math.floor(i / N), i % N];
+  const inB = (r, c) => r >= 0 && r < N && c >= 0 && c < N;
+  const cheb = (i, j) => { const [a, b] = rc(i), [c, d] = rc(j); return Math.max(Math.abs(a - c), Math.abs(b - d)); };
+  const sq = i => { const [r, c] = rc(i); return 'ABCDEFG'[c] + (N - r); };
+  const name = p => `${SIDE[p.owner]} ${TYPE[p.type]}`;
+  const isPiece = p => p && !p.wall;
+
+  function initialState(opts = {}) {
+    const baseMs = opts.baseMs ?? 600000;
+    const incMs = opts.incMs ?? 5000;
+    const board = Array(N * N).fill(null);
+    const row = ['earth', 'water', 'fire', 'monarch', 'fire', 'water', 'earth'];
+    let id = 0;
+    row.forEach((type, c) => {
+      board[idx(N - 1, c)] = { id: id++, owner: 'L', type, charge: true };
+      board[idx(0, c)] = { id: id++, owner: 'S', type, charge: true };
+    });
+    return { board, turn: 'L', clocks: { L: baseMs, S: baseMs }, incMs, turnCount: 0, winner: null, reason: null, log: [], last: null };
+  }
+
+  // Can attacker capture defender (by moving onto it)?
+  function canCapture(att, def) {
+    if (def.owner === att.owner) return false;
+    if (def.type === 'monarch' || att.type === 'monarch') return true;
+    return BEATS[def.type] !== att.type;
+  }
+
+  function moveTargets(board, i) {
+    const p = board[i];
+    const [r, c] = rc(i);
+    const { dirs, range } = MOVES[p.type];
+    const out = [];
+    for (const [dr, dc] of dirs) {
+      for (let k = 1; k <= range; k++) {
+        const rr = r + dr * k, cc = c + dc * k;
+        if (!inB(rr, cc)) break;
+        const j = idx(rr, cc), t = board[j];
+        if (!t) { out.push(j); continue; }
+        if (!t.wall && canCapture(p, t)) out.push(j);
+        break;
+      }
+    }
+    return out;
+  }
+
+  function tideVictims(board, i) {
+    const p = board[i];
+    const [r, c] = rc(i);
+    const out = [];
+    for (const [dr, dc] of ORTH) {
+      const rr = r + dr, cc = c + dc;
+      if (!inB(rr, cc)) continue;
+      const t = board[idx(rr, cc)];
+      if (isPiece(t) && t.owner !== p.owner) out.push(idx(rr, cc));
+    }
+    return out;
+  }
+
+  function abilityTargets(board, i) {
+    const p = board[i];
+    if (!p.charge) return [];
+    const out = [];
+    if (p.type === 'fire') {
+      for (let j = 0; j < N * N; j++) {
+        const t = board[j];
+        if (j !== i && isPiece(t) && t.owner !== p.owner && t.type !== 'monarch' && t.type !== 'water' && cheb(i, j) <= 2) out.push(j);
+      }
+    } else if (p.type === 'water') {
+      if (tideVictims(board, i).length) out.push(i); // target = self, affects all adjacent enemies
+    } else if (p.type === 'earth') {
+      const [r, c] = rc(i);
+      for (const [dr, dc] of ALL8) {
+        const rr = r + dr, cc = c + dc;
+        if (inB(rr, cc) && !board[idx(rr, cc)]) out.push(idx(rr, cc));
+      }
+    } else if (p.type === 'monarch') {
+      for (let j = 0; j < N * N; j++) {
+        const t = board[j];
+        if (j !== i && isPiece(t) && t.owner === p.owner) out.push(j);
+      }
+    }
+    return out;
+  }
+
+  function actionsFor(board, turn) {
+    const acts = [];
+    for (let i = 0; i < N * N; i++) {
+      const p = board[i];
+      if (!isPiece(p) || p.owner !== turn) continue;
+      for (const to of moveTargets(board, i)) acts.push({ kind: 'move', from: i, to });
+      for (const target of abilityTargets(board, i)) acts.push({ kind: 'ability', from: i, target });
+    }
+    return acts;
+  }
+
+  function legalActions(state) {
+    if (state.winner) return [];
+    return actionsFor(state.board, state.turn);
+  }
+
+  function applyAction(state, a) {
+    const board = state.board.slice();
+    const me = state.turn;
+    const p = board[a.from];
+    const removed = [];
+    const affected = [];
+    let text;
+
+    if (a.kind === 'move') {
+      const t = board[a.to];
+      board[a.to] = p;
+      board[a.from] = null;
+      text = `${name(p)} ${sq(a.from)}→${sq(a.to)}`;
+      if (t) { text += ` captures ${name(t)}`; removed.push(a.to); }
+    } else {
+      const used = { ...p, charge: false };
+      board[a.from] = used;
+      if (p.type === 'fire') {
+        const t = board[a.target];
+        board[a.target] = null;
+        removed.push(a.target);
+        text = `${name(p)} ${sq(a.from)} ignites ${name(t)} at ${sq(a.target)}`;
+      } else if (p.type === 'water') {
+        const [r, c] = rc(a.from);
+        const parts = [];
+        for (const [dr, dc] of ORTH) {
+          const rr = r + dr, cc = c + dc;
+          if (!inB(rr, cc)) continue;
+          const j = idx(rr, cc), t = board[j];
+          if (!isPiece(t) || t.owner === me) continue;
+          const dr2 = r + 2 * dr, dc2 = c + 2 * dc;
+          if (!inB(dr2, dc2)) {
+            if (t.type === 'monarch') parts.push(`${name(t)} holds at the edge`);
+            else { board[j] = null; removed.push(j); parts.push(`${name(t)} swept off the board`); }
+          } else if (!board[idx(dr2, dc2)]) {
+            board[idx(dr2, dc2)] = t; board[j] = null; affected.push(j, idx(dr2, dc2));
+            parts.push(`${name(t)} ${sq(j)}→${sq(idx(dr2, dc2))}`);
+          } else parts.push(`${name(t)} blocked`);
+        }
+        text = `${name(p)} ${sq(a.from)} unleashes Tide: ${parts.join('; ')}`;
+      } else if (p.type === 'earth') {
+        board[a.target] = { wall: true };
+        affected.push(a.target);
+        text = `${name(p)} ${sq(a.from)} raises a wall at ${sq(a.target)}`;
+      } else {
+        const other = board[a.target];
+        board[a.target] = used;
+        board[a.from] = other;
+        affected.push(a.target);
+        text = `${name(p)} ${sq(a.from)} swaps with ${name(other)} ${sq(a.target)}`;
+      }
+    }
+
+    const turnCount = state.turnCount + 1;
+    const next = {
+      ...state,
+      board,
+      turn: OTHER[me],
+      clocks: { ...state.clocks, [me]: state.clocks[me] + state.incMs },
+      turnCount,
+      log: state.log.concat({ n: turnCount, side: me, text }),
+      last: { from: a.from, to: a.kind === 'move' ? a.to : a.target, removed, affected },
+    };
+
+    const oppMonarch = board.some(q => isPiece(q) && q.owner === OTHER[me] && q.type === 'monarch');
+    if (!oppMonarch) return finish(next, me, 'monarch');
+    if (turnCount >= DRAW_CAP) return finish(next, 'draw', 'turn limit');
+    if (actionsFor(board, OTHER[me]).length === 0) return finish(next, me, 'no moves');
+    return next;
+  }
+
+  function finish(state, winner, reason) {
+    const why = {
+      monarch: `${SIDE[winner]} captures the Monarch`,
+      time: `${SIDE[OTHER[winner]]} ran out of time`,
+      'no moves': `${SIDE[OTHER[winner]]} has no legal action`,
+      'turn limit': `Turn limit reached — draw`,
+    }[reason];
+    return { ...state, winner, reason, log: state.log.concat({ n: null, side: null, text: why }) };
+  }
+
+  function getWinner(state) {
+    return state.winner ? { winner: state.winner, reason: state.reason } : null;
+  }
+
+  function tick(state, elapsedMs) {
+    if (state.winner) return state;
+    const t = state.turn;
+    const left = state.clocks[t] - elapsedMs;
+    if (left <= 0) return finish({ ...state, clocks: { ...state.clocks, [t]: 0 } }, OTHER[t], 'time');
+    return { ...state, clocks: { ...state.clocks, [t]: left } };
+  }
+
+  // ---- Bot: greedy, looks at its own action + the opponent's best immediate reply ----
+  function material(board, side) {
+    let m = 0;
+    for (const p of board) if (isPiece(p) && p.owner === side && p.type !== 'monarch') m += 3 + (p.charge ? 0.5 : 0);
+    return m;
+  }
+  function monarchAt(board, side) {
+    return board.findIndex(p => isPiece(p) && p.owner === side && p.type === 'monarch');
+  }
+  function evaluate(s, me) {
+    if (s.winner === me) return 1000;
+    if (s.winner === OTHER[me]) return -1000;
+    if (s.winner === 'draw') return 0;
+    const opp = OTHER[me];
+    const base = material(s.board, me) - material(s.board, opp);
+    let v = base;
+    // Opponent's best immediate reply (s.turn === opp).
+    let worst = 0;
+    for (const a of legalActions(s)) {
+      const s2 = applyAction(s, a);
+      if (s2.winner === opp) { worst = 500; break; }
+      const loss = base - (material(s2.board, me) - material(s2.board, opp));
+      if (loss > worst) worst = loss;
+    }
+    v -= worst === 500 ? 500 : 0.8 * worst;
+    // Mild pull toward the enemy Monarch so the bot doesn't shuffle forever.
+    const em = monarchAt(s.board, opp);
+    if (em >= 0) s.board.forEach((p, i) => { if (isPiece(p) && p.owner === me && p.type !== 'monarch') v -= 0.05 * cheb(i, em); });
+    return v;
+  }
+  function chooseBotAction(state, rng = Math.random) {
+    const me = state.turn;
+    let best = null, bestV = -Infinity;
+    for (const a of legalActions(state)) {
+      const v = evaluate(applyAction(state, a), me) + rng() * 0.4;
+      if (v > bestV) { bestV = v; best = a; }
+    }
+    return best;
+  }
+
+  return { N, SIDE, TYPE, RULES, initialState, legalActions, applyAction, getWinner, tick, chooseBotAction, moveTargets, abilityTargets, tideVictims, sq };
+})();
+if (typeof module !== 'undefined') module.exports = Game;
+</script>
+
+<script>
+// ===================================================================
+// UI SHELL — throwaway
+// ===================================================================
+(() => {
+  const $ = s => document.querySelector(s);
+  const N = Game.N;
+  const GLYPH = { fire: 'F', water: 'W', earth: 'E', monarch: '♛' };
+  const COLOR = { fire: 'var(--fire)', water: 'var(--water)', earth: 'var(--earth)', monarch: 'var(--monarch)' };
+
+  let state, selected = null, abilityMode = false, paused = false, botThink = 0, lastT = performance.now(), flash = [];
+
+  const humanTurn = () => !state.winner && !paused && !($('#bot').checked && state.turn === 'S');
+  const isBotTurn = () => !state.winner && $('#bot').checked && state.turn === 'S';
+
+  function newGame() {
+    const [m, inc] = $('#tc').value.split('+').map(Number);
+    state = Game.initialState({ baseMs: m * 60000, incMs: inc * 1000 });
+    selected = null; abilityMode = false; paused = false; botThink = 0; flash = [];
+    $('#pause').textContent = 'Pause';
+    render();
+  }
+
+  function currentTargets() {
+    if (selected == null || !humanTurn()) return [];
+    const p = state.board[selected];
+    if (!p || p.wall || p.owner !== state.turn) return [];
+    return abilityMode ? Game.abilityTargets(state.board, selected) : Game.moveTargets(state.board, selected);
+  }
+
+  function commit(action) {
+    state = Game.applyAction(state, action);
+    flash = state.last.removed.concat(state.last.affected);
+    selected = null; abilityMode = false; botThink = 0;
+    render();
+  }
+
+  function onSquare(i) {
+    if (state.winner || paused) return;
+    const targets = currentTargets();
+    if (selected != null && targets.includes(i)) {
+      commit(abilityMode ? { kind: 'ability', from: selected, target: i } : { kind: 'move', from: selected, to: i });
+      return;
+    }
+    const p = state.board[i];
+    if (p && !p.wall && i !== selected) { selected = i; abilityMode = false; }
+    else { selected = null; abilityMode = false; }
+    render();
+  }
+
+  const fmt = ms => {
+    const s = Math.ceil(ms / 1000);
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  };
+
+  function renderClocks() {
+    for (const side of ['L', 'S']) {
+      $('#t' + side).textContent = fmt(state.clocks[side]);
+      $('#clock' + side).classList.toggle('active', !state.winner && state.turn === side);
+      $('#clock' + side).classList.toggle('low', state.clocks[side] < 30000);
+    }
+  }
+
+  function render() {
+    // Board
+    const targets = currentTargets();
+    const tideAffect = abilityMode && selected != null && state.board[selected]?.type === 'water' ? Game.tideVictims(state.board, selected) : [];
+    const board = $('#board');
+    board.innerHTML = '';
+    for (let i = 0; i < N * N; i++) {
+      const r = Math.floor(i / N), c = i % N;
+      const d = document.createElement('div');
+      d.className = 'sq ' + ((r + c) % 2 ? 'b' : 'a');
+      if (state.last && (state.last.from === i || state.last.to === i)) d.classList.add('last');
+      if (i === selected) d.classList.add('sel');
+      if (targets.includes(i)) d.classList.add(abilityMode ? 'abil' : state.board[i] ? 'cap' : 'move');
+      if (tideAffect.includes(i)) d.classList.add('affect');
+      if (flash.includes(i)) d.classList.add('flash');
+      const p = state.board[i];
+      if (p && p.wall) d.innerHTML = '<div class="wall" title="Stone wall"></div>';
+      else if (p) {
+        const t = document.createElement('div');
+        t.className = `tok ${p.owner} ${p.type}`;
+        t.style.setProperty('--c', COLOR[p.type]);
+        t.textContent = GLYPH[p.type];
+        t.title = `${Game.SIDE[p.owner]} ${Game.TYPE[p.type]}${p.charge ? ' (ability ready)' : ''}`;
+        if (p.charge) t.insertAdjacentHTML('beforeend', '<span class="dot"></span>');
+        d.appendChild(t);
+      }
+      d.title = d.title || Game.sq(i);
+      d.addEventListener('click', () => onSquare(i));
+      board.appendChild(d);
+    }
+    flash = [];
+
+    const ov = $('#overlay');
+    if (paused && !state.winner) { ov.hidden = false; ov.textContent = 'Paused'; }
+    else ov.hidden = true;
+
+    // Clocks + status
+    renderClocks();
+    const st = $('#status');
+    if (state.winner) {
+      st.className = 'status over';
+      st.textContent = state.winner === 'draw' ? 'Draw — turn limit reached.'
+        : `${Game.SIDE[state.winner]} wins — ${({ monarch: 'Monarch captured', time: 'on time', 'no moves': 'opponent had no legal action' })[state.reason]}.`;
+    } else {
+      st.className = 'status';
+      st.textContent = `Turn ${state.turnCount + 1} · ${Game.SIDE[state.turn]} to act${isBotTurn() ? ' (bot thinking…)' : ''}`;
+    }
+
+    // Selected piece info
+    const p = selected != null ? state.board[selected] : null;
+    const info = $('#info');
+    const abBtn = $('#ability'), cancelBtn = $('#cancel');
+    if (p && !p.wall) {
+      const R = Game.RULES[p.type];
+      info.innerHTML = `<dl>
+        <dt>Piece</dt><dd><span class="sw" style="background:${COLOR[p.type]}"></span>${Game.SIDE[p.owner]} ${Game.TYPE[p.type]} · ${Game.sq(selected)}</dd>
+        <dt>Movement</dt><dd>${R.move}</dd>
+        <dt>Ability</dt><dd><b>${R.ability}</b> — ${R.abilityText}</dd>
+        <dt>Charge</dt><dd>${p.charge ? '<span style="color:var(--accent)">● Ready (one use)</span>' : '<span class="muted">Spent</span>'}</dd>
+      </dl>`;
+      const own = humanTurn() && p.owner === state.turn;
+      const abTargets = own ? Game.abilityTargets(state.board, selected) : [];
+      abBtn.textContent = `Use ability: ${R.ability}`;
+      abBtn.disabled = !own || abilityMode || !abTargets.length;
+      cancelBtn.disabled = selected == null;
+      let hint = '';
+      if (!own) hint = p.owner !== state.turn ? 'Enemy piece — info only.' : '';
+      else if (abilityMode) hint = {
+        fire: 'Click a highlighted enemy to ignite it.',
+        water: 'Click your Water piece to release the Tide (shaded squares get pushed).',
+        earth: 'Click a highlighted empty square to raise a wall.',
+        monarch: 'Click a highlighted friendly piece to swap with it.',
+      }[p.type];
+      else if (!p.charge) hint = 'Ability spent — this piece can only move.';
+      else if (!abTargets.length) hint = 'Ability has no valid target right now.';
+      else hint = 'Click a highlighted square to move, or use the ability instead.';
+      $('#hint').textContent = hint;
+    } else {
+      info.innerHTML = '<p class="muted" style="margin:0 0 12px">Click a piece to see what it does.</p>';
+      abBtn.textContent = 'Use ability'; abBtn.disabled = true; cancelBtn.disabled = true;
+      $('#hint').textContent = '';
+    }
+
+    // Log
+    const log = $('#log');
+    log.innerHTML = state.log.map(e => `<li>${e.n ? `<span class="n">${e.n}.</span>` : '<span class="n">★</span>'}${e.text}</li>`).join('');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  $('#ability').addEventListener('click', () => { abilityMode = true; render(); });
+  $('#cancel').addEventListener('click', () => { selected = null; abilityMode = false; render(); });
+  $('#newgame').addEventListener('click', newGame);
+  $('#tc').addEventListener('change', newGame);
+  $('#bot').addEventListener('change', () => { botThink = 0; render(); });
+  $('#pause').addEventListener('click', () => {
+    if (state.winner) return;
+    paused = !paused;
+    $('#pause').textContent = paused ? 'Resume' : 'Pause';
+    render();
+  });
+
+  $('#ranks').innerHTML = Array.from({ length: N }, (_, r) => `<div>${N - r}</div>`).join('');
+  $('#files').innerHTML = 'ABCDEFG'.split('').map(f => `<div>${f}</div>`).join('');
+
+  setInterval(() => {
+    const now = performance.now();
+    const dt = now - lastT;
+    lastT = now;
+    if (paused || state.winner) return;
+    state = Game.tick(state, dt);
+    if (state.winner) { render(); return; }
+    if (isBotTurn()) {
+      if (botThink <= 0) botThink = 800 + Math.random() * 1200;
+      botThink -= dt;
+      if (botThink <= 0) {
+        const a = Game.chooseBotAction(state);
+        if (a) commit(a);
+        return;
+      }
+    }
+    renderClocks();
+  }, 100);
+
+  newGame();
+})();
+</script>
+</body>
+</html>

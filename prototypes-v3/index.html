@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arena Tactics Variants</title>
+<style>
+  :root { --bg:#0d111c; --card:#151b2c; --line:#283050; --text:#ece6d8; --muted:#9aa0b8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font: 600 32px/1.2 Georgia, "Times New Roman", serif; margin: 0 0 8px; }
+  h3 { font: 600 14px/1.2 -apple-system, system-ui, sans-serif; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin: 36px 0 12px; }
+  p.lead { color: var(--muted); margin: 0 0 8px; max-width: 70ch; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+  a.card { display:block; text-decoration:none; color:inherit; background:var(--card); border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:12px; padding:20px; transition: border-color .15s, transform .15s; }
+  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .tag { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+  h2 { font: 600 22px/1.25 Georgia, serif; margin: 6px 0 10px; }
+  .q { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .note { margin-top: 32px; color: var(--muted); font-size: 14px; }
+  code { background:#1d2438; padding:1px 6px; border-radius:4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Arena Tactics: six variations</h1>
+  <p class="lead">All six start from the Arena Tactics battle you liked and change one big thing. Every variation has longer battles than the original and a step for setting up before the fight.</p>
+  <p class="lead"><a href="../prototypes-v2/1-arena-tactics.html" style="color:#7fd8ff">Original Arena Tactics</a> for comparison.</p>
+
+  <h3>How the battle plays</h3>
+  <div class="grid">
+    <a class="card" href="tactics-a-chess-duel.html" style="--accent:#e9d8a6">
+      <div class="tag">A · More like chess</div>
+      <h2>Chess Duel</h2>
+      <p class="q">Does it get better the more it feels like chess?</p>
+      <ul><li>One mage acts per turn, alternating</li><li>6 units with chess-like movement, and an Archmage "king"</li><li>Threat highlighting and an "Archmage in danger" warning, like check</li></ul>
+    </a>
+    <a class="card" href="tactics-b-foresight.html" style="--accent:#c9a7ff">
+      <div class="tag">B · Read the enemy</div>
+      <h2>Foresight</h2>
+      <p class="q">Is it more strategic when you can see what the enemy will do?</p>
+      <ul><li>Enemies show where they'll strike next turn</li><li>Dodge, wall off, interrupt, or Gust them into each other</li><li>Plays like a puzzle, with undo</li></ul>
+    </a>
+    <a class="card" href="tactics-c-elemental-draft.html" style="--accent:#ff6a2b">
+      <div class="tag">C · Draft &amp; combos</div>
+      <h2>Elemental Draft</h2>
+      <p class="q">Deeper with a competitive draft, team mana and element reactions?</p>
+      <ul><li>You and the opponent take turns picking spells, so each spell belongs to one side</li><li>Shared team mana: who gets to act?</li><li>Burning, Wet, Chilled tiles and their combos</li></ul>
+    </a>
+  </div>
+
+  <h3>Preparing the field</h3>
+  <div class="grid">
+    <a class="card" href="tactics-d-fortify.html" style="--accent:#c8a064">
+      <div class="tag">D · Build before the fight</div>
+      <h2>Fortify</h2>
+      <p class="q">Is it satisfying to sculpt the battlefield, tower-defense style?</p>
+      <ul><li>Build budget: walls, platforms, pylons, springs</li><li>Hidden rune traps</li><li>The enemy builds at the same time; both builds are revealed together</li></ul>
+    </a>
+    <a class="card" href="tactics-e-fog-of-war.html" style="--accent:#7ee081">
+      <div class="tag">E · Information</div>
+      <h2>Fog of War</h2>
+      <p class="q">Is preparation more interesting when it's about scouting and bluffing?</p>
+      <ul><li>You only see what your mages and wards see</li><li>Hidden enemy loadouts, decoys and traps</li><li>Scry and Veil spells</li></ul>
+    </a>
+    <a class="card" href="tactics-f-rituals.html" style="--accent:#7fd8ff">
+      <div class="tag">F · Setup race</div>
+      <h2>Rituals</h2>
+      <p class="q">Is it more fun when both sides prepare inside the battle and can disrupt each other?</p>
+      <ul><li>Act I: 4 rounds with attack spells sealed; you inscribe glyphs</li><li>Act II: the fight</li><li>Grand Rituals that can be interrupted</li></ul>
+    </a>
+  </div>
+  <p class="note">A card may not work yet while that variation is still being built. If something breaks, a red box appears on screen: tell me what it says. Add <code>?quick</code> to a URL to skip setup.</p>
+</main>
+</body>
+</html>
