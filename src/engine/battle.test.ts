@@ -116,6 +116,21 @@ describe('underground', () => {
     expect(unit(r.state, 2).hp).toBe(146);
   });
 
+  test('an underground Delver aims from the tile it will surface on, and can\'t undermine that tile', () => {
+    const sapper = bare('delver', ['undermine', 'satchel', 'stoneskin'], ['d_hp', 'd_quick']);
+    const s0 = stage({ a: [sapper], b: [bare('weaver')], place: { 1: [3, 2], 2: [3, 4] } });
+    const live = run(s0, ...orders([1], [2]), cast(1, 'burrow', 3, 2), end(1), move(2, 3, 2), end(2), ...orders([1], [2]), end(2)).state;
+    expect(apply(live, cast(1, 'undermine', 3, 1))).toEqual({ ok: false, error: '(3, 1) is not a target of undermine' });
+    expect(apply(live, cast(1, 'undermine', 3, 4))).toEqual({ ok: false, error: '(3, 4) is not a target of undermine' });
+    const r = run(live, cast(1, 'undermine', 3, 0));
+    expect(r.events.slice(1, 4)).toEqual([
+      { type: 'surface', id: 1, x: 3, z: 1 },
+      { type: 'mouth', team: 0, x: 3, z: 1 },
+      { type: 'terrain', tiles: [{ x: 3, z: 0 }], kind: 'pit' },
+    ]);
+    expect(unit(r.state, 1).life).toEqual({ kind: 'up' });
+  });
+
   test('Undermine opens a pit at the end of the round, and whoever stands there falls', () => {
     const s0 = stage({ a: [bare('delver', ['undermine', 'satchel', 'stoneskin'])], b: [bare('astromancer')], place: { 1: [5, 1], 2: [7, 3] } });
     const sunk = run(run(s0, ...orders([1], [2])).state, cast(1, 'undermine', 5, 3), end(1), move(2, 5, 3));

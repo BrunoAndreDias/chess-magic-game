@@ -267,10 +267,14 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
   return true;
 }
 
-/** Legal targets for `id` if `u` stood at (px, pz). */
+/** Legal targets for `id` if `u` stood at (px, pz); underground, from where casting would surface it, except for Upheaval. */
 export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz = u.z): Target[] {
   const sk = SKILLS[id], out: Target[] = [];
   if (sk.target === 'self') return [{ x: px, z: pz }];
+  if (u.under && id !== 'upheaval') {
+    const up = nearestFree(s, px, pz);
+    if (up) { px = up.x; pz = up.z; }
+  }
   if (id === 'puppet') {
     puppetMoves(s, u).forEach((_m, k) => out.push({ x: k % N, z: (k / N) | 0 }));
     return out;
