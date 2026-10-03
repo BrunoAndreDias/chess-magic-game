@@ -116,6 +116,13 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (o.hp <= 0) down(s, o, ev, src);
   return d;
 }
+/** A standing unit drops into the chasm or pit at (x, z) and clings to the edge: Downed on the nearest free tile of solid ground. */
+export function fall(s: BattleState, o: Unit, x: number, z: number, ev: BattleEvent[], src: Unit | null): void {
+  const at = nearestFree(s, x, z, o);
+  if (at) { o.x = at.x; o.z = at.z; }
+  ev.push({ type: 'fall', id: o.id, x: o.x, z: o.z });
+  down(s, o, ev, src);
+}
 export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | null): void {
   o.life = { kind: 'downed', bleed: BLEED };
   o.shield = 0; o.st = {}; o.hp = 0; o.under = 0;
@@ -194,10 +201,8 @@ function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number, kind: Physi
       if (kind === 'soft') break;
       path.push({ x: nx, z: nz });
       c.ev.push({ type: 'move', id: o.id, path, slide: true });
-      c.ev.push({ type: 'fall', id: o.id, x: nx, z: nz });
       emitCombo(s, c.ev, 'ABYSS', c.u, o.id, null);
-      o.x = nx; o.z = nz;
-      down(s, o, c.ev, c.u);
+      fall(s, o, nx, nz, c.ev, c.u);
       return;
     }
     if (!inb(nx, nz) || isSolid(s, nx, nz) || unitAt(s, nx, nz)) {
@@ -583,7 +588,7 @@ export function openPit(s: BattleState, x: number, z: number, ev: BattleEvent[])
   ev.push({ type: 'terrain', tiles: [{ x, z }], kind: 'pit' });
   const o = unitAt(s, x, z);
   if (!o) return;
-  if (standing(o)) { ev.push({ type: 'fall', id: o.id, x, z }); down(s, o, ev, null); return; }
+  if (standing(o)) { fall(s, o, x, z, ev, null); return; }
   o.life = { kind: 'dead' };
   ev.push({ type: 'death', id: o.id, team: o.team, cause: 'fell' });
   checkWinner(s);

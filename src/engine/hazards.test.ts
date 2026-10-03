@@ -41,7 +41,7 @@ describe('crumble', () => {
     const [fall, ...rest] = after(r.events, 'crumble');
     expect(fall?.type === 'crumble' && fall.tiles.length).toBe(12);
     expect(rest).toEqual([
-      { type: 'fall', id: 1, x: 1, z: 4 },
+      { type: 'fall', id: 1, x: 1, z: 2 },
       { type: 'downed', id: 1, team: 0 },
       { type: 'death', id: 3, team: 1, cause: 'fell' },
       { type: 'roundEnd', round: 3, burnt: [] },
@@ -54,7 +54,7 @@ describe('crumble', () => {
     const s0 = stage({ map: 'span', round: 3, a: [bare('weaver')], b: [bare('weaver')], place: { 1: [5, 2], 2: [1, 5] } });
     const r = run(s0, ...orders([1], [2]), end(1), end(2));
     expect(after(r.events, 'crumble').slice(1)).toEqual([
-      { type: 'fall', id: 2, x: 1, z: 5 },
+      { type: 'fall', id: 2, x: 3, z: 5 },
       { type: 'downed', id: 2, team: 1 },
       { type: 'over', winner: 0, reason: 'wipe' },
     ]);

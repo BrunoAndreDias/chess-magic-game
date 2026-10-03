@@ -1,5 +1,5 @@
 import { idx, isAlive, standing } from './board';
-import { checkWinner, damage, down } from './combat';
+import { checkWinner, damage, fall } from './combat';
 import { MAPS, N, TERRAIN, mirrored } from './tables';
 import type { MapRule } from './tables';
 import type { BattleEvent, BattleState, MapId, Pos, Unit } from './types';
@@ -47,7 +47,7 @@ const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
       atOnce(s, () => {
         for (const u of s.units) {
           if (!isAlive(u) || u.under || !fell.has(idx(u.x, u.z))) continue;
-          if (standing(u)) { ev.push({ type: 'fall', id: u.id, x: u.x, z: u.z }); down(s, u, ev, null); continue; }
+          if (standing(u)) { fall(s, u, u.x, u.z, ev, null); continue; }
           u.life = { kind: 'dead' };
           ev.push({ type: 'death', id: u.id, team: u.team, cause: 'fell' });
           checkWinner(s);

@@ -138,9 +138,22 @@ describe('underground', () => {
     const r = run(sunk.state, end(2));
     expect(after(r.events, 'terrain')).toEqual([
       { type: 'terrain', tiles: [{ x: 5, z: 3 }], kind: 'pit' },
-      { type: 'fall', id: 2, x: 5, z: 3 },
+      { type: 'fall', id: 2, x: 5, z: 2 },
       { type: 'downed', id: 2, team: 1 },
       { type: 'over', winner: 0, reason: 'wipe' },
+    ]);
+    expect([unit(r.state, 2).x, unit(r.state, 2).z]).toEqual([5, 2]);
+  });
+
+  test('Upheaval into a chasm: ABYSS, and the enemy is Downed clinging to the edge', () => {
+    const s0 = stage({ a: [bare('delver')], b: [bare('weaver'), bare('weaver')], place: { 1: [5, 1], 2: [6, 1], 3: [7, 0] }, terr: [[7, 1, 'o']] });
+    const live = run(s0, ...orders([1], [2, 3]), cast(1, 'burrow', 5, 1), end(1), end(2), end(3), ...orders([1], [2, 3]), end(2)).state;
+    const r = run(live, cast(1, 'upheaval', 6, 1));
+    expect(after(r.events, 'move')).toEqual([
+      { type: 'move', id: 2, path: [{ x: 6, z: 1 }, { x: 7, z: 1 }], slide: true },
+      { type: 'combo', name: 'ABYSS', id: 2, by: 1, team: 0, setup: null },
+      { type: 'fall', id: 2, x: 6, z: 1 },
+      { type: 'downed', id: 2, team: 1 },
     ]);
   });
 });

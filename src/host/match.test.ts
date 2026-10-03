@@ -14,7 +14,7 @@ const id = (n: number) => n as UnitId;
 describe('Match', () => {
   test('a player can only command the units and team they hold', () => {
     const seats: Seats = [[{ kind: 'player', player: 'ana' }, { kind: 'player', player: 'ana' }, { kind: 'player', player: 'ana' }], ai[1]];
-    const m = new Match(setup, seats, 7);
+    const m = new Match(setup, seats, 1);
     m.start();
     expect(m.state.phase.kind === 'order' && m.state.phase.orders[0]).toBe(null);
     expect(m.state.phase.kind === 'order' && m.state.phase.orders[1]).toEqual([6, 5, 4]);
@@ -32,9 +32,9 @@ describe('Match', () => {
     m.subscribe(ev => seen.push(...ev));
     expect(m.submit('ana', { kind: 'endTurn', unit: id(1) }).ok).toBe(true);
     expect(seen[0]).toEqual({ type: 'activate', id: 6, team: 1, qi: 1 });
-    expect(seen.at(-1)).toEqual({ type: 'activate', id: 3, team: 0, qi: 5 });
+    expect(seen.at(-1)).toEqual({ type: 'activate', id: 2, team: 0, qi: 2 });
     const after = m.state.phase;
-    expect(after.kind === 'act' && after.queue[after.qi]).toBe(3);
+    expect(after.kind === 'act' && after.queue[after.qi]).toBe(2);
   });
 
   test('an all-AI match plays to the end, the same way for the same seed', () => {

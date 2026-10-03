@@ -49,7 +49,7 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 | Skill | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|
 | **Upheaval** | 2 | Only from underground. Burst up next to an enemy: 18 damage, and push it 1 tile away from you. Into a wall, unit or the edge: SLAM (6 and stunned). Into a chasm: ABYSS. | *Geyser*: push 2 | *Rubble*: smoke on your tile for 2 rounds |
-| **Undermine** | 3 | An empty tile within 2. At the end of the round it collapses into a pit for 3 rounds. Anyone standing there falls and is Downed, and the Downed are lost. | *Sinkhole*: 3 tiles in a line | *Breach*: target a wall and turn it to floor |
+| **Undermine** | 3 | An empty tile within 2. At the end of the round it collapses into a pit for 3 rounds. Anyone standing there falls and is Downed at its edge, and the Downed are lost. | *Sinkhole*: 3 tiles in a line | *Breach*: target a wall and turn it to floor |
 | **Satchel Charge** | 3 | Plant a charge on an empty tile within 1. One at a time. It blows when an enemy ends a move next to it, or when you Surface: 20 to every unit within 1, pushed 1 outward. | *Shaped*: 30 to one tile, no push | *Sticky*: Roots instead of pushing |
 | **Drag Under** | 3 | An ally or Downed ally within 1 is pulled down your tunnel and comes out next to your newest Tunnel Mouth. A Downed ally skips its next bleed. | *Deep Pocket*: a 20 shield | *Long Haul*: any of your mouths |
 | **Tremor** | 3 | Enemies within 2 are Rooted. Quake: an enemy Delver underground in range is forced up and Stunned. | *Aftershock*: repeats at round end | *Fault Line*: a 5-tile line |
@@ -152,6 +152,10 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 - **Shattered Span**: Reel across a crumbling bridge drops enemies into the abyss.
 
 ---
+
+## Falling
+
+A standing unit that falls into a chasm or pit (ABYSS, a pit opening under it, a crumbling tile) clings to the edge. It is Downed on the nearest free tile of solid ground, never in the hole and never on another unit. A unit already Downed on a tile that falls is lost.
 
 ## Party resonances
 

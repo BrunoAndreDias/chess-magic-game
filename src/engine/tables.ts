@@ -18,7 +18,7 @@ export interface TerrainDef { name: string; solid?: true; sight?: true; pit?: tr
 const TERRAIN_TABLE = {
   '.': { name: 'Floor' },
   '#': { name: 'Wall', solid: true, sight: true, text: 'Blocks movement and line of sight.' },
-  'o': { name: 'Chasm', solid: true, pit: true, text: 'Impassable. A character pushed in falls and is Downed.' },
+  'o': { name: 'Chasm', solid: true, pit: true, text: 'Impassable. A character pushed in falls and is Downed, clinging to the nearest edge.' },
   '~': { name: 'Water', cost: 2, text: 'Costs 2 move. Standing in it makes you Wet: Thunderhead Conducts (×1.5), Frostbolt Freezes (stun). Puts out burning.' },
   'G': { name: 'Tall grass', text: 'Hides whoever stands in it: enemies can only target them from 2 tiles, or when one of their allies is next to them. Burns.' },
   '^': { name: 'High ground', text: 'Ranged attacks from here get +1 range and +15% damage against targets below.' },
@@ -55,7 +55,7 @@ const MAP_TABLE = {
     rule: { kind: 'crumble', rounds: ['555555555555', '777777777777', '999999999999', '.3........3.', '.3........3.', '.3........3.'],
       names: { 3: 'The side bridges crumble', 5: 'The back rows crumble', 7: 'The back rows crumble', 9: 'The plateaus crumble' } },
     tagline: 'The edges fall away. Only the island lasts.',
-    ruleText: 'Crumble: at the end of round 3 the side bridges fall, then the back rows at the end of rounds 5, 7 and 9. Anyone standing on a falling tile drops and is Downed; anyone already Downed there is lost.',
+    ruleText: 'Crumble: at the end of round 3 the side bridges fall, then the back rows at the end of rounds 5, 7 and 9. Anyone standing on a falling tile drops and is Downed, clinging to the nearest solid ground; anyone already Downed there is lost.',
     favors: 'Pullers and the patient: Upheaval, Reel and Gravity Well drop enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
   storm: { id: 'storm', name: 'Storm Court',
     rows: ['............', '..#......#..', '............', '.~~..^...~~.', '.~~.#..#.~~.', '.....~~....+'],
@@ -240,7 +240,7 @@ const SKILL_TABLE = {
   upheaval: { name: 'Upheaval', icon: '🌋', target: 'enemy', range: 1, cd: 2, cls: 'delver', color: '#ff9a4a', sets: ['Slam → Stun', 'Abyss → Downed'],
     text: 'Only from underground. Burst up next to an enemy: 18 damage and push it 1. Into a wall, unit or edge: SLAM. Into a chasm: ABYSS.' },
   undermine: { name: 'Undermine', icon: '🕳️', target: 'tile', range: 2, cd: 3, empty: true, map: true, cls: 'delver',
-    text: 'An empty tile collapses into a pit at the end of the round, for 3 rounds. Anyone there falls and is Downed; the Downed are lost.' },
+    text: 'An empty tile collapses into a pit at the end of the round, for 3 rounds. Anyone there falls and is Downed at its edge; the Downed are lost.' },
   satchel: { name: 'Satchel Charge', icon: '💣', target: 'tile', range: 1, cd: 3, empty: true, map: true, cls: 'delver', color: '#ff6a2b',
     text: 'Plant a charge. It blows when an enemy ends a move next to it, or when you surface: 20 to every unit within 1, pushed 1 outward.' },
   dragunder: { name: 'Drag Under', icon: '🫳', target: 'friend', range: 1, cd: 3, noSelf: true, cls: 'delver',
@@ -297,7 +297,7 @@ export const SKILLS: Readonly<Record<SkillId, SkillDef>> = SKILL_TABLE;
 export function isCall(id: SkillId): id is CallSkill { return !!SKILLS[id].call; }
 
 export const COMBO_INFO = {
-  SLAM: 'Forced into an obstacle: stunned.', ABYSS: 'Forced into a chasm or pit: Downed.', FREEZE: 'Frostbolt on a Wet enemy: stunned.',
+  SLAM: 'Forced into an obstacle: stunned.', ABYSS: 'Forced into a chasm or pit: Downed at its edge.', FREEZE: 'Frostbolt on a Wet enemy: stunned.',
   CONDUCT: 'Thunderhead on a Wet enemy: ×1.5.', COMBUST: 'Firebolt on a Burning enemy: the whole burn at once, tripled.',
   SHATTER: 'Venom Bite on a Stunned or Rooted enemy: ×2.', EXECUTE: 'Any hit on a Downed enemy finishes it.', IGNITE: 'Fire on a brazier: it bursts into flames.',
 } satisfies Record<ComboName, string>;
