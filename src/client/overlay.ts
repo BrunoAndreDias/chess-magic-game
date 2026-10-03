@@ -16,10 +16,10 @@ export function installErrorOverlay(): void {
   });
 }
 
-/** A centred title that holds for `ms`, then fades. Resolves once it is gone. */
-export async function banner(text: string, color: string, sub: string, ms = 800): Promise<void> {
+/** A centred title that holds for `ms`, then fades. Resolves once it is gone. Each `sub` line goes under it. */
+export async function banner(text: string, color: string, sub: string | readonly (string | null)[], ms = 800): Promise<void> {
   const b = byId('banner');
-  b.replaceChildren(text, sub ? h('small', null, sub) : '');
+  b.replaceChildren(text, ...[sub].flat().filter(Boolean).map(l => h('small', null, l)));
   b.style.color = color;
   b.classList.add('show');
   await wait(ms);

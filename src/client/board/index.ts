@@ -95,7 +95,7 @@ class BoardView implements Board {
     this.#snap(state);
   }
 
-  play(events: readonly BattleEvent[], before: BattleState, after: BattleState): Promise<void> {
+  play(events: readonly BattleEvent[], before: BattleState, after: BattleState, onEvent?: (e: BattleEvent) => Promise<void> | void): Promise<void> {
     const gen = this.#gen;
     this.#playing++;
     const run = async (): Promise<void> => {
@@ -104,6 +104,8 @@ class BoardView implements Board {
       else this.#snap(before);
       const g = this.#gen, ctx = this.#ctx(before, after);
       for (const e of events) {
+        await onEvent?.(e);
+        if (g !== this.#gen) return;
         await playEvent(e, ctx);
         if (g !== this.#gen) return;
       }

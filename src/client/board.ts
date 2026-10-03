@@ -1,7 +1,8 @@
 import type { BattleEvent, BattleState, Pos, Team, UnitId } from '../engine/types';
 
-export type HighlightTone = 'move' | 'target' | 'aoe' | 'deploy' | 'path' | 'selected';
-export interface Highlight { tiles: readonly Pos[]; tone: HighlightTone }
+export type HighlightTone = 'move' | 'target' | 'aoe' | 'deploy' | 'path' | 'selected' | 'hazard' | 'altar';
+/** `hazard` draws on its own striped layer, so it still shows under a move or deploy tile. `opacity` overrides the tone's. */
+export interface Highlight { tiles: readonly Pos[]; tone: HighlightTone; opacity?: number }
 
 export type TileInput = { kind: 'hover'; tile: Pos | null } | { kind: 'click'; tile: Pos; button: 'left' | 'right' };
 
@@ -12,8 +13,8 @@ export type TileInput = { kind: 'hover'; tile: Pos | null } | { kind: 'click'; t
 export interface Board {
   /** Rebuild terrain and units from scratch (new battle or a jump to an unrelated state). */
   load(state: BattleState): void;
-  /** Animate the events that turned `before` into `after`, then leave the scene matching `after`. */
-  play(events: readonly BattleEvent[], before: BattleState, after: BattleState): Promise<void>;
+  /** Animate the events that turned `before` into `after`, then leave the scene matching `after`. `onEvent` runs (and is awaited) as each event starts. */
+  play(events: readonly BattleEvent[], before: BattleState, after: BattleState, onEvent?: (e: BattleEvent) => Promise<void> | void): Promise<void>;
   /** Replace every highlight layer at once. */
   highlight(layers: readonly Highlight[]): void;
   /** Ease the camera to a unit, seen from its party's side. Null returns to the overview of `team`'s side. */

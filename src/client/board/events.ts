@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CLASSES, N, SKILLS, STATUS, getUnit } from '../../engine/index';
 import type { BattleEvent, BattleState, DamageKind, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
-import { hex } from './art';
+import { TEAM_CSS, TEAM_HEX, hex } from './art';
 import type { Fx } from './fx';
 import type { Overlay } from './overlay';
 import type { Stage } from './stage';
@@ -107,9 +107,36 @@ async function castPose(c: PlayCtx, v: UnitView): Promise<void> {
 /** One entry per event type: adding an event type to the engine fails compilation here until it has an animation. */
 export const PLAY: Handlers = {
   round: () => {},
-  storm: () => {},
-  crumble: () => {},
-  favor: () => {},
+  storm: async (e, c) => {
+    for (const t of e.tiles) {
+      const ground = c.terrain.at(t.x, t.z, 0.1);
+      c.fx.bolt(ground.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 7, (Math.random() - 0.5) * 0.6)), ground, 0xdff4ff, 0.5);
+      void c.fx.ring(ground, 0x9ad8ff, 0.7, 0.5);
+    }
+    c.stage.shake(0.3);
+    await c.tweens.wait(0.25);
+    for (const t of e.tiles) void c.fx.burst(c.terrain.at(t.x, t.z, 0.4), 0xbfe8ff, 1.6, 0.45);
+    await c.tweens.wait(0.35);
+  },
+  crumble: async (e, c) => {
+    const views = e.tiles.flatMap(t => c.terrain.tile(t.x, t.z) ?? []);
+    for (const t of views) {
+      void c.fx.burst(c.terrain.at(t.x, t.z, 0.2), 0x8a7a6a, 1.8, 0.6);
+      c.fx.sparkles(c.terrain.at(t.x, t.z), 0x6a5a4a, 3);
+    }
+    c.stage.shake(0.4);
+    await c.tweens.run(0.6, p => { for (const t of views) t.group.position.y = -1.6 * p * p; });
+    c.terrain.rebase(c.after, e.tiles);
+  },
+  favor: async (e, c) => {
+    const tiles = c.after.terr.flatMap((ch, k) => (ch === 'A' ? [c.terrain.at(k % N, Math.floor(k / N))] : []));
+    if (e.team === null || !tiles.length) return;
+    const mid = tiles.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(tiles.length);
+    for (const p of tiles) c.fx.sparkles(p, TEAM_HEX[e.team], 5);
+    void c.fx.ring(mid.clone().setY(mid.y + 0.08), TEAM_HEX[e.team], 1.8, 0.6);
+    c.overlay.float('+1 favor', TEAM_CSS[e.team], mid.add(new THREE.Vector3(0, 1.8, 0)), true);
+    await c.tweens.wait(0.5);
+  },
   activate: async (e, c) => {
     c.setActive(e.id);
     const v = c.views.get(e.id);

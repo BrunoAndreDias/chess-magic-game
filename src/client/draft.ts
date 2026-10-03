@@ -11,14 +11,14 @@ export interface Member extends MemberBuild { human: boolean }
 export interface Draft {
   teams: [Member[], Member[]];
   sel: { team: Team; slot: number };
-  map: MapId | 'random';
+  map: MapId;
   timer: Timer;
 }
 
 const NAMES: readonly [readonly string[], readonly string[]] = [['Aldric', 'Seren', 'Kip'], ['Morvath', 'Ysolde', 'Grix']];
 const CLASSES_BY_TEAM: readonly [readonly ClassId[], readonly ClassId[]] = [['warden', 'wizard', 'cleric'], ['rogue', 'ranger', 'cleric']];
 
-export function defaultDraft(opts: { allAi: boolean; map: MapId | 'random' }): Draft {
+export function defaultDraft(opts: { allAi: boolean; map: MapId }): Draft {
   const team = (t: Team): Member[] => CLASSES_BY_TEAM[t].map((c, i) => ({ ...newMember(c, NAMES[t][i] ?? 'Hero'), human: t === 0 && !opts.allAi }));
   return { teams: [team(0), team(1)], sel: { team: 0, slot: 0 }, map: opts.map, timer: 30 };
 }
@@ -53,8 +53,10 @@ export function randomMember(m: Member, rnd: () => number): Member {
   return { ...m, cls, skills, tree };
 }
 
-export function resolveMap(d: Draft, rnd: () => number): MapId {
-  return d.map === 'random' ? MAP_ORDER[Math.floor(rnd() * MAP_ORDER.length)] ?? 'span' : d.map;
+/** A battlefield at random, never `not`, so a redraw always changes the map. */
+export function drawMap(rnd: () => number, not?: MapId): MapId {
+  const pool = MAP_ORDER.filter(id => id !== not);
+  return pool[Math.floor(rnd() * pool.length)] ?? 'span';
 }
 
 export function humanTeams(d: Draft): Team[] {
@@ -63,8 +65,8 @@ export function humanTeams(d: Draft): Team[] {
 
 function build(m: Member): MemberBuild { return { name: m.name.trim() || 'Hero', cls: m.cls, skills: m.skills.slice(), tree: m.tree.slice() }; }
 
-export function battleSetup(d: Draft, map: MapId, deploy: [readonly Pos[], readonly Pos[]] | null): BattleSetup {
-  return { map, starter: 0, teams: [d.teams[0].map(build), d.teams[1].map(build)], ...(deploy ? { deploy } : {}) };
+export function battleSetup(d: Draft, deploy: [readonly Pos[], readonly Pos[]] | null): BattleSetup {
+  return { map: d.map, starter: 0, teams: [d.teams[0].map(build), d.teams[1].map(build)], ...(deploy ? { deploy } : {}) };
 }
 
 export function seats(d: Draft): Seats {

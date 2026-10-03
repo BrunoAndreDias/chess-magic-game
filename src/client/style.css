@@ -172,6 +172,15 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 .du.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) }
 .du span { color: var(--muted) }
 .scout-ready { margin-top: auto; display: flex; justify-content: flex-end }
+#mapview { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 360px; z-index: 8; display: flex; flex-direction: column; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; overflow: auto }
+#mapview h2 { font-size: 26px; margin: 2px 0 }
+#mapview .rule { margin: 0; font-size: 13px }
+.tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 12.5px }
+.tl li { display: grid; grid-template-columns: 112px 1fr; gap: 8px; padding: 5px 8px; border-left: 3px solid #d65cff; background: #1c1724; border-radius: 6px }
+.tl b { color: #e2b8ff; font-weight: 600 }
+.su-map .rl { flex: 1 1 360px; color: var(--text) }
+.rd.hz { margin: 0 0 0 6px; color: #e2b8ff; max-width: 150px; cursor: help }
+.rd.hz small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 
 /* ---------- overlays ---------- */
 #labels { position: fixed; inset: 0; pointer-events: none; z-index: 4; overflow: hidden }
@@ -181,6 +190,7 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 #banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none; font: 600 38px Georgia, serif; text-shadow: 0 3px 18px #000; opacity: 0; transition: opacity .25s; white-space: nowrap; text-align: center }
 #banner.show { opacity: 1 }
 #banner small { display: block; font: 15px -apple-system, system-ui, sans-serif; color: var(--muted) }
+#banner small + small { color: #e2b8ff; margin-top: 3px }
 #combo { position: fixed; left: 50%; top: 20%; transform: translate(-50%, -50%) scale(.8); z-index: 16; pointer-events: none; text-align: center; opacity: 0; transition: opacity .2s, transform .25s }
 #combo.show { opacity: 1; transform: translate(-50%, -50%) scale(1) }
 #combo .cn { font: 900 44px Georgia, serif; color: #ffd36b; text-shadow: 0 0 24px #ff8a2a, 0 3px 10px #000; letter-spacing: .06em }

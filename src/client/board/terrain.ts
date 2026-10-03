@@ -21,6 +21,7 @@ export interface TileView {
   spent: boolean;
   brazier: Brazier | null;
   hl: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  hz: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 }
 
 const TOP: Partial<Record<TerrainChar, number>> = { '^': 0.42, '~': -0.14 };
@@ -39,6 +40,8 @@ const TONE: Readonly<Record<HighlightTone, { color: number; opacity: number }>> 
   aoe: { color: 0xffb04a, opacity: 0.9 },
   deploy: { color: 0xe8b65a, opacity: 0.4 },
   selected: { color: 0xffe9b0, opacity: 0.8 },
+  hazard: { color: 0xd65cff, opacity: 0.85 },
+  altar: { color: 0xffd36b, opacity: 0.6 },
 };
 
 /** White fill with a brighter rim, tinted per tone, so a highlight still reads on water and under a unit's disc. */
@@ -51,6 +54,19 @@ const HL_TEX = (() => {
   g.strokeStyle = 'rgba(255,255,255,1)';
   g.lineWidth = 4;
   g.strokeRect(4, 4, 56, 56);
+  return new THREE.CanvasTexture(c);
+})();
+/** Diagonal stripes with a rim: reads as danger on floor, water and grass, and stays distinct from the solid red target fill. */
+const HZ_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  g.strokeStyle = 'rgba(255,255,255,0.75)';
+  g.lineWidth = 7;
+  for (let k = -64; k < 128; k += 16) { g.beginPath(); g.moveTo(k, 64); g.lineTo(k + 64, 0); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,1)';
+  g.lineWidth = 4;
+  g.strokeRect(2, 2, 60, 60);
   return new THREE.CanvasTexture(c);
 })();
 const HL_Y = 0.045;
@@ -183,7 +199,7 @@ export class Terrain {
   get picks(): THREE.Object3D[] { return this.#tiles.map(t => t.pick); }
 
   load(s: BattleState): void {
-    for (const t of this.#tiles) disposeTree(t.group);
+    for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); disposeTree(t.hz); }
     this.#tiles = [];
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
       const base = s.terr[idx(x, z)] ?? '.';
@@ -193,8 +209,11 @@ export class Terrain {
       const hl = decal(new THREE.PlaneGeometry(0.94, 0.94), new THREE.MeshBasicMaterial({ map: HL_TEX, transparent: true, depthWrite: false }), 0) as TileView['hl'];
       hl.renderOrder = 3;
       hl.visible = false;
-      this.root.add(hl);
-      const t: TileView = { x, z, origin: base, base, group, pick: new THREE.Mesh(), fx: {}, spent: false, brazier: null, hl };
+      const hz = decal(new THREE.PlaneGeometry(0.98, 0.98), new THREE.MeshBasicMaterial({ map: HZ_TEX, transparent: true, depthWrite: false }), 0) as TileView['hz'];
+      hz.renderOrder = 4;
+      hz.visible = false;
+      this.root.add(hl, hz);
+      const t: TileView = { x, z, origin: base, base, group, pick: new THREE.Mesh(), fx: {}, spent: false, brazier: null, hl, hz };
       this.#tiles.push(t);
     }
     for (const t of this.#tiles) this.#build(t, s);
@@ -210,6 +229,7 @@ export class Terrain {
     t.pick = pick;
     t.group.add(pick);
     t.hl.position.set(t.x - OFF, Math.max(0, TOP[t.base] ?? 0) + HL_Y, t.z - OFF);
+    t.hz.position.copy(t.hl.position).setY(t.hl.position.y + 0.005);
   }
 
   #rebuild(t: TileView, s: BattleState, base: TerrainChar): void {
@@ -254,27 +274,42 @@ export class Terrain {
     t.brazier.light.intensity = spent ? 0 : Math.PI;
   }
 
-  /** Make every tile match `s`: base terrain (burnt grass), overlays and spent braziers. */
+  /** Make every tile match `s`: base terrain (burnt grass, crumbled tiles), overlays and spent braziers. */
   sync(s: BattleState): void {
+    this.rebase(s, this.#tiles.filter(t => (s.terr[idx(t.x, t.z)] ?? '.') !== t.base));
     for (const t of this.#tiles) {
-      const k = idx(t.x, t.z), base = s.terr[k] ?? '.', f = s.fx[k];
-      if (base !== t.base) this.#rebuild(t, s, base);
+      const f = s.fx[idx(t.x, t.z)];
       for (const key of FX_KEYS) this.setFx(t.x, t.z, key, !!f?.[key]);
       this.setSpent(t.x, t.z, !!f?.spent);
     }
   }
 
+  /** Rebuild `tiles` to their base in `s`, and the chasm tiles beside them, whose rim walls face their neighbours. */
+  rebase(s: BattleState, tiles: readonly Pos[]): void {
+    const views = tiles.flatMap(p => this.tile(p.x, p.z) ?? []), near = new Set<TileView>();
+    for (const t of views) {
+      t.group.position.y = 0;
+      this.#rebuild(t, s, s.terr[idx(t.x, t.z)] ?? '.');
+    }
+    for (const t of views) for (const [dx, dz] of DIR4) {
+      const n = this.tile(t.x + dx, t.z + dz);
+      if (n && inb(n.x, n.z) && n.base === 'o' && !views.includes(n)) near.add(n);
+    }
+    for (const n of near) this.#rebuild(n, s, 'o');
+  }
+
   /** Later layers win where they overlap. */
   highlight(layers: readonly Highlight[]): void {
-    for (const t of this.#tiles) t.hl.visible = false;
+    for (const t of this.#tiles) t.hl.visible = t.hz.visible = false;
     for (const layer of layers) {
       const tone = TONE[layer.tone];
       for (const p of layer.tiles) {
         const t = this.tile(p.x, p.z);
         if (!t) continue;
-        t.hl.visible = true;
-        t.hl.material.color.setHex(tone.color);
-        t.hl.material.opacity = tone.opacity;
+        const q = layer.tone === 'hazard' ? t.hz : t.hl;
+        q.visible = true;
+        q.material.color.setHex(tone.color);
+        q.material.opacity = layer.opacity ?? tone.opacity;
       }
     }
   }
@@ -302,7 +337,7 @@ export class Terrain {
   }
 
   dispose(): void {
-    for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); }
+    for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); disposeTree(t.hz); }
     this.#tiles = [];
     this.root.removeFromParent();
   }

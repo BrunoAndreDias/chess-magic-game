@@ -12,6 +12,7 @@ import type { Draft } from '../draft';
 import { comboCredit, comboInfo, describe, openingLines, previewLines } from '../format';
 import type { Line } from '../format';
 import { banner, clearBanners, comboBanner, reportError } from '../overlay';
+import { endChip, hazardLayer, roundHazard } from '../rules';
 import { TEAM_COLOR, TEAM_NAME, TEAM_TEXT, other, skillColor } from '../theme';
 import { statusChips, terrainTip, unitTip } from '../tips';
 import { hideTip, showTip, withTip } from '../tooltip';
@@ -74,14 +75,14 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   async function play(b: Batch): Promise<void> {
     const before = shown;
-    for (const e of b.events) {
+    const announce = async (e: BattleEvent) => {
       const line = describe(e, b.state);
       if (line) addLog(line);
-      if (e.type === 'round') await roundBanner(e.round, e.starter);
+      if (e.type === 'round') await roundBanner(e.round, e.starter, b.state);
       if (e.type === 'combo') comboBanner(e.name, comboCredit(e, b.state), comboInfo(e));
-    }
+    };
     try {
-      await board.play(b.events, before, b.state);
+      await board.play(b.events, before, b.state, announce);
     } catch (err) {
       reportError(`board.play failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
       board.load(b.state);
@@ -90,9 +91,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     renderHud();
   }
 
-  async function roundBanner(round: number, starter: Team): Promise<void> {
+  async function roundBanner(round: number, starter: Team, s: BattleState): Promise<void> {
     if (round === DARK_ROUND) await banner('The torches gutter', '#c8a0ff', 'From now on everyone loses HP at the start of their turn, and healing is halved.', 1600);
-    await banner(`Round ${round}`, TEAM_TEXT[starter], `${TEAM_NAME[starter]} opens and closes the round`, 800);
+    await banner(`Round ${round}`, TEAM_TEXT[starter], [`${TEAM_NAME[starter]} opens and closes the round`, roundHazard(s, round)], 800);
   }
 
   function afterDrain(): void {
@@ -202,7 +203,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   // ---------- board feedback ----------
   function highlight(): void {
-    const layers: Highlight[] = [];
+    const layers: Highlight[] = [hazardLayer(shown)];
     const u = input.kind === 'turn' ? getUnit(shown, input.unit) : null;
     if (u && input.kind === 'turn') {
       if (input.aim) {
@@ -277,7 +278,10 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       const teams = slotTeams(s);
       chips = teams.map((t, k) => chip(t, k, k === teams.length - 1 && t === st && teams.length > 2, '', h('span', { class: 'ic' }, '?'), h('span', { class: 'nm' }, '…')));
     }
-    initbar.replaceChildren(head, ...chips, ...(s.round >= DARK_ROUND ? [h('div', { class: 'rd dark' }, '🕯', h('small', null, 'dark'))] : []));
+    const end = endChip(s);
+    initbar.replaceChildren(head, ...chips,
+      ...(s.round >= DARK_ROUND ? [h('div', { class: 'rd dark' }, '🕯', h('small', null, 'dark'))] : []),
+      ...(end ? [withTip(h('div', { class: 'rd hz', id: 'ib-hazard' }, end.icon, h('small', null, end.text)), () => [h('div', { class: 'tt' }, 'At the end of this round'), MAPS[s.map].ruleText])] : []));
   }
 
   function renderRoster(el: HTMLElement, t: Team): void {

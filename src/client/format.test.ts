@@ -41,6 +41,15 @@ suite('describe', () => {
     expect(line({ type: 'over', winner: 0, reason: 'wipe' })).toEqual({ tone: 'sys', text: 'Blue party wins. The other party has nobody left standing.' });
     expect(line({ type: 'over', winner: 'draw', reason: 'mutual' })).toEqual({ tone: 'sys', text: 'Draw. Both parties fell.' });
   });
+  test('map rules say what struck, fell or scored', () => {
+    expect(line({ type: 'storm', line: 'The midline', tiles: [{ x: 0, z: 5 }] })).toEqual({ tone: 'sys', text: 'Lightning strikes the midline!' });
+    expect(line({ type: 'crumble', tiles: [{ x: 1, z: 3 }, { x: 1, z: 4 }] })).toEqual({ tone: 'sys', text: 'The ground gives way: 2 tiles fall into the abyss.' });
+    expect(line({ type: 'favor', team: 1, favor: [1, 3] })).toEqual({ tone: 't1', text: 'Red party holds the altar: favor 1–3.' });
+    expect(line({ type: 'favor', team: null, favor: [1, 1] })).toBe(null);
+    expect(line({ type: 'damage', id: id(1), amount: 36, absorbed: 0, kind: 'storm' })).toEqual({ tone: 't0', text: 'Aldric takes 36 lightning damage.' });
+    expect(line({ type: 'death', id: id(4), team: 1, cause: 'fell' })).toEqual({ tone: 'sys', text: 'Morvath is lost to the abyss.' });
+    expect(line({ type: 'over', winner: 0, reason: 'altar' })).toEqual({ tone: 'sys', text: 'Blue party wins. The Sun Altar grants them victory.' });
+  });
   test('quiet events produce no line', () => {
     expect(line({ type: 'activate', id: id(1), team: 0, qi: 0 })).toBe(null);
     expect(line({ type: 'move', id: id(1), path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toBe(null);

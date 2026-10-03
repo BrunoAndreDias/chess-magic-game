@@ -1,11 +1,12 @@
 import {
-  CLASSES, CLASS_ORDER, MAPS, MAP_ORDER, PAIRS, POINTS, SKILLS, TREES, TRINITY, canDrop, canTake, createBattle, mulberry32, partyBonuses,
+  CLASSES, CLASS_ORDER, MAPS, PAIRS, POINTS, SKILLS, TREES, TRINITY, canDrop, canTake, createBattle, mulberry32, partyBonuses,
 } from '../../engine/index';
-import type { ClassSkillId, MapId, NodeId, Team } from '../../engine/index';
+import type { ClassSkillId, NodeId, Team } from '../../engine/index';
 import type { Ctx, Mounted } from '../app';
 import { h } from '../dom';
-import { TIMERS, randomMember, recommended, resolveMap, selected, toggleSkill } from '../draft';
+import { TIMERS, randomMember, recommended, selected, toggleSkill } from '../draft';
 import type { Draft, Member } from '../draft';
+import { ruleLine } from '../rules';
 import { TEAMS, TEAM_COLOR, TEAM_NAME, skillColor } from '../theme';
 
 export function bonusChips(members: readonly Member[] | readonly { cls: Member['cls'] }[], all: boolean): HTMLElement[] {
@@ -30,20 +31,13 @@ function skillCard(id: ClassSkillId, on: boolean, pick: () => void): HTMLElement
 export function mountSetup(ctx: Ctx, draft: Draft): Mounted {
   const root = h('div', { id: 'setup', class: 'screen' });
   ctx.ui.append(root);
-  let shownMap: MapId | null = null;
+  ctx.board.load(createBattle({ map: draft.map, starter: 0, teams: [[], []] }, mulberry32(ctx.seed)));
+  ctx.board.focus(null, 0);
 
   function update(fn: (m: Member) => Member): void {
     const { team, slot } = draft.sel;
     draft.teams[team][slot] = fn(selected(draft));
     render();
-  }
-
-  function showMap(): void {
-    const id = draft.map === 'random' ? 'span' : draft.map;
-    if (id === shownMap) return;
-    shownMap = id;
-    ctx.board.load(createBattle({ map: id, starter: 0, teams: [[], []] }, mulberry32(ctx.seed)));
-    ctx.board.focus(null, 0);
   }
 
   function teamPanel(t: Team): HTMLElement {
@@ -96,21 +90,13 @@ export function mountSetup(ctx: Ctx, draft: Draft): Mounted {
           }))))));
   }
 
-  function mapPicker(): HTMLElement {
-    const M = draft.map === 'random' ? null : MAPS[draft.map];
-    const mapBtn = (id: MapId | 'random') => h('button', { class: draft.map === id ? 'on' : '', data: { map: id }, title: id === 'random' ? 'Drawn at random at start.' : MAPS[id].favors, onclick: () => { draft.map = id; render(); } },
-      id === 'random' ? 'Random' : MAPS[id].name);
-    return h('div', { class: 'su-map' }, h('span', { class: 'tag' }, 'Battlefield'),
-      h('div', { class: 'seg', id: 'su-maps' }, mapBtn('random'), MAP_ORDER.map(mapBtn)),
-      h('span', { class: 'm' }, M ? M.favors : 'Drawn at random at start.'));
-  }
-
-  function start(): void {
-    ctx.go({ kind: 'scout', draft, map: resolveMap(draft, mulberry32(ctx.seed ^ 0x5eed)) });
+  function mapStrip(): HTMLElement {
+    const M = MAPS[draft.map];
+    return h('div', { class: 'su-map', id: 'su-mapinfo', title: M.favors }, h('span', { class: 'tag' }, 'Battlefield'),
+      h('b', null, M.name), h('span', { class: 'm' }, M.tagline), h('span', { class: 'rl' }, ruleLine(draft.map)));
   }
 
   function render(): void {
-    showMap();
     const scroll = root.scrollTop;
     const timer = h('select', { id: 'su-timer', onchange: () => { const v = Number(timer.value); draft.timer = TIMERS.find(x => x === v) ?? 30; } },
       TIMERS.map(v => h('option', { value: v, selected: draft.timer === v }, v ? `${v} s` : 'No timer')));
@@ -120,8 +106,8 @@ export function mountSetup(ctx: Ctx, draft: Draft): Mounted {
         h('div', { class: 'su-act' },
           h('label', { class: 'm' }, 'Deploy timer ', timer),
           h('button', { class: 'btn', id: 'su-random', onclick: () => { const r = Math.random; for (const t of TEAMS) draft.teams[t] = draft.teams[t].map(m => randomMember(m, r)); render(); } }, '🎲 Randomize'),
-          h('button', { class: 'btn primary', id: 'su-start', onclick: start }, 'Scout the battlefield →'))),
-      mapPicker(),
+          h('button', { class: 'btn primary', id: 'su-start', onclick: () => ctx.go({ kind: 'scout', draft }) }, 'Scout the battlefield →'))),
+      mapStrip(),
       h('div', { class: 'su-body' }, h('div', { class: 'ptabs', id: 'su-teams' }, TEAMS.map(teamPanel)), editor())));
     root.scrollTop = scroll;
   }
