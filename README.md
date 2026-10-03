@@ -15,6 +15,7 @@ npm run dev      # http://localhost:5173  (?quick skips setup, ?ai makes all six
 npm test                 # rules, Match and log-text tests
 npx tsc --noEmit
 npm run sim -- 200       # 200 AI battles: wins, average rounds, combos, class win share
+npm run sim -- 300 --blind  # one side ignores the map rule: the aware side's win rate per map
 node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium
 ```
 
