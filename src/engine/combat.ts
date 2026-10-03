@@ -516,7 +516,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     const r = c.call.recall, o = r && getUnit(c.s, r.id);
     if (!r || !o || !standing(o) || o.under) return;
     const there = unitAt(c.s, r.x, r.z);
-    if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z)) teleport(c, o, r);
+    if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z) && !o.st.encased) teleport(c, o, r);
     const back = r.hp - o.hp;
     if (back > 0) {
       o.hp += back;

@@ -262,7 +262,7 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
   if (id === 'cocoon') return d <= r || held();
   if (d > r) return false;
   if (id === 'skitter') return held() && !!landingNear(s, u, o, px, pz);
-  if (id === 'dragunder') return !!dragLanding(s, u);
+  if (id === 'dragunder') return !o.st.encased && !!dragLanding(s, u);
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
   return true;
 }

@@ -255,6 +255,29 @@ describe('encased', () => {
     expect(apply(next.state, cast(2, 'stoneskin', 3, 2)).ok).toBe(true);
   });
 
+  test('Recall gives an Encased ally its HP back but leaves it where it is', () => {
+    const s0 = stage({
+      a: [bare('astromancer', ['recall', 'meteor', 'frostbolt']), bare('weaver')], b: [bare('astromancer', ['prison', 'frostbolt', 'meteor'])],
+      place: { 1: [4, 0], 2: [2, 2], 3: [2, 5] },
+    });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'recall', 2, 2), end(1), cast(3, 'basic_astromancer', 2, 2), end(3), move(2, 1, 2), end(2),
+      ...orders([1, 2], [3]), cast(3, 'prison', 1, 2), end(3));
+    expect(after(r.events, 'land').slice(1)).toEqual([{ type: 'heal', id: 2, amount: 34 }]);
+    expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).hp]).toEqual([1, 2, 170]);
+  });
+
+  test('Drag Under can\'t take a Cocooned ally', () => {
+    const s0 = stage({
+      a: [bare('weaver', ['cocoon', 'web', 'reel']), bare('delver', ['dragunder', 'upheaval', 'satchel']), bare('delver')], b: [bare('weaver')],
+      place: { 1: [3, 1], 2: [4, 2], 3: [3, 2], 4: [10, 10] }, life: { 3: { kind: 'downed', bleed: 2 } },
+    });
+    s0.mouths = [{ team: 0, net: uid(2), x: 6, z: 2, t: 3 }];
+    const live = run(s0, ...orders([1, 2, 3], [4])).state;
+    expect(apply(run(live, end(1), end(4)).state, cast(2, 'dragunder', 3, 2)).ok).toBe(true);
+    const wrapped = run(live, cast(1, 'cocoon', 3, 2), end(1), end(4)).state;
+    expect(apply(wrapped, cast(2, 'dragunder', 3, 2))).toEqual({ ok: false, error: '(3, 2) is not a target of dragunder' });
+  });
+
   test('Absolute Zero on an Encased unit: the skipped turn spends the Encase, and the Stun skips the turn after', () => {
     const rime = bare('astromancer', ['thunderhead', 'prison', 'frostbolt'], ['a_frost', 'a_prison', 'a_wet', 'a_zero']);
     const s0 = stage({
