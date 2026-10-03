@@ -5,58 +5,63 @@ export interface Pos { x: number; z: number }
 
 export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 'A';
 export type MapId = 'span' | 'storm' | 'altar';
-export type ClassId = 'warden' | 'wizard' | 'ranger' | 'cleric' | 'rogue';
+export type ClassId = 'delver' | 'astromancer' | 'weaver';
 export type Role = 'tank' | 'damage' | 'support';
 
 export type ClassSkillId =
-  | 'shieldbash' | 'guard' | 'taunt' | 'barricade' | 'sunder'
-  | 'fireball' | 'frostbolt' | 'lightning' | 'flood' | 'combust'
-  | 'mark' | 'pinshot' | 'snipe' | 'volley' | 'smokearrow'
-  | 'heal' | 'resurrect' | 'bless' | 'sanctuary' | 'judgment'
-  | 'backstab' | 'shadowstep' | 'poison' | 'kidney' | 'smokebomb';
+  | 'upheaval' | 'undermine' | 'satchel' | 'dragunder' | 'tremor' | 'stoneskin' | 'warren'
+  | 'meteor' | 'thunderhead' | 'gravitywell' | 'frostbolt' | 'firebolt' | 'prison' | 'recall'
+  | 'reel' | 'web' | 'cocoon' | 'venombite' | 'puppet' | 'sharedpain' | 'skitter';
+/** Every build has its class's innate: the class mechanic, always on. */
+export type InnateSkillId = 'burrow' | 'snap' | 'tether';
 export type BasicSkillId = `basic_${ClassId}`;
-export type SkillId = ClassSkillId | BasicSkillId | 'helpup';
-export type SkillTarget = 'enemy' | 'ally' | 'downed' | 'tile' | 'self';
+export type SkillId = ClassSkillId | InnateSkillId | BasicSkillId | 'helpup';
+/** Skills that mark an area now and land at the start of the caster's next activation. */
+export type CallSkill = 'meteor' | 'thunderhead' | 'gravitywell' | 'recall';
+/** `any`: any other unit. `friend`: an ally, standing or Downed. */
+export type SkillTarget = 'enemy' | 'ally' | 'downed' | 'friend' | 'any' | 'tile' | 'self';
 
 export type NodeId =
-  | 'w_hp' | 'w_gs' | 'w_unb' | 'w_mv' | 'w_hb' | 'w_jug' | 'w_cmd' | 'w_int' | 'w_rally'
-  | 'z_kin' | 'z_fs' | 'z_wild' | 'z_hoar' | 'z_gla' | 'z_deep' | 'z_foc' | 'z_arc' | 'z_ovr'
-  | 'r_trk' | 'r_pred' | 'r_hm' | 'r_ste' | 'r_per' | 'r_dead' | 'r_ls' | 'r_qd' | 'r_hr'
-  | 'c_gh' | 'c_sw' | 'c_life' | 'c_fer' | 'c_swj' | 'c_cru' | 'c_aeg' | 'c_vig' | 'c_mar'
-  | 'g_ke' | 'g_opp' | 'g_exe' | 'g_fl' | 'g_gw' | 'g_van' | 'g_vir' | 'g_lin' | 'g_ven';
+  | 'd_hp' | 'd_quick' | 'd_satchel' | 'd_earth'
+  | 'd_strike' | 'd_upheave' | 'd_deep' | 'd_undertow'
+  | 'd_mouth' | 'd_hp2' | 'd_shield' | 'd_city'
+  | 'a_frost' | 'a_prison' | 'a_wet' | 'a_zero'
+  | 'a_fire' | 'a_range' | 'a_burn' | 'a_twin'
+  | 'a_recall' | 'a_hp' | 'a_cleanse' | 'a_benev'
+  | 'w_hp' | 'w_leash' | 'w_thread' | 'w_fate'
+  | 'w_poison' | 'w_fang' | 'w_bite' | 'w_feast'
+  | 'w_cocoon' | 'w_reach' | 'w_silk' | 'w_spare';
 
 /** Summed numeric effects of a character's passive-tree picks. */
 export type Mods = Partial<Record<
-  | 'hp' | 'guardShield' | 'stunImmune' | 'move' | 'pushDist' | 'juggernaut' | 'dmg' | 'exposeOnTaunt' | 'rally'
-  | 'burnDmg' | 'fireDmg' | 'wildfire' | 'rootTurns' | 'frostDmg' | 'deepFreeze' | 'range' | 'chain' | 'overcharge'
-  | 'markTurns' | 'predator' | 'markAmt' | 'highDmg' | 'deadeye' | 'basicDmg' | 'hitrun'
-  | 'heal' | 'reviveHp' | 'lifeline' | 'judgCd' | 'crusade' | 'sanctShield' | 'martyr'
-  | 'opportunist' | 'executioner' | 'grasswalk' | 'vanish' | 'poisonDmg' | 'poisonTurns' | 'venom',
+  | 'hp' | 'surfaceDmg' | 'upheavalDmg' | 'underMove' | 'undertow' | 'quickSink' | 'satchelDmg' | 'earthbreaker'
+  | 'mouthTurns' | 'tunnelShield' | 'undercity'
+  | 'fireDmg' | 'callRange' | 'burnDmg' | 'twinStars' | 'frostDmg' | 'prisonCd' | 'callWet' | 'absZero'
+  | 'recallRange' | 'recallCleanse' | 'benevolent'
+  | 'leashDmg' | 'threads' | 'webOfFate' | 'poisonDmg' | 'basicDmg' | 'biteHeal' | 'feast'
+  | 'cocoonCd' | 'threadRange' | 'webTurns' | 'fateWeaver',
   number>>;
 
-export type PairId =
-  | 'bastion' | 'holdblast' | 'anvilarrow' | 'hammer' | 'blessed'
-  | 'crossfire' | 'smokefire' | 'guiding' | 'pack' | 'shadowmend';
-export type PartyBonusId = PairId | 'trinity';
+/** A pair of classes in a party; `a === b` means that class twice. */
+export type PairId = 'deepimpact' | 'silktunnels' | 'startether' | 'warren' | 'conjunction' | 'greatweb';
+export type PartyBonusId = PairId | 'coverage';
 export type PartyBonuses = ReadonlySet<PartyBonusId>;
 
-export type ComboName =
-  | 'SLAM' | 'ABYSS' | 'FREEZE' | 'CONDUCT' | 'COMBUST' | 'PINNED' | 'JUDGMENT' | 'SHATTER' | 'EXECUTE' | 'IGNITE';
+export type ComboName = 'SLAM' | 'ABYSS' | 'FREEZE' | 'CONDUCT' | 'COMBUST' | 'SHATTER' | 'EXECUTE' | 'IGNITE';
 
 /** `t` counts the owner's remaining turns. `by` is the unit that applied it (null for terrain), shown as the combo's setup. */
-interface Timed { t: number; by: UnitId | null }
+export interface Timed { t: number; by: UnitId | null }
 export interface Statuses {
   stun?: Timed;
   root?: Timed;
   wet?: Timed;
   expose?: Timed;
-  haste?: Timed;
   burn?: Timed & { dmg: number };
-  poison?: Timed & { dmg: number; venom: boolean };
-  mark?: Timed & { amt: number; pred: boolean };
-  empower?: Timed & { amt: number };
-  taunt?: Timed;
-  guard?: { by: UnitId };
+  poison?: Timed & { dmg: number };
+  /** Skips its turns, takes no damage, can't be moved. `ice`: a Glacial Prison, which leaves it Wet. */
+  encased?: Timed & { ice: boolean };
+  /** Shared Pain on the Weaver: half the damage to the allies it holds comes to it. */
+  share?: Timed;
 }
 export type StatusKey = keyof Statuses;
 
@@ -84,20 +89,38 @@ export interface Unit {
   cd: Partial<Record<SkillId, number>>;
   moved: boolean;
   acted: boolean;
-  /** Nonzero only after Hit & Run grants a second, shorter move. */
-  moveCap: number;
+  /** 0 on the surface, otherwise the turns left underground, ticked at the end of its own activation. */
+  under: number;
+  /** Surfaced during this activation (Ambusher). */
+  surfaced: boolean;
+  /** Fate Weaver already saved it once. */
+  spared: boolean;
 }
 
-/** Overlays on a tile. Each number is the rounds left, except `whp` (barricade HP). */
+/** Overlays on a tile. Each number is the rounds left. */
 export interface TileFx {
   fire?: number;
   smoke?: number;
   ice?: number;
-  flood?: number;
-  wall?: number;
-  whp?: number;
+  web?: number;
+  /** Undermined: collapses into a pit at the end of the round. */
+  sink?: number;
+  /** Reads as chasm while it lasts. */
+  pit?: number;
+  /** A Satchel Charge, by the Delver who planted it. */
+  charge?: UnitId;
   spent?: true;
 }
+
+/** A Tunnel Mouth. `net` is the Delver who dug it: all of one Delver's mouths are joined. `t` is rounds left. */
+export interface Mouth { team: Team; net: UnitId; x: number; z: number; t: number }
+/** A pending Call. `recall` is Recall's snapshot of the ally, taken at cast. */
+export interface Call {
+  by: UnitId; team: Team; skill: CallSkill; x: number; z: number;
+  recall: { id: UnitId; x: number; z: number; hp: number } | null;
+}
+/** A Weaver's Thread. `len` is the leash: how far the held enemy may end a move from the Weaver. */
+export interface Thread { by: UnitId; to: UnitId; len: number }
 
 export type Phase =
   | { kind: 'order'; orders: [UnitId[] | null, UnitId[] | null] }
@@ -127,6 +150,13 @@ export interface BattleState {
   /** Sun Altar points; [0, 0] on every other map. */
   favor: [number, number];
   stats: BattleStats;
+  mouths: Mouth[];
+  /** Oldest first. */
+  calls: Call[];
+  /** Oldest first: a Weaver past its cap drops its oldest. */
+  threads: Thread[];
+  /** The round each team's Call last landed (Conjunction). */
+  callRound: [number, number];
 }
 
 export interface MemberBuild {
@@ -151,18 +181,19 @@ export type Command =
   | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos }
   | { kind: 'endTurn'; unit: UnitId };
 
-export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'holy' | 'poison' | 'burn' | 'dark' | 'slam' | 'guard' | 'storm';
-export type TerrainChange = 'wall' | 'ice' | 'flood' | 'smoke';
+export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'poison' | 'burn' | 'dark' | 'slam' | 'share' | 'storm';
+export type TerrainChange = 'ice' | 'smoke' | 'web' | 'sink' | 'pit';
 
 export type BattleEvent =
   | { type: 'round'; round: number; starter: Team; queue: UnitId[] }
   | { type: 'activate'; id: UnitId; team: Team; qi: number }
-  | { type: 'move'; id: UnitId; path: Pos[]; slide?: true }
+  /** `under`: an underground move. Consecutive steps that aren't adjacent are a tunnel jump. */
+  | { type: 'move'; id: UnitId; path: Pos[]; slide?: true; under?: true }
   | { type: 'teleport'; id: UnitId; x: number; z: number }
   | { type: 'fall'; id: UnitId; x: number; z: number }
-  | { type: 'cast'; id: UnitId; team: Team; skill: SkillId; tx: number; tz: number; fx: number; fz: number; target: UnitId | null; empowered: boolean; chain?: UnitId[] }
+  | { type: 'cast'; id: UnitId; team: Team; skill: SkillId; tx: number; tz: number; fx: number; fz: number; target: UnitId | null }
   | { type: 'damage'; id: UnitId; amount: number; absorbed: number; kind: DamageKind }
-  | { type: 'guarded'; id: UnitId; by: UnitId }
+  | { type: 'shared'; id: UnitId; by: UnitId }
   | { type: 'heal'; id: UnitId; amount: number }
   | { type: 'shield'; id: UnitId; amount: number }
   | { type: 'status'; id: UnitId; key: StatusKey }
@@ -182,6 +213,19 @@ export type BattleEvent =
   | { type: 'storm'; line: string; tiles: Pos[] }
   | { type: 'crumble'; tiles: Pos[] }
   | { type: 'favor'; team: Team | null; favor: [number, number] }
+  | { type: 'burrow'; id: UnitId; x: number; z: number }
+  | { type: 'surface'; id: UnitId; x: number; z: number }
+  | { type: 'mouth'; team: Team; x: number; z: number }
+  | { type: 'cavein'; x: number; z: number }
+  | { type: 'call'; id: UnitId; team: Team; skill: CallSkill; tiles: Pos[] }
+  | { type: 'land'; id: UnitId; skill: CallSkill; x: number; z: number; tiles: Pos[]; power: number }
+  | { type: 'fizzle'; id: UnitId }
+  | { type: 'thread'; by: UnitId; to: UnitId }
+  /** A Thread broke. */
+  | { type: 'snap'; by: UnitId; to: UnitId }
+  | { type: 'charge'; x: number; z: number }
+  | { type: 'blast'; x: number; z: number }
+  | { type: 'encased'; id: UnitId }
   | { type: 'roundEnd'; round: number; burnt: number[] }
   | { type: 'over'; winner: Team | 'draw'; reason: OverReason };
 

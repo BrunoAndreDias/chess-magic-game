@@ -22,6 +22,10 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     combos: [0, 0],
     favor: [0, 0],
     stats: { dmg: [0, 0], heal: [0, 0], downs: [0, 0], revives: [0, 0] },
+    mouths: [],
+    calls: [],
+    threads: [],
+    callRound: [0, 0],
   };
   let nextId = 1;
   for (const team of TEAMS) {
@@ -30,10 +34,11 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     members.forEach((m, slot) => {
       const C = CLASSES[m.cls], mods = modsOf(m.cls, m.tree), p = pos[slot];
       if (!p) throw new Error(`team ${team} slot ${slot}: no deploy tile`);
-      const hp = C.hp + (mods.hp || 0) + (s.party[team].has('trinity') ? 20 : 0);
+      const hp = C.hp + (mods.hp || 0) + (s.party[team].has('coverage') ? 20 : 0);
       s.units.push({
         id: nextId++ as UnitId, team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, 3), tree: m.tree.slice(), mods,
-        x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false, moveCap: 0,
+        x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false,
+        under: 0, surfaced: false, spared: false,
       });
     });
   }
@@ -56,7 +61,7 @@ function check(state: BattleState, cmd: Command): string | null {
     if (!reachable(state, u).has(idx(cmd.to.x, cmd.to.z))) return `(${cmd.to.x}, ${cmd.to.z}) is not reachable`;
   }
   if (cmd.kind === 'cast') {
-    if (!canUse(u, cmd.skill)) return `${cmd.skill} is not usable now`;
+    if (!canUse(state, u, cmd.skill)) return `${cmd.skill} is not usable now`;
     if (!castTargets(state, u, cmd.skill).some(t => t.x === cmd.at.x && t.z === cmd.at.z)) return `(${cmd.at.x}, ${cmd.at.z}) is not a target of ${cmd.skill}`;
   }
   return null;

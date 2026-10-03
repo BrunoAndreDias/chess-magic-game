@@ -1,4 +1,4 @@
-import { CLASSES, NODE, PAIRS, POINTS, TREES } from './tables';
+import { CLASSES, KEYSTONE_TIER, NODE, PAIRS, POINTS, TREES } from './tables';
 import type { ClassId, MemberBuild, Mods, NodeId, PartyBonusId, PartyBonuses, Role } from './types';
 
 function prereqTaken(cls: ClassId, picks: readonly NodeId[], id: NodeId): boolean {
@@ -26,11 +26,12 @@ export function canDrop(cls: ClassId, picks: readonly NodeId[], id: NodeId): boo
 
 type ModKey = keyof Mods;
 const MOD_KEYS = [
-  'hp', 'guardShield', 'stunImmune', 'move', 'pushDist', 'juggernaut', 'dmg', 'exposeOnTaunt', 'rally',
-  'burnDmg', 'fireDmg', 'wildfire', 'rootTurns', 'frostDmg', 'deepFreeze', 'range', 'chain', 'overcharge',
-  'markTurns', 'predator', 'markAmt', 'highDmg', 'deadeye', 'basicDmg', 'hitrun',
-  'heal', 'reviveHp', 'lifeline', 'judgCd', 'crusade', 'sanctShield', 'martyr',
-  'opportunist', 'executioner', 'grasswalk', 'vanish', 'poisonDmg', 'poisonTurns', 'venom',
+  'hp', 'surfaceDmg', 'upheavalDmg', 'underMove', 'undertow', 'quickSink', 'satchelDmg', 'earthbreaker',
+  'mouthTurns', 'tunnelShield', 'undercity',
+  'fireDmg', 'callRange', 'burnDmg', 'twinStars', 'frostDmg', 'prisonCd', 'callWet', 'absZero',
+  'recallRange', 'recallCleanse', 'benevolent',
+  'leashDmg', 'threads', 'webOfFate', 'poisonDmg', 'basicDmg', 'biteHeal', 'feast',
+  'cocoonCd', 'threadRange', 'webTurns', 'fateWeaver',
 ] satisfies ModKey[];
 type Assert<T extends true> = T;
 export type EveryModKeyListed = Assert<[Exclude<ModKey, (typeof MOD_KEYS)[number]>] extends [never] ? true : false>;
@@ -48,12 +49,30 @@ export function modsOf(cls: ClassId, picks: readonly NodeId[]): Mods {
   return m;
 }
 
-export function partyBonuses(members: readonly { cls: ClassId }[]): PartyBonuses {
-  const classes = new Set(members.map(m => m.cls));
+/** The role of the path holding the keystone; else the path with the most points (first on a tie); else damage. */
+export function roleOf(cls: ClassId, tree: readonly NodeId[]): Role {
+  const points = [0, 0, 0];
+  for (const id of tree) {
+    const n = NODE[id];
+    if (!n || n.cls !== cls) continue;
+    if (n.tier === KEYSTONE_TIER) return TREES[cls][n.branch]?.role ?? 'damage';
+    points[n.branch] = (points[n.branch] ?? 0) + 1;
+  }
+  let best = -1, most = 0;
+  points.forEach((p, i) => { if (p > most) { most = p; best = i; } });
+  return TREES[cls][best]?.role ?? 'damage';
+}
+
+export function partyBonuses(members: readonly { cls: ClassId; tree: readonly NodeId[] }[]): PartyBonuses {
+  const count = new Map<ClassId, number>();
+  for (const m of members) count.set(m.cls, (count.get(m.cls) ?? 0) + 1);
   const out = new Set<PartyBonusId>();
-  for (const p of PAIRS) if (classes.has(p.a) && classes.has(p.b)) out.add(p.id);
-  const roles = new Set<Role>(members.map(m => CLASSES[m.cls].role));
-  if (roles.has('tank') && roles.has('support') && roles.has('damage')) out.add('trinity');
+  for (const p of PAIRS) {
+    const has = p.a === p.b ? (count.get(p.a) ?? 0) >= 2 : count.has(p.a) && count.has(p.b);
+    if (has) out.add(p.id);
+  }
+  const roles = new Set<Role>(members.map(m => roleOf(m.cls, m.tree)));
+  if (roles.has('tank') && roles.has('support') && roles.has('damage')) out.add('coverage');
   return out;
 }
 

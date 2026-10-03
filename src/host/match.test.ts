@@ -6,7 +6,7 @@ import type { Seats } from './match';
 
 const setup: BattleSetup = {
   map: 'span', starter: 0,
-  teams: [[newMember('warden', 'Wa'), newMember('cleric', 'Cl'), newMember('rogue', 'Ro')], [newMember('wizard', 'Wi'), newMember('ranger', 'Ra'), newMember('rogue', 'Ro')]],
+  teams: [[newMember('delver', 'De'), newMember('astromancer', 'As'), newMember('weaver', 'We')], [newMember('weaver', 'We'), newMember('delver', 'De'), newMember('astromancer', 'As')]],
 };
 const ai: Seats = [[{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }], [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }]];
 const id = (n: number) => n as UnitId;
@@ -17,7 +17,7 @@ describe('Match', () => {
     const m = new Match(setup, seats, 7);
     m.start();
     expect(m.state.phase.kind === 'order' && m.state.phase.orders[0]).toBe(null);
-    expect(m.state.phase.kind === 'order' && m.state.phase.orders[1]).toEqual([4, 6, 5]);
+    expect(m.state.phase.kind === 'order' && m.state.phase.orders[1]).toEqual([6, 5, 4]);
 
     expect(m.submit('bob', { kind: 'order', team: 0, order: [id(1), id(2), id(3)] })).toEqual({ ok: false, error: 'bob holds no seat on team 0' });
     expect(m.submit('ana', { kind: 'order', team: 1, order: [id(4), id(5), id(6)] })).toEqual({ ok: false, error: 'ana holds no seat on team 1' });
@@ -31,10 +31,10 @@ describe('Match', () => {
     const seen: BattleEvent[] = [];
     m.subscribe(ev => seen.push(...ev));
     expect(m.submit('ana', { kind: 'endTurn', unit: id(1) }).ok).toBe(true);
-    expect(seen[0]).toEqual({ type: 'activate', id: 4, team: 1, qi: 1 });
-    expect(seen.at(-1)).toEqual({ type: 'activate', id: 2, team: 0, qi: 2 });
+    expect(seen[0]).toEqual({ type: 'activate', id: 6, team: 1, qi: 1 });
+    expect(seen.at(-1)).toEqual({ type: 'activate', id: 3, team: 0, qi: 5 });
     const after = m.state.phase;
-    expect(after.kind === 'act' && after.queue[after.qi]).toBe(2);
+    expect(after.kind === 'act' && after.queue[after.qi]).toBe(3);
   });
 
   test('an all-AI match plays to the end, the same way for the same seed', () => {
@@ -47,7 +47,7 @@ describe('Match', () => {
     };
     const a = play(42), b = play(42), c = play(43);
     expect(a.state.phase).toEqual({ kind: 'over', winner: 0, reason: 'wipe' });
-    expect(a.state.round).toBe(7);
+    expect(a.state.round).toBe(9);
     expect(b).toEqual(a);
     expect(c.state).not.toEqual(a.state);
   });

@@ -1,7 +1,7 @@
-import { actionsOf, cheb, current, idx, isAlive, standing, terrAt } from './board';
-import { addStatus, checkWinner, damage, fxEmpty, heal } from './combat';
-import { endOfRound } from './hazards';
-import { DARK_ROUND, MAX_ROUNDS } from './tables';
+import { actionsOf, cheb, current, getUnit, idx, isAlive, standing, terrAt } from './board';
+import { addStatus, breakThreads, checkWinner, damage, fxEmpty, heal, landCalls, openPit, surface, webOfFate } from './combat';
+import { atOnce, endOfRound } from './hazards';
+import { DARK_ROUND, MAX_ROUNDS, N } from './tables';
 import type { BattleEvent, BattleState, Team, Unit, UnitId } from './types';
 
 /** The starter opens and closes the round; the rest alternate. */
@@ -32,8 +32,12 @@ export function setOrders(s: BattleState, ord0: readonly UnitId[], ord1: readonl
   s.phase = { kind: 'act', queue, qi: 0 };
   const ev: BattleEvent[] = [{ type: 'round', round: s.round, starter: s.starter, queue: queue.slice() }];
   beginActivation(s, ev);
+  breakThreads(s, ev);
   return ev;
 }
+
+/** Read through a call so narrowing doesn't outlive the mutations in between. */
+function over(s: BattleState): boolean { return s.phase.kind === 'over'; }
 
 function beginActivation(s: BattleState, ev: BattleEvent[]): void {
   for (;;) {
@@ -46,38 +50,50 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
       continue;
     }
     ev.push({ type: 'activate', id: u.id, team: u.team, qi: ph.qi });
-    u.moved = false; u.acted = false; u.moveCap = 0;
+    u.moved = false; u.acted = false; u.surfaced = false;
     for (const id of actionsOf(u)) { const c = u.cd[id]; if (c !== undefined && c > 0) u.cd[id] = c - 1; }
-    for (const a of s.units) if (a.st.guard && a.st.guard.by === u.id) delete a.st.guard;
+    landCalls(s, u, ev);
+    if (over(s)) return;
+    delete u.st.share;
     if (u.life.kind === 'downed') {
-      const bleed = u.life.bleed - 1;
-      if (bleed <= 0) {
-        u.life = { kind: 'dead' };
-        ev.push({ type: 'death', id: u.id, team: u.team, cause: 'bled' });
-        checkWinner(s);
-      } else {
-        u.life = { kind: 'downed', bleed };
-        ev.push({ type: 'bleed', id: u.id, left: bleed });
-      }
+      bleed(s, u, ev);
       if (advance(s, ev)) return;
       continue;
     }
-    startOfTurn(s, u, ev);
-    if (!standing(u) || s.phase.kind === 'over') {
-      if (s.phase.kind === 'over') return;
+    if (standing(u)) startOfTurn(s, u, ev);
+    if (!standing(u) || over(s)) {
+      if (over(s)) return;
       if (advance(s, ev)) return;
       continue;
     }
-    if (u.st.stun) {
+    if (u.st.stun || u.st.encased) {
       delete u.st.stun;
       ev.push({ type: 'skip', id: u.id });
-      tickStatuses(s, u);
+      tickStatuses(s, u, ev);
       if (advance(s, ev)) return;
       continue;
     }
     if (u.st.root) u.moved = true;
     return;
   }
+}
+
+/** A Downed unit's turn: it bleeds, unless Encased (a Cocoon) or lying on an Undercity mouth of its party. */
+function bleed(s: BattleState, u: Unit, ev: BattleEvent[]): void {
+  if (u.life.kind !== 'downed') return;
+  const enc = u.st.encased;
+  if (enc) { if (--enc.t <= 0) delete u.st.encased; return; }
+  const m = s.mouths.find(mo => mo.team === u.team && mo.x === u.x && mo.z === u.z);
+  if (m && getUnit(s, m.net)?.mods.undercity) return;
+  const left = u.life.bleed - 1;
+  if (left <= 0) {
+    u.life = { kind: 'dead' };
+    ev.push({ type: 'death', id: u.id, team: u.team, cause: 'bled' });
+    checkWinner(s);
+    return;
+  }
+  u.life = { kind: 'downed', bleed: left };
+  ev.push({ type: 'bleed', id: u.id, left });
 }
 
 function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
@@ -87,23 +103,20 @@ function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
     damage(s, u, dd, ev, 'dark', null);
     if (!standing(u)) return;
   }
-  const b = u.st.burn;
-  if (b) {
-    damage(s, u, b.dmg, ev, 'burn', null);
-    if (standing(u)) for (const o of s.units) {
-      if (o !== u && standing(o) && o.team === u.team && cheb(o.x, o.z, u.x, u.z) <= 1 && !o.st.burn) {
-        const src = s.units.find(w => w.team !== u.team && w.mods.wildfire && isAlive(w));
-        if (src) addStatus(o, 'burn', { t: 2, dmg: b.dmg, by: src.id }, ev);
-      }
-    }
-  }
+  if (u.st.burn) damage(s, u, u.st.burn.dmg, ev, 'burn', null);
   if (standing(u) && u.st.poison) damage(s, u, u.st.poison.dmg, ev, 'poison', null);
-  if (standing(u) && u.st.guard && s.party[u.team].has('bastion')) heal(s, u, 8, ev, null);
+  if (!standing(u)) return;
+  if (u.mods.webOfFate) {
+    const n = s.threads.filter(t => t.by === u.id).length;
+    if (n && 10 * n > u.shield) { u.shield = 10 * n; ev.push({ type: 'shield', id: u.id, amount: 10 * n }); }
+  }
+  if (u.under) return;
+  const breaker = s.units.find(d => d.team !== u.team && d.mods.earthbreaker && standing(d) && !d.under && cheb(d.x, d.z, u.x, u.z) <= 1);
+  if (breaker) addStatus(u, 'root', { t: 1, by: breaker.id }, ev);
 }
 
-type TickingKey = 'root' | 'mark' | 'expose' | 'taunt' | 'haste' | 'burn' | 'poison' | 'empower';
-const TICKING: readonly TickingKey[] = ['root', 'mark', 'expose', 'taunt', 'haste', 'burn', 'poison', 'empower'];
-function tickStatuses(s: BattleState, u: Unit): void {
+const TICKING = ['root', 'expose', 'burn', 'poison'] as const;
+function tickStatuses(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   for (const k of TICKING) {
     const v = u.st[k];
     if (!v) continue;
@@ -111,7 +124,20 @@ function tickStatuses(s: BattleState, u: Unit): void {
     if (v.t <= 0) delete u.st[k];
   }
   const wet = u.st.wet;
-  if (wet) { if (terrAt(s, u.x, u.z) === '~') wet.t = 2; else if (--wet.t <= 0) delete u.st.wet; }
+  if (wet) { if (!u.under && terrAt(s, u.x, u.z) === '~') wet.t = 2; else if (--wet.t <= 0) delete u.st.wet; }
+  const enc = u.st.encased;
+  if (enc && --enc.t <= 0) {
+    delete u.st.encased;
+    if (enc.ice) addStatus(u, 'wet', { t: 2, by: enc.by }, ev);
+  }
+}
+
+/** An enemy ending its turn on a mouth caves it in, unless its Delver has Undercity. */
+function caveIn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
+  const m = s.mouths.find(mo => mo.team !== u.team && mo.x === u.x && mo.z === u.z);
+  if (!m || getUnit(s, m.net)?.mods.undercity) return;
+  s.mouths = s.mouths.filter(mo => mo !== m);
+  ev.push({ type: 'cavein', x: m.x, z: m.z });
 }
 
 /** Ends the current unit's turn and runs the queue on to the next unit that can act. */
@@ -119,13 +145,20 @@ export function endActivation(s: BattleState): BattleEvent[] {
   const u = current(s), ev: BattleEvent[] = [];
   if (!u) return ev;
   if (standing(u)) {
-    const t = terrAt(s, u.x, u.z), f = s.fx[idx(u.x, u.z)];
-    if (t === '+') heal(s, u, 12, ev, null);
-    if (f?.fire && !u.st.burn) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
-    if (t === '~') addStatus(u, 'wet', { t: 2, by: u.st.wet ? u.st.wet.by : null }, ev);
-    tickStatuses(s, u);
+    if (!u.under) {
+      const t = terrAt(s, u.x, u.z), f = s.fx[idx(u.x, u.z)];
+      if (t === '+') heal(s, u, 12, ev, null);
+      if (f?.fire && !u.st.burn) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
+      if (t === '~') addStatus(u, 'wet', { t: 2, by: u.st.wet ? u.st.wet.by : null }, ev);
+    }
+    tickStatuses(s, u, ev);
+    if (u.under && --u.under === 0) surface(s, u, ev);
+    if (standing(u) && !u.under) { caveIn(s, u, ev); webOfFate(s, u, ev); }
   }
-  u.moveCap = 0; u.moved = true; u.acted = true;
+  u.moved = true; u.acted = true;
+  breakThreads(s, ev);
+  checkWinner(s);
+  if (over(s)) return ev;
   if (!advance(s, ev)) beginActivation(s, ev);
   return ev;
 }
@@ -139,11 +172,11 @@ function advance(s: BattleState, ev: BattleEvent[]): boolean {
   return false;
 }
 
-const EXPIRING: readonly ('fire' | 'smoke' | 'ice' | 'flood' | 'wall')[] = ['fire', 'smoke', 'ice', 'flood', 'wall'];
+const EXPIRING = ['fire', 'smoke', 'ice', 'web', 'pit'] as const;
 function endRound(s: BattleState, ev: BattleEvent[]): void {
   endOfRound(s, ev);
   if (s.phase.kind === 'over') return;
-  const burnt: number[] = [];
+  const burnt: number[] = [], sinks: number[] = [];
   s.fx.forEach((f, k) => {
     if (!f) return;
     for (const key of EXPIRING) {
@@ -152,10 +185,14 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
       if (v - 1 > 0) { f[key] = v - 1; continue; }
       delete f[key];
       if (key === 'fire' && s.terr[k] === 'G') { s.terr[k] = '.'; burnt.push(k); }
-      if (key === 'wall') delete f.whp;
     }
+    if (f.sink) sinks.push(k);
     if (fxEmpty(f)) s.fx[k] = undefined;
   });
+  atOnce(s, () => { for (const k of sinks) openPit(s, k % N, (k / N) | 0, ev); });
+  if (over(s)) return;
+  for (const m of s.mouths) m.t--;
+  s.mouths = s.mouths.filter(m => m.t > 0);
   ev.push({ type: 'roundEnd', round: s.round, burnt });
   s.round++;
   s.starter = s.starter === 0 ? 1 : 0;
@@ -168,4 +205,3 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
   }
   s.phase = { kind: 'order', orders: [null, null] };
 }
-
