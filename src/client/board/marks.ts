@@ -32,19 +32,37 @@ const hole = keep(basic(0x050308));
 const holeRim = keep(mat(0x3a2a1c));
 const SILK = new THREE.Color(0xf4eefa);
 
-/** The call area's tile: a team-coloured fill with a bright dashed rim, tinted per material. */
-const CALL_TEX = (() => {
+/**
+ * The call area's tile: a bright dashed rim and diagonal hatching, tinted per material. Fill is nearly clear and the
+ * two teams hatch in opposite directions, so where red and blue areas overlap both stay readable instead of blending
+ * to purple. `phase` shifts the stripes so two same-team areas on one tile read as a denser hatch.
+ */
+function callTex(team: Team, phase: number): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!;
-  g.fillStyle = 'rgba(255,255,255,0.28)';
+  g.fillStyle = 'rgba(255,255,255,0.1)';
   g.fillRect(3, 3, 58, 58);
+  g.save();
+  g.beginPath();
+  g.rect(3, 3, 58, 58);
+  g.clip();
   g.strokeStyle = 'rgba(255,255,255,1)';
+  g.lineWidth = 5;
+  const dir = team === 0 ? 1 : -1;
+  for (let k = -64 + phase * 8; k <= 128; k += 16) {
+    g.beginPath();
+    g.moveTo(k, 64);
+    g.lineTo(k + 64 * dir, 0);
+    g.stroke();
+  }
+  g.restore();
   g.lineWidth = 3;
   g.setLineDash([9, 5]);
   g.strokeRect(3, 3, 58, 58);
   return new THREE.CanvasTexture(c);
-})();
+}
+const CALL_TEX = ([0, 1] as const).map(t => [callTex(t, 0), callTex(t, 1)] as const);
 
 const CSS = `
 .bd-call{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;font:700 12px -apple-system,system-ui,sans-serif;padding:2px 8px;border-radius:7px;background:rgba(10,8,16,.82);border:1px solid currentColor;text-shadow:0 1px 2px #000;will-change:transform}
@@ -121,10 +139,10 @@ export class Marks {
 
   // ---------- calls ----------
   #buildCall(c: Call, s: BattleState): CallView {
-    const g = new THREE.Group(), team = TEAM_HEX[c.team], sk = SKILLS[c.skill], skillHex = hex(sk.color ?? '#9a8cff');
+    const phase = [...this.#calls.values()].filter(v => v.call.team === c.team).length % 2, g = new THREE.Group(), team = TEAM_HEX[c.team], sk = SKILLS[c.skill], skillHex = hex(sk.color ?? '#9a8cff');
     const tiles = callTiles(c.skill, c.x, c.z).flatMap(p => {
       if (!this.terrain.tile(p.x, p.z)) return [];
-      const q = decal(new THREE.PlaneGeometry(0.96, 0.96), new THREE.MeshBasicMaterial({ map: CALL_TEX, color: team, transparent: true, depthWrite: false, opacity: 0.8 }), 0) as CallView['tiles'][number];
+      const q = decal(new THREE.PlaneGeometry(0.96, 0.96), new THREE.MeshBasicMaterial({ map: CALL_TEX[c.team]![phase], color: team, transparent: true, depthWrite: false, opacity: 0.8 }), 0) as CallView['tiles'][number];
       q.position.copy(this.terrain.at(p.x, p.z, 0.06, false));
       q.renderOrder = 5;
       g.add(q);
