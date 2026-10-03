@@ -66,7 +66,7 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'revive': return { tone: 'sys', text: `${name(s, e.id)} is back on their feet${e.by !== null && e.by !== e.id ? ` thanks to ${name(s, e.by)}` : ''}!` };
     case 'death': return { tone: 'sys', text: `${name(s, e.id)} ${DEATH_WORD[e.cause]}.` };
     case 'bleed': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is bleeding out: ${e.left} turn${e.left === 1 ? '' : 's'} left.` };
-    case 'skip': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is stunned and loses the turn.` };
+    case 'skip': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} can't act and loses the turn.` };
     case 'dark': return null;
     case 'burst': return { tone: 'sys', text: 'A brazier bursts into flames!' };
     case 'fire': return null;

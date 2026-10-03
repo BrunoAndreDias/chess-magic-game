@@ -185,12 +185,12 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 #log .t0 { color: #a9c3ff } #log .t1 { color: #ffb0a6 } #log .sys { color: var(--gold) } #log .combo { color: #ffd36b; font-weight: 700 }
 #actionbar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; align-items: stretch; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 9px; max-width: calc(100vw - 640px); min-width: 560px }
 @media (max-width: 1200px) { #actionbar { max-width: calc(100vw - 24px); min-width: 0; bottom: 200px } }
-#selinfo { min-width: 140px; max-width: 170px; padding-right: 9px; border-right: 1px solid var(--line); font-size: 12.5px }
+#selinfo { min-width: 130px; max-width: 160px; padding-right: 9px; border-right: 1px solid var(--line); font-size: 12.5px }
 #selinfo b { font-size: 15px }
 #selinfo .mv { color: var(--muted); margin-top: 2px }
 #actions { display: flex; gap: 6px; align-items: stretch; min-width: 0; flex: 1 }
 #actions .wait { align-self: center; padding: 0 8px; color: var(--muted) }
-.spbtn { position: relative; flex: 1 1 0; max-width: 124px; min-width: 88px; overflow: hidden; text-align: left; background: #1c1724; border: 1px solid var(--line); border-left: 4px solid var(--el); border-radius: 10px; padding: 6px 8px 6px 22px }
+.spbtn { position: relative; flex: 1 1 0; max-width: 124px; min-width: 72px; overflow: hidden; text-align: left; background: #1c1724; border: 1px solid var(--line); border-left: 4px solid var(--el); border-radius: 10px; padding: 6px 8px 6px 22px }
 .spbtn:hover:not(:disabled) { border-color: var(--el); background: #251f2e }
 .spbtn.on { background: #30283b; box-shadow: 0 0 0 1px var(--el) }
 .spbtn:disabled { opacity: .4; cursor: not-allowed }

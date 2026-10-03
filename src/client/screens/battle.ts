@@ -1,6 +1,6 @@
 import {
-  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aiOrder, aoeTiles, buildQueue, canUse, castTargets, current, getUnit, idx, moveOf, mulberry32, predict,
-  reachable, standing, unitAt,
+  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aiOrder, aoeTiles, buildQueue, callsOf, canUse, castTargets, current, getUnit, holders, idx, isCall,
+  moveOf, mulberry32, predict, puppetMoves, reachable, unitAt,
 } from '../../engine/index';
 import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Unit, UnitId } from '../../engine/index';
 import type { Match } from '../../host/match';
@@ -9,14 +9,14 @@ import type { Highlight, TileInput } from '../board';
 import { h } from '../dom';
 import { LOCAL } from '../draft';
 import type { Draft } from '../draft';
-import { comboCredit, comboInfo, describe, openingLines, previewLines } from '../format';
+import { callLines, comboCredit, comboInfo, describe, openingLines, previewLines } from '../format';
 import type { Line } from '../format';
 import { banner, clearBanners, comboBanner, reportError } from '../overlay';
 import { endChip, hazardLayer, roundHazard } from '../rules';
 import { TEAM_COLOR, TEAM_NAME, TEAM_TEXT, other, skillColor } from '../theme';
 import { statusChips, terrainTip, unitTip } from '../tips';
 import { hideTip, showTip, withTip } from '../tooltip';
-import { bonusChips } from './setup';
+import { bonusChips, skillInfo } from './setup';
 
 interface Batch { events: readonly BattleEvent[]; state: BattleState }
 interface Aim { skill: SkillId; targets: Target[] }
@@ -106,7 +106,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   }
 
   function hasMoves(u: Unit): boolean {
-    return !u.moved || actionsOf(u).some(id => canUse(u, id) && castTargets(shown, u, id).length > 0);
+    return !u.moved || actionsOf(u).some(id => canUse(shown, u, id) && castTargets(shown, u, id).length > 0);
   }
 
   // ---------- input ----------
@@ -124,7 +124,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const u = current(s);
     if (!u || !human(u)) return { kind: 'locked', why: 'ai' };
     const aim = input.kind === 'turn' && input.unit === u.id ? input.aim : null;
-    return { kind: 'turn', unit: u.id, aim: aim && canUse(u, aim.skill) ? { skill: aim.skill, targets: castTargets(s, u, aim.skill) } : null };
+    return { kind: 'turn', unit: u.id, aim: aim && canUse(s, u, aim.skill) ? { skill: aim.skill, targets: castTargets(s, u, aim.skill) } : null };
   }
 
   function refresh(): void {
@@ -142,7 +142,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   function aimAt(id: SkillId): void {
     if (input.kind !== 'turn') return;
     const u = getUnit(shown, input.unit);
-    if (!u || !canUse(u, id)) return;
+    if (!u || !canUse(shown, u, id)) return;
     if (input.aim?.skill === id) {
       if (SKILLS[id].target === 'self') submit({ kind: 'cast', unit: u.id, skill: id, at: { x: u.x, z: u.z } });
       else setAim(null);
@@ -209,7 +209,16 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       if (input.aim) {
         const { skill, targets } = input.aim;
         layers.push({ tiles: targets, tone: 'target' });
-        if (hover && targets.some(t => same(t, hover ?? t))) layers.push({ tiles: aoeTiles(shown, u, skill, hover.x, hover.z), tone: 'aoe' });
+        if (hover && targets.some(t => same(t, hover ?? t))) {
+          const area = aoeTiles(shown, u, skill, hover.x, hover.z);
+          layers.push({ tiles: area, tone: 'aoe' });
+          const walk = skill === 'puppet' ? puppetMoves(shown, u).get(idx(hover.x, hover.z)) : undefined;
+          if (walk) layers.push({ tiles: walk.path, tone: 'path' });
+          if (isCall(skill) && skill !== 'recall' && !u.mods.benevolent) {
+            const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && !o.under && area.some(t => same(t, o)));
+            if (hit.length) layers.push({ tiles: hit, tone: 'friendly' });
+          }
+        }
       } else {
         const reach = reachable(shown, u);
         layers.push({ tiles: [...reach.values()].map(p => p[p.length - 1] ?? u), tone: 'move' });
@@ -222,14 +231,15 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   }
 
   function hoverTip(t: Pos): void {
-    if (input.kind === 'turn' && input.aim && input.aim.targets.some(x => same(x, t))) {
-      const { skill } = input.aim, sk = SKILLS[skill], res = predict(shown, skill, t.x, t.z);
-      const lines = res ? previewLines(res, shown) : [];
+    const me = input.kind === 'turn' ? getUnit(shown, input.unit) : null;
+    if (me && input.kind === 'turn' && input.aim && input.aim.targets.some(x => same(x, t))) {
+      const { skill } = input.aim, sk = SKILLS[skill];
+      const lines = isCall(skill) ? callLines(shown, me, skill, t.x, t.z) : previewLines(predict(shown, skill, t.x, t.z) ?? [], shown);
       showTip(h('div', { class: 'tt', style: { color: skillColor(skill) } }, `${sk.icon} ${sk.name}`),
         lines.length ? lines.map(l => h('div', { class: l.tone }, l.text)) : h('div', { class: 'm' }, sk.text));
       return;
     }
-    const u = unitAt(shown, t.x, t.z);
+    const u = unitAt(shown, t.x, t.z) ?? shown.units.find(o => o.under && o.life.kind !== 'dead' && same(o, t));
     if (u) showTip(unitTip(shown, u, human(u)), h('div', { style: { 'margin-top': '4px' } }, terrainTip(shown, t.x, t.z)));
     else showTip(terrainTip(shown, t.x, t.z));
   }
@@ -272,7 +282,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
         if (!u) return h('div');
         const C = CLASSES[u.cls], closes = k === ph.queue.length - 1 && u.team === st && ph.queue.length > 2;
         const state = k < ph.qi ? ' done' : k === ph.qi ? ' now' : '';
-        return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name));
+        const calls = s.calls.filter(c => c.by === u.id);
+        const star = calls.length ? withTip(h('span', { class: 'cstar' }, '☄'), () => calls.map(c => h('div', null, `${SKILLS[c.skill].icon} ${SKILLS[c.skill].name} lands at the start of ${u.name}'s turn.`))) : null;
+        return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []));
       });
     } else {
       const teams = slotTeams(s);
@@ -314,7 +326,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       h('b', { style: { color: TEAM_TEXT[u.team] } }, u.name),
       h('div', null, `${C.icon} ${C.name}${human(u) ? '' : ' · 🤖'}`),
       h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`),
-      h('div', { class: 'mv' }, `${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}${u.moveCap ? ' (Hit & Run)' : ''}`} · ${u.acted ? 'action used' : 'action ready'}`));
+      h('div', { class: 'mv' }, `${u.under ? '⛏ Underground · ' : ''}${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}`} · ${u.acted ? 'action used' : 'action ready'}`));
     endBtn.disabled = !mine;
     if (!human(u)) {
       actions.replaceChildren(h('div', { class: 'wait' }, `${TEAM_NAME[u.team]} (AI) is acting…`));
@@ -322,13 +334,23 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     }
     const aim = input.kind === 'turn' ? input.aim : null;
     actions.replaceChildren(...actionsOf(u).map((id, i) => {
-      const sk = SKILLS[id], cd = u.cd[id] || 0, hasT = castTargets(s, u, id).length > 0, ok = mine && canUse(u, id) && hasT;
-      const why = u.acted && !sk.free ? 'Action used' : cd ? `Ready in ${cd}` : !hasT ? (id === 'helpup' ? 'No downed ally next to you' : 'No target')
-        : `${sk.free ? 'Free · ' : ''}${sk.range ? `Range ${sk.range}` : sk.target === 'self' ? 'Around you' : ''}`;
+      const sk = SKILLS[id], cd = u.cd[id] || 0, hasT = castTargets(s, u, id).length > 0, ok = mine && canUse(s, u, id) && hasT;
+      const why = u.acted && !sk.free ? 'Action used' : cd ? `Ready in ${cd}` : blocked(s, u, id) ?? (!hasT ? (id === 'helpup' ? 'No downed ally next to you' : 'No target')
+        : `${sk.free ? 'Free · ' : ''}${sk.call ? 'Call · ' : ''}${sk.range ? `Range ${sk.range}` : sk.target === 'self' ? 'Around you' : ''}`);
       const combo = sk.pays?.[0] ? h('span', { class: 'cb pays' }, sk.pays[0]) : sk.sets?.[0] ? h('span', { class: 'cb sets' }, sk.sets[0]) : null;
-      return h('button', { class: `spbtn${aim?.skill === id ? ' on' : ''}`, data: { skill: id }, disabled: !ok, style: { '--el': skillColor(id) }, title: sk.text, onclick: () => aimAt(id) },
-        h('span', { class: 'key' }, i + 1), h('span', { class: 'nm' }, `${sk.icon} ${sk.name}`), h('span', { class: 'st' }, why), combo, cd ? h('span', { class: 'cdb' }, cd) : null);
+      return withTip(h('button', { class: `spbtn${aim?.skill === id ? ' on' : ''}${sk.innate ? ' innate' : ''}`, data: { skill: id }, disabled: !ok, style: { '--el': skillColor(id) }, onclick: () => aimAt(id) },
+        h('span', { class: 'key' }, i + 1), h('span', { class: 'nm' }, `${sk.icon} ${sk.name}`), h('span', { class: 'st' }, why), combo,
+        sk.innate ? h('span', { class: 'inn' }, 'innate') : null, cd ? h('span', { class: 'cdb' }, cd) : null), () => skillInfo(id));
     }));
+  }
+
+  /** Why a ready skill can't be used right now, for the class mechanics that gate it. */
+  function blocked(s: BattleState, u: Unit, id: SkillId): string | null {
+    if (id === 'burrow') return u.under ? 'Already under' : u.moved ? 'Only before moving' : null;
+    if (id === 'upheaval' && !u.under) return 'Only from underground';
+    if (id === 'snap' && !callsOf(s, u)) return 'No pending Call';
+    if (isCall(id) && !canUse(s, u, id) && callsOf(s, u)) return 'Already holding a Call';
+    return null;
   }
 
   function renderHint(): void {
@@ -339,8 +361,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (!human(u)) { set(h('b', null, u.name), ` (${TEAM_NAME[u.team]}, AI) is acting…`); return; }
     if (input.kind !== 'turn') { set(); return; }
     if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
-    const by = u.st.taunt ? getUnit(s, u.st.taunt.by) : null;
-    if (by && standing(by)) { set(h('b', null, u.name), ' is taunted: attacks can only target ', h('b', null, by.name), '.'); return; }
+    if (u.under && !u.moved) { set(h('b', null, u.name), ` is underground: blue tiles = tunnel up to ${moveOf(u)} through walls and units. Any skill surfaces you; you come up at the end of the turn anyway.`); return; }
+    const leash = holders(s, u).flatMap(t => { const w = getUnit(s, t.by); return w && w.team !== u.team ? [`${w.name} (${t.len})`] : []; });
+    if (leash.length && !u.moved) { set(h('b', null, u.name), ' is leashed by ', h('b', null, leash.join(', ')), ': blue tiles stay within the Thread’s length. ', h('b', null, 'Space'), ' = end turn.'); return; }
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
   }
 
