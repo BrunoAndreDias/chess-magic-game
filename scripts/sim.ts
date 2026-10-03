@@ -1,4 +1,4 @@
-import { CLASS_ORDER, CLASSES, MAP_ORDER, TREES, aiDeploy, aiOrder, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
+import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiOrder, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
 // npm run sim -- [battles] [--blind] [--dumb] [--from=K]
@@ -36,14 +36,15 @@ function keystonePath(m: MemberBuild): string {
   return `${m.cls} ${b?.name ?? '-'}`;
 }
 
-type Mechanic = 'call' | 'thread' | 'harvest' | 'toll';
-const MECHANIC_OF: Record<ClassId, Mechanic> = { astromancer: 'call', weaver: 'thread', gravecaller: 'harvest', bellringer: 'toll' };
+/** Each class's mechanic, and the Gravecaller's Rites on top: the share of battles a side had the class and used it. */
+type Mechanic = 'call' | 'thread' | 'harvest' | 'rite' | 'toll';
+const MECHANICS_OF: Record<ClassId, readonly Mechanic[]> = { astromancer: ['call'], weaver: ['thread'], gravecaller: ['harvest', 'rite'], bellringer: ['toll'] };
 
 interface MapStats { n: number; rounds: number; reasons: Record<string, number>; storm: number; falls: number; awareWins: number; draws: number }
 const per = new Map<MapId, MapStats>(MAP_ORDER.map(m => [m, { n: 0, rounds: 0, reasons: {}, storm: 0, falls: 0, awareWins: 0, draws: 0 }]));
 const wins: [number, number, number] = [0, 0, 0], combos: Record<string, number> = {};
 const cls: Record<string, [number, number]> = {}, path: Record<string, [number, number]> = {};
-const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0], harvest: [0, 0], toll: [0, 0] };
+const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0] };
 let rounds = 0, ms = 0;
 
 for (let i = from; i < from + battles; i++) {
@@ -70,7 +71,8 @@ for (let i = from; i < from + battles; i++) {
         if (e.type === 'fall' && !res.events.some(c => c.type === 'combo' && c.name === 'ABYSS' && c.id === e.id)) st.falls++;
         if (e.type === 'call') used[e.team]?.add('call');
         if (e.type === 'thread') { const u = getUnit(s, e.by); if (u) used[u.team]?.add('thread'); }
-        if (e.type === 'gather') { const u = getUnit(s, e.id); if (u) used[u.team]?.add('harvest'); }
+        if (e.type === 'cast' && e.skill === 'harvest') used[e.team]?.add('harvest');
+        if (e.type === 'cast' && SKILLS[e.skill].rite) used[e.team]?.add('rite');
         if (e.type === 'cast' && e.skill === 'toll') used[e.team]?.add('toll');
       });
       s = res.state;
@@ -95,8 +97,7 @@ for (let i = from; i < from + battles; i++) {
       const c = (cls[m.cls] ??= [0, 0]); c[0] += won; c[1]++;
       const p = (path[keystonePath(m)] ??= [0, 0]); p[0] += won; p[1]++;
     }
-    for (const c of new Set(tm.map(m => m.cls))) {
-      const k = MECHANIC_OF[c];
+    for (const c of new Set(tm.map(m => m.cls))) for (const k of MECHANICS_OF[c]) {
       mech[k][1]++;
       if (used[t]?.has(k)) mech[k][0]++;
     }

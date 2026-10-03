@@ -1,11 +1,13 @@
 import {
-  actionsOf, canDeploy, canUse, castTargets, cheb, cloneState, current, getUnit, idx, inb, isAlive, isDowned, los, reachable, standing, terrAt,
+  actionsOf, canDeploy, canUse, castTargets, cheb, cloneState, current, getUnit, idx, inb, isAlive, isDowned, los, reachable, soulCap, soulsInReach,
+  standing, terrAt,
 } from './board';
 import type { Target } from './board';
 import { landCall, performCast, performMove } from './combat';
 import { doomed, threatened, toll } from './hazards';
 import { orderable, endActivation } from './turns';
 import { CLASSES, DIR8, MAPS, N, SKILLS } from './tables';
+import { callTiles } from './combat';
 import type { Rng } from './rng';
 import type { BattleState, Call, CallSkill, ClassId, Command, MemberBuild, Pos, SkillId, StatusKey, Team, Unit, UnitId } from './types';
 
@@ -103,25 +105,76 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
   if (t === '~' && s.units.some(e => e.team !== u.team && standing(e) && e.cls === 'astromancer')) sc -= 3;
   if (t === '^' && u.cls === 'astromancer') sc += 3;
   if (t === '+' && hpR < 0.8) sc += 3;
+  if (u.souls < soulCap(s, u)) sc += 1.5 * Math.min(soulCap(s, u) - u.souls, soulsInReach(s, u, x, z).length);
   if (!opts.ignoreMap) sc += mapTileScore(s, u, x, z);
   for (const [dx, dz] of DIR8) {
     const nx = x + dx, nz = z + dz;
     if (inb(nx, nz) && terrAt(s, nx, nz) === 'o' && en.some(e => e.cls !== 'astromancer' && cheb(e.x, e.z, x, z) <= 4)) { sc -= 2.5; break; }
   }
+  // Holding a Soul with Last Rites ready, stay where the Downed can be reached next turn.
+  const rites = u.skills.includes('lastrites') && u.souls > 0 && (u.cd.lastrites ?? 0) <= 1;
   for (const a of s.units) {
     if (a.team !== u.team || !isAlive(a) || a.id === u.id) continue;
     const d = cheb(a.x, a.z, x, z);
-    if (isDowned(a)) sc += d <= 1 ? 6 : -d * 0.8;
+    if (isDowned(a)) sc += d <= 1 ? 6 : rites && d <= 3 + (u.mods.riteRange || 0) ? 4 : -d * 0.8;
     else if (u.cls === 'weaver') sc += d <= 2 ? 1 : -(d - 2) * 0.4;
     else if (d > 5) sc -= 0.4;
   }
   return sc;
 }
 
-const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['poison', 8]];
-const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'poison', 'expose'];
-const ALLY_HURT: readonly [StatusKey, number][] = [['stun', 13], ['root', 5], ['expose', 5], ['burn', 5], ['poison', 6]];
+const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['poison', 8], ['wither', 8]];
+const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'poison', 'expose', 'wither', 'hush'];
+const ALLY_HURT: readonly [StatusKey, number][] = [['stun', 13], ['root', 5], ['expose', 5], ['burn', 5], ['poison', 6], ['wither', 7], ['hush', 6]];
+const ALLY_GAIN: readonly [StatusKey, number][] = [['guard', 6], ['haste', 3]];
+/** A held Soul, in evalDelta's HP-like units: what a Harvest gains and a Rite spends. */
+const SOUL_VALUE = 4;
 const CALL_DISCOUNT = 0.6;
+
+/** What Hushing `o` takes away: each skill it could use next turn, more for a Call or a Rite. */
+function hushValue(o: Unit): number {
+  let v = 0;
+  for (const id of actionsOf(o)) {
+    const sk = SKILLS[id];
+    if (sk.basic || id === 'helpup' || (o.cd[id] ?? 0) > 1) continue;
+    v += sk.call || sk.rite ? 6 : 3;
+  }
+  return v;
+}
+
+/** Turns that change place in the queue: an enemy pushed past our turns, an ally pulled ahead of theirs, an extra turn. */
+function queueDelta(s0: BattleState, s1: BattleState, team: Team): number {
+  const p0 = s0.phase, p1 = s1.phase;
+  if (p0.kind !== 'act' || p1.kind !== 'act') return 0;
+  const ours = (id: UnitId) => getUnit(s1, id)?.team === team;
+  const next = (p: typeof p1, id: UnitId) => p.queue.findIndex((t, i) => i > p.qi && t.id === id);
+  const between = (p: typeof p1, id: UnitId, side: boolean) => {
+    const k = next(p, id);
+    return k < 0 ? 0 : p.queue.slice(p.qi + 1, k).filter(t => ours(t.id) === side).length;
+  };
+  const low = s1.units.some(e => e.team !== team && standing(e) && e.hp < e.maxHp * 0.3);
+  let v = 0;
+  for (const u of s1.units) {
+    if (!standing(u)) continue;
+    if (u.team === team) {
+      const turns = (p: typeof p1) => p.queue.filter((t, i) => i > p.qi && t.id === u.id).length;
+      if (turns(p1) > turns(p0)) v += 18;
+      const passed = between(p0, u.id, false) - between(p1, u.id, false);
+      if (passed > 0) v += 2 * passed + (low ? 6 : 0);
+      continue;
+    }
+    const pushed = between(p1, u.id, true) - between(p0, u.id, true);
+    if (pushed <= 0) continue;
+    v += 2 * pushed;
+    // One of our pending Calls on its tile now lands before it can step out.
+    for (const c of s1.calls) {
+      if (c.team !== team || c.skill === 'recall' || !callTiles(c.skill, c.x, c.z).some(t => t.x === u.x && t.z === u.z)) continue;
+      const land0 = next(p0, c.by), land1 = next(p1, c.by);
+      if (land1 >= 0 && next(p0, u.id) < land0 && next(p1, u.id) > land1) v += CALL_DANGER[c.skill];
+    }
+  }
+  return v;
+}
 
 function sameCall(a: Call, b: Call): boolean { return a.by === b.by && a.skill === b.skill && a.x === b.x && a.z === b.z; }
 
@@ -144,13 +197,20 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
       if (isAlive(b) && !isAlive(a)) v += isDowned(b) ? 55 : 120;
       else if (standing(b) && isDowned(a)) v += 80;
       if (!standing(a)) continue;
+      v -= SOUL_VALUE * (a.souls - b.souls);
       v += (b.hp - a.hp) + 0.7 * (b.shield - a.shield);
       for (const [k, w] of ENEMY_GAIN) if (a.st[k] && !b.st[k]) v += w;
+      // Withered, the next hit that drops it to 20% Downs it outright.
+      if (a.st.wither && !b.st.wither) v += a.hp < a.maxHp * 0.5 ? 16 : 8;
+      if (a.st.hush && !b.st.hush) v += hushValue(a);
       if (a.x !== b.x || a.z !== b.z) v += 2;
     } else {
       if (isAlive(b) && !isAlive(a)) v -= 120; else if (standing(b) && isDowned(a)) v -= 90; else if (isDowned(b) && standing(a)) v += 85;
       if (a.st.encased && !b.st.encased) v += isDowned(a) ? 30 : a.hp / a.maxHp < 0.35 ? 12 : -8;
+      // A full hand gathers nothing more, so spending from it costs little.
+      v += (a.souls - b.souls) * (a.souls < b.souls && b.souls >= soulCap(s0, b) ? 1 : SOUL_VALUE);
       if (!standing(a)) continue;
+      for (const [k, w] of ALLY_GAIN) if (a.st[k] && !b.st[k]) v += w;
       const d = b.hp - a.hp;
       v += d > 0 ? -d * 1.1 : -d * (b.hp / b.maxHp < 0.5 ? 1.3 : 0.9);
       const sg = a.shield - b.shield;
@@ -160,15 +220,22 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
       for (const [k, w] of ALLY_HURT) if (a.st[k] && !b.st[k]) v -= w;
     }
   }
-  v += threadDelta(s0, s1, team);
+  v += threadDelta(s0, s1, team) + queueDelta(s0, s1, team);
   const en = s1.units.filter(o => o.team !== team && standing(o));
   const near = (x: number, z: number, r: number) => en.some(e => cheb(e.x, e.z, x, z) <= r);
   let webs = 0;
+  const walled = new Set<Unit>();
+  const hurt = s1.units.filter(a => a.team === team && standing(a) && a.hp < a.maxHp * 0.6);
   s1.fx.forEach((f, k) => {
     if (!f) return;
     const f0 = s0.fx[k], x = k % N, z = (k / N) | 0;
     if (f.web && !f0?.web && webs < 6 && near(x, z, 1)) { v += 1; webs++; }
+    if (!f.bone || f0?.bone) return;
+    // A Bone Wall earns its Soul by standing in an enemy's face, more so in front of a wounded ally.
+    for (const e of en) if (cheb(e.x, e.z, x, z) <= 1) walled.add(e);
+    if (hurt.some(a => cheb(a.x, a.z, x, z) <= 2)) v += 3;
   });
+  v += 5 * walled.size;
   if (!foresee) return v;
   for (const call of s1.calls) {
     if (s0.calls.some(k => sameCall(k, call))) continue;
@@ -215,7 +282,7 @@ function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
   switch (id) {
     case 'puppet': return true;
     case 'meteor': return near(foe, 1) || terrAt(s, t.x, t.z) === 'B';
-    case 'gravitywell': case 'web': return near(foe, 2);
+    case 'gravitywell': case 'web': case 'bonewall': return near(foe, 2);
     default: return near(foe, 1);
   }
 }
@@ -232,7 +299,7 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
     let sm = s;
     if (p.moved) { sm = cloneState(s); if (!performMove(sm, p.x, p.z)) continue; }
     const cu = current(sm);
-    if (!cu || !standing(cu)) continue;
+    if (!cu || !isAlive(cu)) continue;
     const base = tileScore(sm, cu, p.x, p.z, opts) + (p.moved ? evalDelta(s, sm, u.team, opts) : 0) + rng() * 0.3;
     let bc: Plan['cast'] = null, bcs = 0;
     for (const id of actionsOf(cu)) {
@@ -240,6 +307,8 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
       const sk = SKILLS[id];
       castTargets(sm, cu, id).forEach((t: Target) => {
         if (sk.target === 'tile' && !aiTileWorth(sm, cu, id, t)) return;
+        // Final Hour's self-Toll ends the turn on the spot; the AI doesn't plan around it.
+        if (id === 'toll' && t.id === cu.id) return;
         const c = cloneState(sm);
         if (!performCast(c, id, t.x, t.z)) return;
         const cc = getUnit(c, cu.id);
@@ -274,17 +343,17 @@ export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command
   const s = cloneState(state), cmds: Command[] = [], u = current(s);
   if (!u) return cmds;
   const over = () => s.phase.kind === 'over';
-  for (let step = 0; step < 4 && current(s) === u && !over() && standing(u); step++) {
+  for (let step = 0; step < 4 && current(s) === u && !over() && isAlive(u); step++) {
     const plan = aiPlan(s, rng, opts);
     // once it has acted, only a free skill is worth another plan; positioning is left to the retreat
     if (!plan || (u.acted && !plan.cast)) break;
     if (plan.move && performMove(s, plan.move.x, plan.move.z)) cmds.push({ kind: 'move', unit: u.id, to: plan.move });
-    if (!plan.cast || over() || !standing(u)) break;
+    if (!plan.cast || over() || !isAlive(u)) break;
     const { skill, x, z } = plan.cast;
     if (!performCast(s, skill, x, z)) break;
     cmds.push({ kind: 'cast', unit: u.id, skill, at: { x, z } });
   }
-  if (current(s) === u && !over() && standing(u) && !u.moved) {
+  if (current(s) === u && !over() && isAlive(u) && !u.moved) {
     const r = aiRetreat(s, opts);
     if (r && performMove(s, r.x, r.z)) cmds.push({ kind: 'move', unit: u.id, to: r });
   }
