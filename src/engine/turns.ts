@@ -70,6 +70,7 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
       delete u.st.stun;
       ev.push({ type: 'skip', id: u.id });
       tickStatuses(s, u, ev);
+      thaw(s, u, ev);
       if (advance(s, ev)) return;
       continue;
     }
@@ -125,11 +126,13 @@ function tickStatuses(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   }
   const wet = u.st.wet;
   if (wet) { if (!u.under && terrAt(s, u.x, u.z) === '~') wet.t = 2; else if (--wet.t <= 0) delete u.st.wet; }
+}
+/** Encased counts skipped turns, not ended ones, so an Encase that lands during the unit's own turn still costs it the next. */
+function thaw(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   const enc = u.st.encased;
-  if (enc && --enc.t <= 0) {
-    delete u.st.encased;
-    if (enc.ice) addStatus(u, 'wet', { t: 2, by: enc.by }, ev);
-  }
+  if (!enc || --enc.t > 0) return;
+  delete u.st.encased;
+  if (enc.ice) addStatus(u, 'wet', { t: 2, by: enc.by }, ev);
 }
 
 /** An enemy ending its turn on a mouth caves it in, unless its Delver has Undercity. */

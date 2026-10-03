@@ -145,7 +145,7 @@ function surfacePaths(s: BattleState, u: Unit, range: number): Map<number, numbe
 /** Tile index → path (start first) for every tile the unit can end its move on. Insertion order breaks AI ties. */
 export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>();
-  if (!u || !standing(u) || u.moved) return res;
+  if (!u || !standing(u) || u.moved || u.st.encased) return res;
   return paths(s, u, moveOf(u), true);
 }
 
@@ -195,7 +195,7 @@ export function callsOf(s: BattleState, u: Unit): number {
   return n;
 }
 export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
-  if (!actionsOf(u).includes(id)) return false;
+  if (!actionsOf(u).includes(id) || u.st.encased) return false;
   if ((u.cd[id] || 0) > 0) return false;
   if (u.acted && !SKILLS[id].free) return false;
   if (id === 'burrow') return !u.moved && u.under === 0;

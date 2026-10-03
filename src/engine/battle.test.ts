@@ -189,6 +189,24 @@ describe('calls', () => {
   });
 });
 
+describe('encased', () => {
+  test('Encased during its own turn, a unit can neither cast nor move, and it still skips its next turn', () => {
+    const spinner = bare('weaver', ['reel', 'web', 'cocoon'], ['w_cocoon', 'w_reach', 'w_silk', 'w_spare']);
+    const s0 = stage({ a: [spinner, bare('delver')], b: [bare('delver')], place: { 1: [3, 0], 2: [3, 1], 3: [6, 2] }, hp: { 2: 15 } });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'tether', 3, 1), end(1), cast(3, 'satchel', 6, 1), end(3), move(2, 5, 1));
+    expect(r.events).toContainEqual({ type: 'encased', id: 2 });
+    expect([unit(r.state, 2).hp, unit(r.state, 2).st]).toEqual([1, { encased: expect.objectContaining({ by: 1 }) }]);
+    expect(apply(r.state, cast(2, 'stoneskin', 5, 1))).toEqual({ ok: false, error: 'stoneskin is not usable now' });
+    const unmoved = structuredClone(r.state);
+    unit(unmoved, 2).moved = false;
+    expect(reachable(unmoved, unit(unmoved, 2)).size).toBe(0);
+
+    const next = run(r.state, end(2), ...orders([1, 2], [3]), end(3), end(1));
+    const turn = next.events.findIndex(e => e.type === 'activate' && e.id === 2);
+    expect(next.events.slice(turn, turn + 2)).toEqual([{ type: 'activate', id: 2, team: 0, qi: 2 }, { type: 'skip', id: 2 }]);
+  });
+});
+
 describe('threads', () => {
   test('a held enemy may only end its move within the Thread\'s length of the Weaver', () => {
     const s0 = stage({ a: [bare('weaver')], b: [bare('delver')], place: { 1: [5, 1], 2: [5, 3] } });
