@@ -70,15 +70,17 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .seg button.on { background: var(--gold); color: #1b1405 }
 .sec h3 { font-size: 15px; margin: 0 0 7px; display: flex; gap: 10px; align-items: baseline; color: #e9d7b4; letter-spacing: .02em }
 .sec h3 small { font: 12px -apple-system, system-ui, sans-serif; color: var(--muted) }
-.ccards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px }
+.ccards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px }
 .ccard { display: flex; flex-direction: column; align-items: center; gap: 1px; background: #19141d; border: 1px solid var(--line); border-radius: 10px; padding: 7px 4px 6px; min-width: 0 }
 .ccard:hover { background: #231c27; border-color: color-mix(in srgb, var(--cc) 50%, var(--line)) }
 .ccard.on { background: color-mix(in srgb, var(--cc) 16%, #19141d); border-color: var(--cc); box-shadow: 0 0 0 1px var(--cc), 0 0 18px color-mix(in srgb, var(--cc) 30%, transparent) }
 .ccard .ic { font-size: 22px; line-height: 1.1 }
 .ccard .nm { font-weight: 700; font-size: 13px }
-.ccard .rl { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--cc) }
+.ccard .rl { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--cc) }
+.ccard .mx { font-size: 11px; line-height: 1.3; color: var(--muted); text-align: center; padding: 1px 4px 0 }
+.ccard.on .mx { color: var(--text) }
 .cls-line { margin: 7px 2px 0; font-size: 12.5px; line-height: 1.4 }
-.kit { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px }
+.kit { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
 .skc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; background: #17131b; border: 1px solid var(--line); border-radius: 10px; padding: 7px 4px 6px; opacity: .55; filter: saturate(.5) }
 .skc:hover { opacity: .9; filter: none }
 .skc.on { opacity: 1; filter: none; background: color-mix(in srgb, var(--kc) 14%, #17131b); border-color: var(--kc); box-shadow: 0 0 0 1px var(--kc) }
@@ -87,7 +89,11 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .skc .nm { font-weight: 700; font-size: 12px; line-height: 1.2; text-align: center }
 .skc .bdg { display: flex; gap: 3px; min-height: 14px }
 .skc .bdg i { font: 700 9px system-ui, sans-serif; letter-spacing: .08em; font-style: normal; border: 1px solid currentColor; border-radius: 4px; padding: 0 3px; line-height: 12px }
+.skc.innate { cursor: default; border-style: dashed }
+.skc.innate::after { content: '∞' }
 .mapc { color: #c8a064 }
+.call { color: #c9bfff } .quake { color: #e0a868 } .free { color: #8fe3b0 } .innate { color: var(--gold) }
+.detail .call, .detail .quake, .detail .free, .detail .innate { display: inline; margin-left: 6px }
 .detail { margin-top: 6px; min-height: 36px; font-size: 12.5px; line-height: 1.4; color: #cbbfae; padding: 5px 9px; border-left: 2px solid #4a3c2c; background: rgba(255, 255, 255, .025); border-radius: 0 6px 6px 0 }
 .detail .tt { display: inline; font-weight: 700; color: var(--text); margin-right: 6px }
 .detail .tt + .m { display: inline; margin-right: 6px }
@@ -99,7 +105,8 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .pts.zero b { color: var(--muted) }
 .treewrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 6px 8px; border-radius: 10px; background: radial-gradient(ellipse at 50% 0%, #1d1620, #0d0b10 80%); border: 1px solid #2a2230 }
 .treewrap .br { display: flex; flex-direction: column; align-items: center }
-.treewrap .bn { font: 600 13px Georgia, serif; color: var(--bc); letter-spacing: .04em; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid color-mix(in srgb, var(--bc) 45%, transparent); width: 80%; text-align: center }
+.treewrap .bn { display: flex; flex-direction: column; align-items: center; font: 600 13px Georgia, serif; color: var(--bc); letter-spacing: .04em; padding-bottom: 5px; margin-bottom: 4px; border-bottom: 1px solid color-mix(in srgb, var(--bc) 45%, transparent); width: 80%; text-align: center }
+.treewrap .bn .role { font: 700 9.5px system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 1px }
 .link { display: block; width: 3px; height: 14px; background: #2b2430; border-radius: 2px }
 .link.ready { background: color-mix(in srgb, var(--bc) 35%, #2b2430) }
 .link.on { background: var(--bc); box-shadow: 0 0 8px var(--bc) }
@@ -149,6 +156,7 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 .ichip .ic { font-size: 18px; display: block }
 .ichip.t0 { border-bottom: 3px solid var(--you) } .ichip.t1 { border-bottom: 3px solid var(--foe) }
 .ichip.done { opacity: .35 }
+.ichip .cstar { position: absolute; top: -7px; right: -6px; font-size: 14px; line-height: 1; color: #c9bfff; text-shadow: 0 0 6px #9a8cff, 0 1px 2px #000; cursor: help }
 .ichip.now { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); background: #2b2433 }
 .ichip .k { position: absolute; top: 2px; left: 4px; font: 700 10px ui-monospace, Menlo, monospace; color: var(--muted) }
 .ichip.close::after { content: 'closes'; position: absolute; bottom: -15px; left: 0; right: 0; font-size: 9.5px; color: var(--gold); letter-spacing: .06em }
@@ -190,6 +198,8 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 .spbtn .nm { font-weight: 700; display: block; font-size: 12.5px; line-height: 1.2; hyphens: auto }
 .spbtn .st { font-size: 10.5px; color: var(--muted); display: block }
 .spbtn .cb { font-size: 10.5px; display: block }
+.spbtn.innate { border-style: dashed; border-left-style: solid }
+.spbtn .inn { position: absolute; right: 6px; bottom: 4px; font: 700 8.5px system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--gold) }
 .spbtn .cdb { position: absolute; right: 6px; top: 5px; background: #000a; border-radius: 6px; padding: 0 6px; font-weight: 700 }
 #endturn { background: var(--gold); color: #1b1405; border: none; border-radius: 10px; padding: 0 16px; font-weight: 800; font-size: 14px; min-width: 96px }
 #endturn small { display: block; font-weight: 600 }
