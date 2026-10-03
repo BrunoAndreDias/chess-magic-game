@@ -137,6 +137,12 @@ async function serve() {
     await p.click('.ccard[data-cls="rogue"]');
     await p.click('.ccard[data-cls="warden"]');
     await p.click('#su-teams .pslot[data-team="0"][data-slot="1"]');
+    await wait(600);
+    const figure = await p.$eval('#su-teams .pslot[data-slot="0"]', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y - 50 }; });
+    await p.mouse.click(figure.x, figure.y);
+    await wait(600);
+    const picked = await p.$eval('#su-teams .pslot.on', e => e.dataset.slot);
+    if (picked !== '0') throw new Error(`clicking a character in the lineup selected slot ${picked}, not 0`);
     await p.evaluate(() => document.querySelector('.treewrap').scrollIntoView());
     await wait(200);
     await shot('02-setup-tree');
