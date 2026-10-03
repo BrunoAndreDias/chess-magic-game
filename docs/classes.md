@@ -122,7 +122,7 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 - **Tether** (innate, free, cooldown 2). Range 4, line of sight, any other unit. Tie a Thread from you to it. You hold up to 3. A 4th replaces your oldest.
 - A Thread **leashes** an enemy. It can't end a move farther from you than it was when tied (at least 1).
 - A Thread to an **ally** lets Cocoon reach it at any range.
-- A Thread **breaks** at the end of any turn when a wall or smoke stands between its ends, and at once when either end goes underground, is Downed, or is Burning.
+- A Thread **breaks** as soon as a wall or smoke stands between its ends, or either end goes underground, is Downed, or is Burning.
 - **Webs** are tile effects that last 3 rounds. A unit that steps onto a web stops there and is Rooted. Fire burns a web away and sets everyone in it Burning. Weavers walk webs freely, at no move cost, and aren't Rooted by them.
 
 ### Skills (pick 3 of 7)
