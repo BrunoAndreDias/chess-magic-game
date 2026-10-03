@@ -119,17 +119,23 @@ const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit) => Model>> = 
   },
 };
 
-export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
-  const group = new THREE.Group(), body = new THREE.Group(), C = CLASSES[u.cls];
+/** A class's figure in team colours, standing at the origin. The battle and the setup lineup both use it. */
+export function buildModel(cls: ClassId, team: Team, skin: number): { body: THREE.Group; main: THREE.MeshStandardMaterial } & Model {
+  const body = new THREE.Group(), C = CLASSES[cls];
   const k: Kit = {
-    main: mat(u.team === 0 ? 0x3d6fe0 : 0xcf4436, { roughness: 0.7 }),
-    trim: mat(u.team === 0 ? 0x1f3a80 : 0x7a1f1a),
-    skin: skins[(u.slot + u.team) % skins.length]!,
+    main: mat(team === 0 ? 0x3d6fe0 : 0xcf4436, { roughness: 0.7 }),
+    trim: mat(team === 0 ? 0x1f3a80 : 0x7a1f1a),
+    skin: skins[skin % skins.length]!,
     accent: mat(hex(C.color), { roughness: 0.6 }),
     accentHex: hex(C.color),
   };
-  const model = MODELS[u.cls](body, k);
+  const model = MODELS[cls](body, k);
   body.traverse(o => { if (o instanceof THREE.Mesh) o.castShadow = true; });
+  return { body, main: k.main, ...model };
+}
+
+export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
+  const group = new THREE.Group(), { body, main, height, weapon } = buildModel(u.cls, u.team, u.slot + u.team);
   group.add(body);
 
   const disc = decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[u.team], 0.35), 0.02);
@@ -151,7 +157,7 @@ export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   labels.appendChild(label);
 
   return {
-    id: u.id, team: u.team, group, body, weapon: model.weapon, height: model.height, main: k.main,
+    id: u.id, team: u.team, group, body, weapon, height, main,
     ring, bubble, blood, aura, label, shown: shownOf(u), pose: 0, bob: Math.random() * 6,
   };
 }
