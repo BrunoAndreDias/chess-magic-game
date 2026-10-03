@@ -11,4 +11,5 @@ export type { Target } from './board';
 export { buildQueue } from './turns';
 export { createBattle, apply, predict } from './battle';
 export { aiDeploy, aiOrder, aiTurn } from './ai';
+export type { AiOpts } from './ai';
 export { threat, threatened, threatName, toll, doomed } from './hazards';

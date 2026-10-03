@@ -3,14 +3,18 @@ import {
 } from './board';
 import type { Target } from './board';
 import { performCast, performMove } from './combat';
+import { doomed, threatened, toll } from './hazards';
 import { orderable, endActivation } from './turns';
-import { CLASSES, DIR8, N, SKILLS } from './tables';
+import { CLASSES, DIR8, MAPS, N, SKILLS } from './tables';
 import type { Rng } from './rng';
 import type { BattleState, ClassId, Command, MemberBuild, Pos, SkillId, StatusKey, Team, Unit, UnitId } from './types';
 
 function depthOf(team: Team, z: number): number { return team === 0 ? z : N - 1 - z; }
 
-export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBuild[], rng: Rng): Pos[] {
+/** `ignoreMap` plays as if the map had no rule, so the sim can measure what playing around it is worth. */
+export interface AiOpts { ignoreMap?: boolean }
+
+export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBuild[], rng: Rng, opts: AiOpts = {}): Pos[] {
   const pos: (Pos | null)[] = members.map(() => null), mid = (N - 1) / 2;
   const tankFirst = (i: number) => (CLASSES[members[i]?.cls ?? 'warden'].role === 'tank' ? 0 : 1);
   const order = members.map((_m, i) => i).sort((a, b) => tankFirst(a) - tankFirst(b));
@@ -26,6 +30,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
       else if (cls === 'cleric') sc += (d === 1 ? 1.5 : 0);
       else sc += (t === '^' ? 4 : 0) + (d === 1 ? 1 : 0);
       if (t === '~') sc -= 3;
+      if (!opts.ignoreMap && threatened(s, x, z, 1)) sc -= 6;
       for (const p of pos) {
         if (!p) continue;
         const dd = cheb(p.x, p.z, x, z);
@@ -41,7 +46,37 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
 
 const ROLE_BAND: Record<ClassId, readonly [number, number]> = { warden: [1, 1], rogue: [1, 1], wizard: [3, 4], ranger: [3, 5], cleric: [2, 3] };
 
-export function tileScore(s: BattleState, u: Unit, x: number, z: number): number {
+/** Favor urgency on the Sun Altar: 0 at the start, rising as either party nears the goal. */
+function altarUrgency(s: BattleState): number {
+  const r = MAPS[s.map].rule;
+  return r.kind === 'altar' ? Math.max(s.favor[0], s.favor[1]) / r.goal : 0;
+}
+
+function onAltar(s: BattleState, u: Unit): boolean { return standing(u) && s.terr[idx(u.x, u.z)] === 'A'; }
+
+/** What the map rule will cost `u` at the end of this round, in evalDelta's HP-like units. */
+function hazardCost(s: BattleState, u: Unit): number {
+  if (!doomed(s, u)) return 0;
+  if (!standing(u)) return 55;
+  const t = toll(s, u);
+  return t >= u.hp + u.shield ? 80 + u.hp * 0.5 : t;
+}
+
+function mapTileScore(s: BattleState, u: Unit, x: number, z: number): number {
+  let sc = 0;
+  // priced like evalDelta prices losing HP or going down, since aiPlan adds the two
+  const t = toll(s, u), cost = t >= u.hp + u.shield ? 90 : t * 1.1;
+  if (threatened(s, x, z)) sc -= cost;
+  // next round's strike can still be dodged, but a Root or Stun before then would leave the unit in it
+  else if (threatened(s, x, z, s.round + 1)) sc -= cost * 0.2;
+  if (s.terr[idx(x, z)] === 'A') {
+    const foe = u.team === 0 ? 1 : 0;
+    sc += 5 + 8 * altarUrgency(s) + (s.favor[foe] >= s.favor[u.team] ? 3 : 0);
+  }
+  return sc;
+}
+
+export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: AiOpts = {}): number {
   const en = s.units.filter(o => o.team !== u.team && standing(o));
   if (!en.length) return 0;
   let sc = 0, dmin = 99;
@@ -58,6 +93,7 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number): number
   if (t === '^' && (u.cls === 'ranger' || u.cls === 'wizard')) sc += 3;
   if (t === 'G' && (u.cls === 'rogue' || u.cls === 'ranger')) sc += 2;
   if (t === '+' && hpR < 0.8) sc += 3;
+  if (!opts.ignoreMap) sc += mapTileScore(s, u, x, z);
   for (const [dx, dz] of DIR8) {
     const nx = x + dx, nz = z + dz;
     if (inb(nx, nz) && terrAt(s, nx, nz) === 'o' && s.units.some(e => e.team !== u.team && standing(e) && e.cls === 'warden' && cheb(e.x, e.z, x, z) <= 4)) { sc -= 2.5; break; }
@@ -76,8 +112,8 @@ const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['root', 7], [
 const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'poison', 'mark', 'expose', 'taunt'];
 
 /** How much better s1 is than s0 for `team`. */
-function evalDelta(s0: BattleState, s1: BattleState, team: Team): number {
-  let v = 0;
+function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts): number {
+  let v = opts.ignoreMap ? 0 : mapDelta(s0, s1, team);
   for (const a of s1.units) {
     const b = getUnit(s0, a.id);
     if (!b) continue;
@@ -111,6 +147,20 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team): number {
   return v;
 }
 
+/** Enemies left doomed or knocked off the altar; the acting unit's own tile is tileScore's job. */
+function mapDelta(s0: BattleState, s1: BattleState, team: Team): number {
+  let v = 0;
+  const cur = current(s1)?.id, altar = 6 + 10 * altarUrgency(s1);
+  for (const a of s1.units) {
+    const b = getUnit(s0, a.id);
+    if (!b || a.id === cur) continue;
+    const sign = a.team === team ? -1 : 1;
+    v += sign * (hazardCost(s1, a) - hazardCost(s0, b));
+    if (onAltar(s0, b) && !onAltar(s1, a)) v += sign * altar;
+  }
+  return v;
+}
+
 /** Prune ground-targeted skills to tiles that can matter. */
 function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
   const near = (team: Team, r: number) => s.units.some(o => standing(o) && o.team === team && cheb(o.x, o.z, t.x, t.z) <= r);
@@ -123,7 +173,7 @@ function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
 
 interface Plan { move: Pos | null; cast: { skill: SkillId; x: number; z: number } | null; score: number }
 
-function aiPlan(s: BattleState, rng: Rng): Plan | null {
+function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
   const u = current(s);
   if (!u) return null;
   const positions: { x: number; z: number; moved: boolean }[] = [{ x: u.x, z: u.z, moved: false }];
@@ -134,7 +184,7 @@ function aiPlan(s: BattleState, rng: Rng): Plan | null {
     if (p.moved) { sm = cloneState(s); if (!performMove(sm, p.x, p.z)) continue; }
     const cu = current(sm);
     if (!cu || !standing(cu)) continue;
-    const base = tileScore(sm, cu, p.x, p.z) + (p.moved ? evalDelta(s, sm, u.team) : 0) + rng() * 0.3;
+    const base = tileScore(sm, cu, p.x, p.z, opts) + (p.moved ? evalDelta(s, sm, u.team, opts) : 0) + rng() * 0.3;
     let bc: Plan['cast'] = null, bcs = 0;
     for (const id of actionsOf(cu)) {
       if (!canUse(cu, id)) continue;
@@ -144,8 +194,8 @@ function aiPlan(s: BattleState, rng: Rng): Plan | null {
         const c = cloneState(sm);
         if (!performCast(c, id, t.x, t.z)) return;
         const cc = getUnit(c, cu.id);
-        let v = evalDelta(sm, c, u.team);
-        if (cc && standing(cc) && (cc.x !== cu.x || cc.z !== cu.z)) v += tileScore(c, cc, cc.x, cc.z) - tileScore(sm, cu, cu.x, cu.z);
+        let v = evalDelta(sm, c, u.team, opts);
+        if (cc && standing(cc) && (cc.x !== cu.x || cc.z !== cu.z)) v += tileScore(c, cc, cc.x, cc.z, opts) - tileScore(sm, cu, cu.x, cu.z, opts);
         if (sk.free) v -= 3;
         if (v > bcs) { bcs = v; bc = { skill: id, x: t.x, z: t.z }; }
       });
@@ -157,26 +207,26 @@ function aiPlan(s: BattleState, rng: Rng): Plan | null {
 }
 
 /** With a second move (Hit & Run) or a free action left: the best tile to stand on. */
-function aiRetreat(s: BattleState): Pos | null {
+function aiRetreat(s: BattleState, opts: AiOpts): Pos | null {
   const u = current(s);
   if (!u || u.moved) return null;
-  let best: Pos | null = null, bs = tileScore(s, u, u.x, u.z) + 0.5;
+  let best: Pos | null = null, bs = tileScore(s, u, u.x, u.z, opts) + 0.5;
   reachable(s, u).forEach(p => {
     const e = p[p.length - 1];
     if (!e) return;
-    const v = tileScore(s, u, e.x, e.z);
+    const v = tileScore(s, u, e.x, e.z, opts);
     if (v > bs) { bs = v; best = e; }
   });
   return best;
 }
 
 /** The commands for the current unit's whole activation, found by playing it out on a copy. */
-export function aiTurn(state: BattleState, rng: Rng): Command[] {
+export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command[] {
   const s = cloneState(state), cmds: Command[] = [], u = current(s);
   if (!u) return cmds;
   const over = () => s.phase.kind === 'over';
   for (let step = 0; step < 3 && current(s) === u && !over(); step++) {
-    const plan = aiPlan(s, rng);
+    const plan = aiPlan(s, rng, opts);
     if (!plan) break;
     if (plan.move && performMove(s, plan.move.x, plan.move.z)) cmds.push({ kind: 'move', unit: u.id, to: plan.move });
     if (plan.cast && !over() && standing(u)) {
@@ -185,7 +235,7 @@ export function aiTurn(state: BattleState, rng: Rng): Command[] {
       if (cast) cmds.push({ kind: 'cast', unit: u.id, skill, at: { x, z } });
       if (cast && SKILLS[skill].free && !u.acted) continue;
     }
-    const r = aiRetreat(s);
+    const r = aiRetreat(s, opts);
     if (r && standing(u) && performMove(s, r.x, r.z)) cmds.push({ kind: 'move', unit: u.id, to: r });
     break;
   }
