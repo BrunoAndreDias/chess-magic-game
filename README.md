@@ -18,8 +18,6 @@ npm run sim -- 200       # 200 AI battles: wins, average rounds, combos, class w
 node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium
 ```
 
-`npm run parity -- 200 [--random-builds]` plays the same seeded battles in `prototypes-party/party-tactics.html` and in the port, and fails on the first state that differs. It holds only while the two rule sets are meant to match. Once the rules change on purpose, retire it and rely on the tests and the sim.
-
 ## Layout
 
 - `src/engine` holds the rules. They are pure and deterministic: every random choice takes a seeded `Rng`, and every change goes through `apply(state, command)`.

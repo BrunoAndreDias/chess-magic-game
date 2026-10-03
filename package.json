@@ -7,7 +7,6 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "parity": "tsx scripts/parity.ts",
     "sim": "tsx scripts/sim.ts"
   },
   "devDependencies": {
