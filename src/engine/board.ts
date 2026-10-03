@@ -103,11 +103,11 @@ function underPaths(s: BattleState, u: Unit, range: number): Map<number, number>
   return prev;
 }
 
-/** Surface Dijkstra: terrain costs, enemies block, webs stop non-Weavers, joined mouths connect. */
-function surfacePaths(s: BattleState, u: Unit, range: number): Map<number, number> {
+/** Surface Dijkstra: terrain costs, enemies block, webs stop non-Weavers, joined mouths connect when `tunnels`. */
+function surfacePaths(s: BattleState, u: Unit, range: number, tunnels: boolean): Map<number, number> {
   const start = idx(u.x, u.z), weaver = u.cls === 'weaver';
   const dist = new Map<number, number>([[start, 0]]), prev = new Map<number, number>([[start, -1]]);
-  const mouths = s.mouths.filter(m => m.team === u.team);
+  const mouths = tunnels ? s.mouths.filter(m => m.team === u.team) : [];
   const jump = s.party[u.team].has('silktunnels') && holders(s, u, u.team).length ? 0 : 1;
   const open: number[] = [start];
   const relax = (from: number, nk: number, nd: number, stop: boolean) => {
@@ -145,19 +145,19 @@ function surfacePaths(s: BattleState, u: Unit, range: number): Map<number, numbe
 /** Tile index → path (start first) for every tile the unit can end its move on. Insertion order breaks AI ties. */
 export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>();
-  if (!u || !standing(u) || u.moved) return res;
+  if (!u || !standing(u) || u.moved || u.st.encased) return res;
   return paths(s, u, moveOf(u), true);
 }
 
-/** Every tile `u` could walk to within `range`, ignoring Root; `leash` keeps it within its enemy Weavers' Threads. */
-export function paths(s: BattleState, u: Unit, range: number, leash: boolean): Map<number, Pos[]> {
+/** Every tile `u` could walk to within `range`, ignoring Root; on its `own` move, tunnels carry it and enemy Weavers' Threads leash it. */
+export function paths(s: BattleState, u: Unit, range: number, own: boolean): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>(), start = idx(u.x, u.z);
-  const prev = u.under ? underPaths(s, u, range) : surfacePaths(s, u, range);
+  const prev = u.under ? underPaths(s, u, range) : surfacePaths(s, u, range, own);
   const leashes: [Unit, number][] = [];
-  if (leash) for (const t of s.threads) {
+  if (own) for (const t of s.threads) {
     if (t.to !== u.id) continue;
     const w = getUnit(s, t.by);
-    if (w && w.team !== u.team) leashes.push([w, t.len]);
+    if (w && w.team !== u.team && standing(w)) leashes.push([w, t.len]);
   }
   prev.forEach((_p, k) => {
     if (k === start) return;
@@ -195,7 +195,7 @@ export function callsOf(s: BattleState, u: Unit): number {
   return n;
 }
 export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
-  if (!actionsOf(u).includes(id)) return false;
+  if (!actionsOf(u).includes(id) || u.st.encased) return false;
   if ((u.cd[id] || 0) > 0) return false;
   if (u.acted && !SKILLS[id].free) return false;
   if (id === 'burrow') return !u.moved && u.under === 0;
@@ -262,15 +262,19 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
   if (id === 'cocoon') return d <= r || held();
   if (d > r) return false;
   if (id === 'skitter') return held() && !!landingNear(s, u, o, px, pz);
-  if (id === 'dragunder') return !!dragLanding(s, u);
+  if (id === 'dragunder') return !o.st.encased && !!dragLanding(s, u);
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
   return true;
 }
 
-/** Legal targets for `id` if `u` stood at (px, pz). */
+/** Legal targets for `id` if `u` stood at (px, pz); underground, from where casting would surface it, except for Upheaval. */
 export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz = u.z): Target[] {
   const sk = SKILLS[id], out: Target[] = [];
   if (sk.target === 'self') return [{ x: px, z: pz }];
+  if (u.under && id !== 'upheaval') {
+    const up = nearestFree(s, px, pz);
+    if (up) { px = up.x; pz = up.z; }
+  }
   if (id === 'puppet') {
     puppetMoves(s, u).forEach((_m, k) => out.push({ x: k % N, z: (k / N) | 0 }));
     return out;

@@ -2,7 +2,7 @@ import { actionsOf, cheb, current, getUnit, idx, isAlive, standing, terrAt } fro
 import { addStatus, breakThreads, checkWinner, damage, fxEmpty, heal, landCalls, openPit, surface, webOfFate } from './combat';
 import { atOnce, endOfRound } from './hazards';
 import { DARK_ROUND, MAX_ROUNDS, N } from './tables';
-import type { BattleEvent, BattleState, Team, Unit, UnitId } from './types';
+import type { BattleEvent, BattleState, Mouth, Team, Unit, UnitId } from './types';
 
 /** The starter opens and closes the round; the rest alternate. */
 export function buildQueue(sOrder: readonly UnitId[], oOrder: readonly UnitId[]): UnitId[] {
@@ -32,7 +32,6 @@ export function setOrders(s: BattleState, ord0: readonly UnitId[], ord1: readonl
   s.phase = { kind: 'act', queue, qi: 0 };
   const ev: BattleEvent[] = [{ type: 'round', round: s.round, starter: s.starter, queue: queue.slice() }];
   beginActivation(s, ev);
-  breakThreads(s, ev);
   return ev;
 }
 
@@ -61,15 +60,17 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
       continue;
     }
     if (standing(u)) startOfTurn(s, u, ev);
+    breakThreads(s, ev);
     if (!standing(u) || over(s)) {
       if (over(s)) return;
       if (advance(s, ev)) return;
       continue;
     }
     if (u.st.stun || u.st.encased) {
-      delete u.st.stun;
       ev.push({ type: 'skip', id: u.id });
       tickStatuses(s, u, ev);
+      if (u.st.encased) thaw(s, u, ev);
+      else delete u.st.stun;
       if (advance(s, ev)) return;
       continue;
     }
@@ -78,13 +79,13 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
   }
 }
 
-/** A Downed unit's turn: it bleeds, unless Encased (a Cocoon) or lying on an Undercity mouth of its party. */
+/** A Downed unit's turn: it bleeds, unless Encased (a Cocoon) or lying on a mouth of its party's living Undercity Delver. */
 function bleed(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   if (u.life.kind !== 'downed') return;
   const enc = u.st.encased;
   if (enc) { if (--enc.t <= 0) delete u.st.encased; return; }
   const m = s.mouths.find(mo => mo.team === u.team && mo.x === u.x && mo.z === u.z);
-  if (m && getUnit(s, m.net)?.mods.undercity) return;
+  if (m && undercity(s, m)) return;
   const left = u.life.bleed - 1;
   if (left <= 0) {
     u.life = { kind: 'dead' };
@@ -125,17 +126,24 @@ function tickStatuses(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   }
   const wet = u.st.wet;
   if (wet) { if (!u.under && terrAt(s, u.x, u.z) === '~') wet.t = 2; else if (--wet.t <= 0) delete u.st.wet; }
+}
+/** Encased counts skipped turns, not ended ones, so an Encase that lands during the unit's own turn still costs it the next. */
+function thaw(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   const enc = u.st.encased;
-  if (enc && --enc.t <= 0) {
-    delete u.st.encased;
-    if (enc.ice) addStatus(u, 'wet', { t: 2, by: enc.by }, ev);
-  }
+  if (!enc || --enc.t > 0) return;
+  delete u.st.encased;
+  if (enc.ice) addStatus(u, 'wet', { t: 2, by: enc.by }, ev);
 }
 
-/** An enemy ending its turn on a mouth caves it in, unless its Delver has Undercity. */
+function undercity(s: BattleState, m: Mouth): boolean {
+  const d = getUnit(s, m.net);
+  return !!d && isAlive(d) && !!d.mods.undercity;
+}
+
+/** An enemy ending its turn on a mouth caves it in, unless its living Delver has Undercity. */
 function caveIn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   const m = s.mouths.find(mo => mo.team !== u.team && mo.x === u.x && mo.z === u.z);
-  if (!m || getUnit(s, m.net)?.mods.undercity) return;
+  if (!m || undercity(s, m)) return;
   s.mouths = s.mouths.filter(mo => mo !== m);
   ev.push({ type: 'cavein', x: m.x, z: m.z });
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply, createBattle } from './battle';
 import { partyBonuses, roleOf } from './builds';
-import { threadCap } from './index';
+import { idx, reachable, threadCap } from './index';
 import { mulberry32 } from './rng';
 import { bare, cast, end, move, orders, run, stage, uid, unit } from './testkit';
 import type { BattleEvent, MemberBuild } from './types';
@@ -100,6 +100,20 @@ describe('underground', () => {
     expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).shield]).toEqual([8, 2, 15]);
   });
 
+  test('an Undercity mouth keeps a Downed ally from bleeding only while its Delver lives', () => {
+    const city = bare('delver', undefined, ['d_mouth', 'd_hp2', 'd_shield', 'd_city']);
+    const scene = (life: 'up' | 'dead') => {
+      const s0 = stage({
+        a: [city, bare('weaver')], b: [bare('astromancer')], place: { 1: [8, 0], 2: [3, 3], 3: [6, 9] },
+        life: { 1: life === 'up' ? { kind: 'up' } : { kind: 'dead' }, 2: { kind: 'downed', bleed: 2 } },
+      });
+      s0.mouths = [{ team: 0, net: uid(1), x: 3, z: 3, t: 3 }];
+      return run(s0, ...orders([2, 1], [3])).events.slice(1, 3);
+    };
+    expect(scene('up')).toEqual([{ type: 'activate', id: 2, team: 0, qi: 0 }, { type: 'activate', id: 3, team: 1, qi: 1 }]);
+    expect(scene('dead')).toEqual([{ type: 'activate', id: 2, team: 0, qi: 0 }, { type: 'bleed', id: 2, left: 1 }]);
+  });
+
   test('Upheaval from below pushes the enemy into a wall: SLAM', () => {
     const s0 = stage({ a: [bare('delver')], b: [bare('weaver')], place: { 1: [5, 1], 2: [6, 1] }, terr: [[7, 1, '#']] });
     const live = run(s0, ...orders([1], [2]), cast(1, 'burrow', 5, 1), end(1), end(2), ...orders([1], [2]), end(2)).state;
@@ -116,6 +130,21 @@ describe('underground', () => {
     expect(unit(r.state, 2).hp).toBe(146);
   });
 
+  test('an underground Delver aims from the tile it will surface on, and can\'t undermine that tile', () => {
+    const sapper = bare('delver', ['undermine', 'satchel', 'stoneskin'], ['d_hp', 'd_quick']);
+    const s0 = stage({ a: [sapper], b: [bare('weaver')], place: { 1: [3, 2], 2: [3, 4] } });
+    const live = run(s0, ...orders([1], [2]), cast(1, 'burrow', 3, 2), end(1), move(2, 3, 2), end(2), ...orders([1], [2]), end(2)).state;
+    expect(apply(live, cast(1, 'undermine', 3, 1))).toEqual({ ok: false, error: '(3, 1) is not a target of undermine' });
+    expect(apply(live, cast(1, 'undermine', 3, 4))).toEqual({ ok: false, error: '(3, 4) is not a target of undermine' });
+    const r = run(live, cast(1, 'undermine', 3, 0));
+    expect(r.events.slice(1, 4)).toEqual([
+      { type: 'surface', id: 1, x: 3, z: 1 },
+      { type: 'mouth', team: 0, x: 3, z: 1 },
+      { type: 'terrain', tiles: [{ x: 3, z: 0 }], kind: 'pit' },
+    ]);
+    expect(unit(r.state, 1).life).toEqual({ kind: 'up' });
+  });
+
   test('Undermine opens a pit at the end of the round, and whoever stands there falls', () => {
     const s0 = stage({ a: [bare('delver', ['undermine', 'satchel', 'stoneskin'])], b: [bare('astromancer')], place: { 1: [5, 1], 2: [7, 3] } });
     const sunk = run(run(s0, ...orders([1], [2])).state, cast(1, 'undermine', 5, 3), end(1), move(2, 5, 3));
@@ -123,9 +152,22 @@ describe('underground', () => {
     const r = run(sunk.state, end(2));
     expect(after(r.events, 'terrain')).toEqual([
       { type: 'terrain', tiles: [{ x: 5, z: 3 }], kind: 'pit' },
-      { type: 'fall', id: 2, x: 5, z: 3 },
+      { type: 'fall', id: 2, x: 5, z: 2 },
       { type: 'downed', id: 2, team: 1 },
       { type: 'over', winner: 0, reason: 'wipe' },
+    ]);
+    expect([unit(r.state, 2).x, unit(r.state, 2).z]).toEqual([5, 2]);
+  });
+
+  test('Upheaval into a chasm: ABYSS, and the enemy is Downed clinging to the edge', () => {
+    const s0 = stage({ a: [bare('delver')], b: [bare('weaver'), bare('weaver')], place: { 1: [5, 1], 2: [6, 1], 3: [7, 0] }, terr: [[7, 1, 'o']] });
+    const live = run(s0, ...orders([1], [2, 3]), cast(1, 'burrow', 5, 1), end(1), end(2), end(3), ...orders([1], [2, 3]), end(2)).state;
+    const r = run(live, cast(1, 'upheaval', 6, 1));
+    expect(after(r.events, 'move')).toEqual([
+      { type: 'move', id: 2, path: [{ x: 6, z: 1 }, { x: 7, z: 1 }], slide: true },
+      { type: 'combo', name: 'ABYSS', id: 2, by: 1, team: 0, setup: null },
+      { type: 'fall', id: 2, x: 6, z: 1 },
+      { type: 'downed', id: 2, team: 1 },
     ]);
   });
 });
@@ -169,6 +211,15 @@ describe('calls', () => {
     expect(r.state.calls).toEqual([]);
   });
 
+  test('with Benevolent Heavens a Meteor heals an ally on burning grass and doesn\'t set it Burning', () => {
+    const orrery = bare('astromancer', undefined, ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']);
+    const s0 = stage({ a: [orrery, bare('weaver')], b: [bare('delver')], place: { 1: [4, 0], 2: [6, 2], 3: [7, 2] }, hp: { 2: 100 }, terr: [[6, 2, 'G'], [7, 2, 'G']] });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'meteor', 6, 2), end(1), end(3), end(2), ...orders([1, 2], [3]), end(3));
+    expect(r.events).toContainEqual({ type: 'heal', id: 2, amount: 15 });
+    expect([unit(r.state, 2).hp, unit(r.state, 2).st]).toEqual([115, {}]);
+    expect(unit(r.state, 3).st.burn).toEqual({ t: 2, dmg: 6, by: 1 });
+  });
+
   test('Snap lands the pending Call at once, at half power', () => {
     const r = run(run(sky(), ...orders([1, 2], [3])).state, cast(1, 'meteor', 6, 2), cast(1, 'snap', 4, 0));
     expect(r.events.slice(3)).toEqual([
@@ -189,6 +240,74 @@ describe('calls', () => {
   });
 });
 
+describe('encased', () => {
+  test('Encased during its own turn, a unit can neither cast nor move, and it still skips its next turn', () => {
+    const spinner = bare('weaver', ['reel', 'web', 'cocoon'], ['w_cocoon', 'w_reach', 'w_silk', 'w_spare']);
+    const s0 = stage({ a: [spinner, bare('delver')], b: [bare('delver')], place: { 1: [3, 0], 2: [3, 1], 3: [6, 2] }, hp: { 2: 15 } });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'tether', 3, 1), end(1), cast(3, 'satchel', 6, 1), end(3), move(2, 5, 1));
+    expect(r.events).toContainEqual({ type: 'encased', id: 2 });
+    expect([unit(r.state, 2).hp, unit(r.state, 2).st]).toEqual([1, { encased: expect.objectContaining({ by: 1 }) }]);
+    expect(apply(r.state, cast(2, 'stoneskin', 5, 1))).toEqual({ ok: false, error: 'stoneskin is not usable now' });
+    const unmoved = structuredClone(r.state);
+    unit(unmoved, 2).moved = false;
+    expect(reachable(unmoved, unit(unmoved, 2)).size).toBe(0);
+
+    const next = run(r.state, end(2), ...orders([1, 2], [3]), end(3), end(1));
+    const turn = next.events.findIndex(e => e.type === 'activate' && e.id === 2);
+    expect(next.events.slice(turn, turn + 2)).toEqual([{ type: 'activate', id: 2, team: 0, qi: 2 }, { type: 'skip', id: 2 }]);
+  });
+
+  test('Help Up frees a Cocooned ally, and it acts on its next turn', () => {
+    const s0 = stage({
+      a: [bare('weaver', ['cocoon', 'web', 'reel']), bare('delver'), bare('astromancer')], b: [bare('weaver')],
+      place: { 1: [3, 1], 2: [3, 2], 3: [4, 2], 4: [10, 10] }, life: { 2: { kind: 'downed', bleed: 2 } },
+    });
+    const r = run(s0, ...orders([1, 3, 2], [4]), cast(1, 'cocoon', 3, 2), end(1), end(4), cast(3, 'helpup', 3, 2));
+    expect([unit(r.state, 2).life, unit(r.state, 2).st]).toEqual([{ kind: 'up' }, {}]);
+    const next = run(r.state, end(3));
+    expect(next.events).toEqual([{ type: 'activate', id: 2, team: 0, qi: 3 }]);
+    expect(apply(next.state, cast(2, 'stoneskin', 3, 2)).ok).toBe(true);
+  });
+
+  test('Recall gives an Encased ally its HP back but leaves it where it is', () => {
+    const s0 = stage({
+      a: [bare('astromancer', ['recall', 'meteor', 'frostbolt']), bare('weaver')], b: [bare('astromancer', ['prison', 'frostbolt', 'meteor'])],
+      place: { 1: [4, 0], 2: [2, 2], 3: [2, 5] },
+    });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'recall', 2, 2), end(1), cast(3, 'basic_astromancer', 2, 2), end(3), move(2, 1, 2), end(2),
+      ...orders([1, 2], [3]), cast(3, 'prison', 1, 2), end(3));
+    expect(after(r.events, 'land').slice(1)).toEqual([{ type: 'heal', id: 2, amount: 34 }]);
+    expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).hp]).toEqual([1, 2, 170]);
+  });
+
+  test('Drag Under can\'t take a Cocooned ally', () => {
+    const s0 = stage({
+      a: [bare('weaver', ['cocoon', 'web', 'reel']), bare('delver', ['dragunder', 'upheaval', 'satchel']), bare('delver')], b: [bare('weaver')],
+      place: { 1: [3, 1], 2: [4, 2], 3: [3, 2], 4: [10, 10] }, life: { 3: { kind: 'downed', bleed: 2 } },
+    });
+    s0.mouths = [{ team: 0, net: uid(2), x: 6, z: 2, t: 3 }];
+    const live = run(s0, ...orders([1, 2, 3], [4])).state;
+    expect(apply(run(live, end(1), end(4)).state, cast(2, 'dragunder', 3, 2)).ok).toBe(true);
+    const wrapped = run(live, cast(1, 'cocoon', 3, 2), end(1), end(4)).state;
+    expect(apply(wrapped, cast(2, 'dragunder', 3, 2))).toEqual({ ok: false, error: '(3, 2) is not a target of dragunder' });
+  });
+
+  test('Absolute Zero on an Encased unit: the skipped turn spends the Encase, and the Stun skips the turn after', () => {
+    const rime = bare('astromancer', ['thunderhead', 'prison', 'frostbolt'], ['a_frost', 'a_prison', 'a_wet', 'a_zero']);
+    const s0 = stage({
+      a: [rime, bare('astromancer', ['prison', 'meteor', 'frostbolt'])], b: [bare('weaver'), bare('weaver')],
+      place: { 1: [2, 2], 2: [4, 3], 3: [10, 10], 4: [3, 5] },
+    });
+    const jailed = run(s0, ...orders([1, 2], [3, 4]), cast(1, 'thunderhead', 3, 5), end(1), end(3), end(4), cast(2, 'prison', 3, 5), end(2));
+    const r2 = run(jailed.state, ...orders([3, 4], [1, 2]), end(3), end(1), end(2));
+    expect(r2.events).toContainEqual({ type: 'skip', id: 4 });
+    expect(unit(r2.state, 4).st).toEqual({ stun: { t: 1, by: 1 }, wet: { t: 2, by: 2 } });
+    const r3 = run(r2.state, ...orders([1, 2], [3, 4]), end(1), end(3));
+    expect(r3.events.slice(-3, -1)).toEqual([{ type: 'activate', id: 4, team: 1, qi: 2 }, { type: 'skip', id: 4 }]);
+    expect(unit(r3.state, 4).st).toEqual({ wet: { t: 1, by: 2 } });
+  });
+});
+
 describe('threads', () => {
   test('a held enemy may only end its move within the Thread\'s length of the Weaver', () => {
     const s0 = stage({ a: [bare('weaver')], b: [bare('delver')], place: { 1: [5, 1], 2: [5, 3] } });
@@ -205,6 +324,31 @@ describe('threads', () => {
     expect(r.state.threads).toEqual([]);
   });
 
+  test('a Thread breaks at the start of an activation when a Call sets its Weaver Burning, and the leash goes with it', () => {
+    const s0 = stage({ a: [bare('astromancer')], b: [bare('weaver')], place: { 1: [3, 2], 2: [3, 5] } });
+    const called = run(s0, ...orders([1], [2]), cast(1, 'meteor', 3, 5), end(1), end(2), ...orders([1], [2]), cast(2, 'tether', 3, 2));
+    expect(called.state.threads).toEqual([{ by: 2, to: 1, len: 3 }]);
+    const r = run(called.state, end(2));
+    expect(r.events.slice(-2)).toEqual([{ type: 'status', id: 2, key: 'burn' }, { type: 'snap', by: 2, to: 1 }]);
+    expect(r.state.threads).toEqual([]);
+    expect(apply(r.state, move(1, 3, 0)).ok).toBe(true);
+  });
+
+  test('a Thread snaps the moment its end is Downed, even by the blow that ends the battle', () => {
+    const s0 = stage({ a: [bare('astromancer'), bare('weaver')], b: [bare('delver')], place: { 1: [4, 0], 2: [5, 1], 3: [6, 3] }, hp: { 3: 10 } });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'meteor', 6, 3), end(1), end(3), cast(2, 'tether', 6, 3), end(2), ...orders([1, 2], [3]), end(3));
+    expect(after(r.events, 'downed')).toEqual([{ type: 'downed', id: 3, team: 1 }, { type: 'snap', by: 2, to: 3 }, { type: 'over', winner: 0, reason: 'wipe' }]);
+    expect(r.state.threads).toEqual([]);
+  });
+
+  test('a Thread held by a Weaver who is not standing leashes nothing', () => {
+    const s = stage({ a: [bare('weaver')], b: [bare('delver')], place: { 1: [5, 1], 2: [5, 3] }, life: { 1: { kind: 'downed', bleed: 2 } } });
+    s.threads = [{ by: uid(1), to: uid(2), len: 1 }];
+    expect(reachable(s, unit(s, 2)).has(idx(8, 3))).toBe(true);
+    s.units[0]!.life = { kind: 'up' };
+    expect(reachable(s, unit(s, 2)).has(idx(8, 3))).toBe(false);
+  });
+
   test('Reel pulls a held enemy 2 toward the Weaver; into a unit it SLAMs', () => {
     const s0 = stage({ a: [bare('weaver'), bare('delver')], b: [bare('delver')], place: { 1: [5, 0], 2: [5, 1], 3: [5, 3] } });
     const r = run(s0, ...orders([1, 2], [3]), cast(1, 'tether', 5, 3), cast(1, 'reel', 5, 0));
@@ -219,6 +363,15 @@ describe('threads', () => {
   test('a Weaver holds 3 Threads, one more with Many Hands and one more in a Great Web party', () => {
     const s = stage({ a: [bare('weaver'), bare('weaver', undefined, ['w_hp', 'w_leash', 'w_thread'])], b: [bare('weaver')] });
     expect([threadCap(s, unit(s, 1)), threadCap(s, unit(s, 2)), threadCap(s, unit(s, 3))]).toEqual([4, 5, 3]);
+  });
+
+  test('Puppet Strings walks a held enemy, never through its Tunnel Mouths', () => {
+    const s0 = stage({ a: [bare('weaver', ['puppet', 'web', 'reel'])], b: [bare('delver')], place: { 1: [3, 2], 2: [3, 5] } });
+    s0.mouths = [{ team: 1, net: uid(2), x: 3, z: 5, t: 3 }, { team: 1, net: uid(2), x: 9, z: 9, t: 3 }];
+    const tied = run(s0, ...orders([1], [2]), cast(1, 'tether', 3, 5)).state;
+    expect(apply(tied, cast(1, 'puppet', 9, 9))).toEqual({ ok: false, error: '(9, 9) is not a target of puppet' });
+    const r = run(tied, cast(1, 'puppet', 3, 7));
+    expect(r.events[1]).toEqual({ type: 'move', id: 2, path: [{ x: 3, z: 5 }, { x: 3, z: 6 }, { x: 3, z: 7 }] });
   });
 
   test('a web stops a walker and Roots it through its next turn; nobody but a Weaver paths through', () => {

@@ -60,7 +60,7 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
   for (const t of s.threads) {
     if (t.to !== u.id || t.by === tgt.id) continue;
     const w = getUnit(s, t.by);
-    if (w && w.team !== u.team && w.mods.leashDmg) { v *= 1 - w.mods.leashDmg; break; }
+    if (w && w.team !== u.team && standing(w) && w.mods.leashDmg) { v *= 1 - w.mods.leashDmg; break; }
   }
   return v;
 }
@@ -116,6 +116,13 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (o.hp <= 0) down(s, o, ev, src);
   return d;
 }
+/** A standing unit drops into the chasm or pit at (x, z) and clings to the edge: Downed on the nearest free tile of solid ground. */
+export function fall(s: BattleState, o: Unit, x: number, z: number, ev: BattleEvent[], src: Unit | null): void {
+  const at = nearestFree(s, x, z, o);
+  if (at) { o.x = at.x; o.z = at.z; }
+  ev.push({ type: 'fall', id: o.id, x: o.x, z: o.z });
+  down(s, o, ev, src);
+}
 export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | null): void {
   o.life = { kind: 'downed', bleed: BLEED };
   o.shield = 0; o.st = {}; o.hp = 0; o.under = 0;
@@ -125,6 +132,7 @@ export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | nul
     s.calls = s.calls.filter(c => c.by !== o.id);
     ev.push({ type: 'fizzle', id: o.id });
   }
+  breakThreads(s, ev);
   checkWinner(s);
 }
 /** An attack: attacker scaling × Exposed × combo × the context's power. Downed targets are finished. */
@@ -168,6 +176,7 @@ function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
 }
 function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
   o.life = { kind: 'up' };
+  delete o.st.encased;
   o.hp = Math.max(1, Math.round(o.maxHp * frac));
   s.stats.revives[o.team]++;
   ev.push({ type: 'revive', id: o.id, by: src.id });
@@ -193,10 +202,8 @@ function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number, kind: Physi
       if (kind === 'soft') break;
       path.push({ x: nx, z: nz });
       c.ev.push({ type: 'move', id: o.id, path, slide: true });
-      c.ev.push({ type: 'fall', id: o.id, x: nx, z: nz });
       emitCombo(s, c.ev, 'ABYSS', c.u, o.id, null);
-      o.x = nx; o.z = nz;
-      down(s, o, c.ev, c.u);
+      fall(s, o, nx, nz, c.ev, c.u);
       return;
     }
     if (!inb(nx, nz) || isSolid(s, nx, nz) || unitAt(s, nx, nz)) {
@@ -225,7 +232,7 @@ function burstBrazier(c: Ctx, x: number, z: number): void {
   emitCombo(s, c.ev, 'IGNITE', c.u, null, null);
   for (const [dx, dz] of DIR8) igniteTile(c, x + dx, z + dz, 3);
 }
-/** Fire on a tile: burns a web away and sets whoever stands there Burning. */
+/** Fire on a tile: burns a web away and sets whoever stands there Burning, except a Benevolent caster's allies. */
 function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   const s = c.s;
   if (!inb(x, z)) return;
@@ -235,7 +242,7 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   setFx(s, x, z, 'fire', turns);
   c.ev.push({ type: 'fire', x, z });
   const o = unitAt(s, x, z);
-  if (o && !isDowned(o)) addStatus(o, 'burn', { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }, c.ev);
+  if (o && !isDowned(o) && !(o.team === c.u.team && c.u.mods.benevolent)) addStatus(o, 'burn', { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }, c.ev);
 }
 /** Ending any move on a tile: water wets, fire burns, a web Roots a non-Weaver, and an enemy's Satchel next to it blows. */
 export function arrive(s: BattleState, o: Unit, ev: BattleEvent[]): void {
@@ -510,7 +517,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     const r = c.call.recall, o = r && getUnit(c.s, r.id);
     if (!r || !o || !standing(o) || o.under) return;
     const there = unitAt(c.s, r.x, r.z);
-    if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z)) teleport(c, o, r);
+    if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z) && !o.st.encased) teleport(c, o, r);
     const back = r.hp - o.hp;
     if (back > 0) {
       o.hp += back;
@@ -582,7 +589,7 @@ export function openPit(s: BattleState, x: number, z: number, ev: BattleEvent[])
   ev.push({ type: 'terrain', tiles: [{ x, z }], kind: 'pit' });
   const o = unitAt(s, x, z);
   if (!o) return;
-  if (standing(o)) { ev.push({ type: 'fall', id: o.id, x, z }); down(s, o, ev, null); return; }
+  if (standing(o)) { fall(s, o, x, z, ev, null); return; }
   o.life = { kind: 'dead' };
   ev.push({ type: 'death', id: o.id, team: o.team, cause: 'fell' });
   checkWinner(s);

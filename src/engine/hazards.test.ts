@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { doomed, threatName } from './hazards';
-import { bare, cast, end, orders, run, stage, unit } from './testkit';
+import { bare, cast, end, orders, run, stage, uid, unit } from './testkit';
 import type { BattleEvent } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
@@ -41,7 +41,7 @@ describe('crumble', () => {
     const [fall, ...rest] = after(r.events, 'crumble');
     expect(fall?.type === 'crumble' && fall.tiles.length).toBe(12);
     expect(rest).toEqual([
-      { type: 'fall', id: 1, x: 1, z: 4 },
+      { type: 'fall', id: 1, x: 1, z: 2 },
       { type: 'downed', id: 1, team: 0 },
       { type: 'death', id: 3, team: 1, cause: 'fell' },
       { type: 'roundEnd', round: 3, burnt: [] },
@@ -50,11 +50,18 @@ describe('crumble', () => {
     expect([unit(r.state, 2).life, unit(r.state, 2).under]).toEqual([{ kind: 'up' }, 1]);
   });
 
+  test('Tunnel Mouths on falling tiles are gone', () => {
+    const s0 = stage({ map: 'span', round: 3, a: [bare('delver')], b: [bare('weaver')], place: { 1: [5, 2], 2: [6, 9] } });
+    s0.mouths = [{ team: 0, net: uid(1), x: 1, z: 4, t: 3 }, { team: 0, net: uid(1), x: 3, z: 4, t: 3 }];
+    const r = run(s0, ...orders([1], [2]), end(1), end(2));
+    expect(r.state.mouths).toEqual([{ team: 0, net: 1, x: 3, z: 4, t: 2 }]);
+  });
+
   test('a fall that leaves a party nobody standing ends the battle', () => {
     const s0 = stage({ map: 'span', round: 3, a: [bare('weaver')], b: [bare('weaver')], place: { 1: [5, 2], 2: [1, 5] } });
     const r = run(s0, ...orders([1], [2]), end(1), end(2));
     expect(after(r.events, 'crumble').slice(1)).toEqual([
-      { type: 'fall', id: 2, x: 1, z: 5 },
+      { type: 'fall', id: 2, x: 3, z: 5 },
       { type: 'downed', id: 2, team: 1 },
       { type: 'over', winner: 0, reason: 'wipe' },
     ]);
