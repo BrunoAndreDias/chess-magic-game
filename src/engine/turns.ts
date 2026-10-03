@@ -156,6 +156,8 @@ export function endActivation(s: BattleState): BattleEvent[] {
     if (!u.under) {
       const t = terrAt(s, u.x, u.z), f = s.fx[idx(u.x, u.z)];
       if (t === '+') heal(s, u, 12, ev, null);
+      const m = s.mouths.find(mo => mo.team === u.team && mo.x === u.x && mo.z === u.z);
+      if (m && undercity(s, m)) heal(s, u, 10, ev, null);
       if (f?.fire && !u.st.burn) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
       if (t === '~') addStatus(u, 'wet', { t: 2, by: u.st.wet ? u.st.wet.by : null }, ev);
     }

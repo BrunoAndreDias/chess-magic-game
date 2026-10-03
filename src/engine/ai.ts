@@ -108,6 +108,7 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
   if (t === '~' && s.units.some(e => e.team !== u.team && standing(e) && e.cls === 'astromancer')) sc -= 3;
   if (t === '^' && u.cls === 'astromancer') sc += 3;
   if (t === '+' && hpR < 0.8) sc += 3;
+  if (hpR < 0.8 && s.mouths.some(m => m.team === u.team && m.x === x && m.z === z && getUnit(s, m.net)?.mods.undercity)) sc += 3;
   if (!opts.ignoreMap) sc += mapTileScore(s, u, x, z);
   for (const [dx, dz] of DIR8) {
     const nx = x + dx, nz = z + dz;

@@ -179,6 +179,7 @@ export function cdOf(u: Unit, id: SkillId): number {
   let c = SKILLS[id].cd;
   if (id === 'prison') c -= u.mods.prisonCd || 0;
   if (id === 'cocoon') c -= u.mods.cocoonCd || 0;
+  if (id === 'upheaval' && u.mods.undertow) c -= 1;
   return c;
 }
 function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number): number {

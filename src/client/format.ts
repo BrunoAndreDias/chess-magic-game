@@ -156,7 +156,7 @@ export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, 
     const tone = teamOf(s, o.id);
     if (o.under) out.push({ tone, text: o.team !== u.team && quake ? `${o.name}: underground, forced up and Stunned (Quake)` : `${o.name}: underground, spared` });
     else if (o.team !== u.team) out.push({ tone, text: `${o.name}: in the area now` });
-    else if (u.mods.benevolent) out.push({ tone, text: `${o.name}: ally, healed instead (Benevolent Heavens)` });
+    else if (u.mods.benevolent && skill !== 'gravitywell') out.push({ tone, text: `${o.name}: ally, healed instead (Benevolent Heavens)` });
     else out.push({ tone: 'combo', text: `⚠ ${o.name}: ally in the area, friendly fire` });
   }
   if (inside.length === 0) out.push({ tone: 'sys', text: 'Nobody stands there yet.' });

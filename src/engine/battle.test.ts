@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply, createBattle } from './battle';
 import { partyBonuses, roleOf } from './builds';
+import { cdOf } from './board';
 import { idx, reachable, threadCap } from './index';
 import { mulberry32 } from './rng';
 import { bare, cast, end, move, orders, run, stage, uid, unit } from './testkit';
@@ -114,6 +115,20 @@ describe('underground', () => {
     expect(scene('dead')).toEqual([{ type: 'activate', id: 2, team: 0, qi: 0 }, { type: 'bleed', id: 2, left: 1 }]);
   });
 
+  test('an Undercity mouth heals an ally who ends its turn on it', () => {
+    const city = bare('delver', undefined, ['d_mouth', 'd_hp2', 'd_shield', 'd_city']);
+    const s0 = stage({ a: [city, bare('weaver')], b: [bare('astromancer')], place: { 1: [8, 0], 2: [3, 3], 3: [6, 9] }, hp: { 2: 100 } });
+    s0.mouths = [{ team: 0, net: uid(1), x: 3, z: 3, t: 3 }];
+    const r = run(s0, ...orders([2, 1], [3]), end(2));
+    expect(r.events).toContainEqual({ type: 'heal', id: 2, amount: 10 });
+    expect(unit(r.state, 2).hp).toBe(110);
+  });
+
+  test('Undertow cuts Upheaval\'s cooldown to 1', () => {
+    const s0 = stage({ a: [bare('delver', undefined, ['d_strike', 'd_upheave', 'd_deep', 'd_undertow']), bare('delver')], b: [bare('weaver')] });
+    expect([cdOf(unit(s0, 1), 'upheaval'), cdOf(unit(s0, 2), 'upheaval')]).toEqual([1, 2]);
+  });
+
   test('Upheaval from below pushes the enemy into a wall: SLAM', () => {
     const s0 = stage({ a: [bare('delver')], b: [bare('weaver')], place: { 1: [5, 1], 2: [6, 1] }, terr: [[7, 1, '#']] });
     const live = run(s0, ...orders([1], [2]), cast(1, 'burrow', 5, 1), end(1), end(2), ...orders([1], [2]), end(2)).state;
@@ -215,9 +230,16 @@ describe('calls', () => {
     const orrery = bare('astromancer', undefined, ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']);
     const s0 = stage({ a: [orrery, bare('weaver')], b: [bare('delver')], place: { 1: [4, 0], 2: [6, 2], 3: [7, 2] }, hp: { 2: 100 }, terr: [[6, 2, 'G'], [7, 2, 'G']] });
     const r = run(s0, ...orders([1, 2], [3]), cast(1, 'meteor', 6, 2), end(1), end(3), end(2), ...orders([1, 2], [3]), end(3));
-    expect(r.events).toContainEqual({ type: 'heal', id: 2, amount: 15 });
-    expect([unit(r.state, 2).hp, unit(r.state, 2).st]).toEqual([115, {}]);
+    expect(r.events).toContainEqual({ type: 'heal', id: 2, amount: 8 });
+    expect([unit(r.state, 2).hp, unit(r.state, 2).st]).toEqual([108, {}]);
     expect(unit(r.state, 3).st.burn).toEqual({ t: 2, dmg: 6, by: 1 });
+  });
+
+  test('with Benevolent Heavens a Gravity Well still pulls allies', () => {
+    const orrery = bare('astromancer', undefined, ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']);
+    const s0 = stage({ a: [orrery, bare('weaver')], b: [bare('delver')], place: { 1: [2, 0], 2: [6, 4], 3: [9, 9] } });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'gravitywell', 6, 2), end(1), end(3), end(2), ...orders([1, 2], [3]), end(3));
+    expect([unit(r.state, 2).x, unit(r.state, 2).z]).toEqual([6, 2]);
   });
 
   test('Snap lands the pending Call at once, at half power', () => {
@@ -251,10 +273,20 @@ describe('encased', () => {
     const unmoved = structuredClone(r.state);
     unit(unmoved, 2).moved = false;
     expect(reachable(unmoved, unit(unmoved, 2)).size).toBe(0);
+    delete unit(unmoved, 2).st.encased;
+    expect(reachable(unmoved, unit(unmoved, 2)).has(idx(5, 2))).toBe(true);
 
     const next = run(r.state, end(2), ...orders([1, 2], [3]), end(3), end(1));
     const turn = next.events.findIndex(e => e.type === 'activate' && e.id === 2);
     expect(next.events.slice(turn, turn + 2)).toEqual([{ type: 'activate', id: 2, team: 0, qi: 2 }, { type: 'skip', id: 2 }]);
+  });
+
+  test('Fate Weaver spares the Weaver herself once: Encased at 1 HP', () => {
+    const spinner = bare('weaver', ['reel', 'web', 'cocoon'], ['w_cocoon', 'w_reach', 'w_silk', 'w_spare']);
+    const s0 = stage({ a: [bare('delver')], b: [spinner], place: { 1: [5, 1], 2: [6, 1] }, hp: { 2: 10 } });
+    const r = run(s0, ...orders([1], [2]), cast(1, 'basic_delver', 6, 1));
+    expect(r.events).toContainEqual({ type: 'encased', id: 2 });
+    expect([unit(r.state, 2).hp, unit(r.state, 2).spared]).toEqual([1, true]);
   });
 
   test('Help Up frees a Cocooned ally, and it acts on its next turn', () => {
@@ -394,7 +426,7 @@ describe('party', () => {
   const maxHp = (team: MemberBuild[]) => createBattle({ map: 'storm', starter: 0, teams: [team, [bare('delver')]] }, mulberry32(1)).units.filter(u => u.team === 0).map(u => u.maxHp);
 
   test('a party covering tank, damage and support gets +40 max HP each; three damage paths get nothing', () => {
-    expect(maxHp([sapper, pyre, spinner])).toEqual([260, 180, 210]);
+    expect(maxHp([sapper, pyre, spinner])).toEqual([250, 180, 230]);
     expect(maxHp([pyre, pyre, pyre])).toEqual([140, 140, 140]);
   });
 

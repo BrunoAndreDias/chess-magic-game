@@ -60,9 +60,9 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
-| **Ambusher** | Damage | +15% damage on a turn you surface. Upheaval +6. Underground move +1. | **Undertow**: Upheaval doesn't surface you. Strike from below and stay under until the end of your next turn. |
-| **Sapper** | Tank | +30 HP. Undermine collapses at once. Satchel +8. | **Earthbreaker**: enemies who start their turn next to you are Rooted, and you take 15% less damage. |
-| **Tunnelwright** | Support | Tunnel Mouths last 2 rounds longer. +20 HP. Allies who come out of a tunnel get a 15 shield. | **Undercity**: Downed allies on your mouths don't bleed, and enemies can't cave your mouths in. |
+| **Ambusher** | Damage | +15% damage on a turn you surface. Upheaval +6. Underground move +1. | **Undertow**: Upheaval cooldown −1, and it doesn't surface you. Strike from below and stay under until the end of your next turn. |
+| **Sapper** | Tank | +20 HP. Undermine collapses at once. Satchel +8. | **Earthbreaker**: enemies who start their turn next to you are Rooted. |
+| **Tunnelwright** | Support | Tunnel Mouths last 2 rounds longer. +20 HP. Allies who come out of a tunnel get a 15 shield. | **Undercity**: allies who end their turn on your mouths heal 10, Downed allies there don't bleed, and enemies can't cave your mouths in. |
 
 ### On each map
 
@@ -103,7 +103,7 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 |---|---|---|---|
 | **Pyre** | Damage | Fire +20%. Call range +1. Burning +3 a turn. | **Twin Stars**: you can hold two Calls at once. |
 | **Rime** | Control | Frost +20%. Glacial Prison cooldown −1. Your Calls make everyone they hit Wet. | **Absolute Zero**: units Rooted or Encased when your Call lands are Stunned by it, and Glacial Prison holds an enemy 2 turns. |
-| **Orrery** | Support | Recall range +2. +25 HP. Recall also cleanses debuffs. | **Benevolent Heavens**: your Calls heal allies in their area for half what they'd deal, instead of hurting them. Gravity Well doesn't pull allies. |
+| **Orrery** | Support | Recall range +2. +25 HP. Recall also cleanses debuffs. | **Benevolent Heavens**: your Calls heal allies in their area for a quarter of what they'd deal, instead of hurting them. |
 
 ### On each map
 
@@ -142,8 +142,8 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
 | **Matriarch** | Tank | +30 HP. Enemies you hold deal 20% less damage to everyone but you. +1 Thread. | **Web of Fate**: you start each turn with a 10 shield per Thread you hold. An enemy you hold that ends its turn more than 2 from you is pulled back to 2 and takes 12. |
-| **Widow** | Damage | Poison +3 a turn. Fang +6. Venom Bite heals you 8. | **Feast**: Reel pulls enemies all the way to you, and you bite each one that arrives next to you for 12 and Poison. |
-| **Spinner** | Support | Cocoon cooldown −1. Tether range +2. Webs last 2 rounds longer. | **Fate Weaver**: the first time each ally you hold would be Downed, it is Encased at 1 HP instead. |
+| **Widow** | Damage | Poison +3 a turn. Fang +10. Venom Bite heals you 8. | **Feast**: Reel pulls enemies all the way to you, and you bite each one that arrives next to you for 12 and Poison. |
+| **Spinner** | Support | Cocoon cooldown −1. Tether range +2 and +20 HP. Webs last 2 rounds longer. | **Fate Weaver**: the first time you or an ally you hold would be Downed, it is Encased at 1 HP instead. |
 
 ### On each map
 

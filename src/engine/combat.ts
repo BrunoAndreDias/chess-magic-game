@@ -74,9 +74,10 @@ function sharer(s: BattleState, o: Unit): Unit | null {
   }
   return null;
 }
-/** The standing ally Weaver with Fate Weaver holding `o`, if `o` hasn't been spared yet. */
+/** The Weaver with Fate Weaver who is `o` or holds `o` while standing, if `o` hasn't been spared yet. */
 function fateWeaver(s: BattleState, o: Unit): Unit | null {
   if (o.spared) return null;
+  if (o.mods.fateWeaver) return o;
   for (const t of s.threads) {
     if (t.to !== o.id) continue;
     const w = getUnit(s, t.by);
@@ -95,7 +96,6 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
     checkWinner(s);
     return 0;
   }
-  if (o.mods.earthbreaker) amt *= 0.85;
   amt = Math.round(amt);
   const w = kind === 'share' ? null : sharer(s, o);
   if (w) {
@@ -482,9 +482,9 @@ export function callTiles(skill: CallSkill, x: number, z: number): Pos[] {
   const r = SKILLS[skill].aoe;
   return r ? square(x, z, r) : [{ x, z }];
 }
-/** Hurts an enemy, or an ally when the caster lacks Benevolent Heavens; heals that ally for half otherwise. True when it hurt. */
+/** Hurts an enemy, or an ally when the caster lacks Benevolent Heavens; heals that ally for a quarter otherwise. True when it hurt. */
 function strike(c: LandCtx, o: Unit, base: number, kind: DamageKind, combo?: Combo | null): boolean {
-  if (o.team === c.u.team && c.u.mods.benevolent) { heal(c.s, o, base * c.power * 0.5, c.ev, c.u); return false; }
+  if (o.team === c.u.team && c.u.mods.benevolent) { heal(c.s, o, base * c.power * 0.25, c.ev, c.u); return false; }
   hit(c, o, base, kind, combo);
   return true;
 }
@@ -508,8 +508,8 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     }
   },
   gravitywell(c) {
-    const benevolent = !!c.u.mods.benevolent, dist = Math.max(1, Math.floor(2 * c.power));
-    const pulled = c.victims.filter(o => !(benevolent && o.team === c.u.team));
+    const dist = Math.max(1, Math.floor(2 * c.power));
+    const pulled = c.victims.slice();
     pulled.sort((a, b) => cheb(a.x, a.z, c.x, c.z) - cheb(b.x, b.z, c.x, c.z));
     for (const o of pulled) pull(c, o, c.x, c.z, dist, 'full', 1);
   },

@@ -130,20 +130,20 @@ export interface BranchDef { name: string; role: Role; color: string; nodes: rea
 const TREE_TABLE = {
   delver: [
     { name: 'Sapper', role: 'tank', color: '#c9a06a', nodes: [
-      { id: 'd_hp', name: 'Hard Hide', text: '+30 max HP.', mods: { hp: 30 } },
+      { id: 'd_hp', name: 'Hard Hide', text: '+20 max HP.', mods: { hp: 20 } },
       { id: 'd_quick', name: 'Quick Sink', text: 'Undermine collapses at once.', mods: { quickSink: 1 } },
       { id: 'd_satchel', name: 'Black Powder', text: 'Satchel Charge +8 damage.', mods: { satchelDmg: 8 } },
-      { id: 'd_earth', name: 'Earthbreaker', key: true, text: 'Enemies who start their turn next to you are Rooted, and you take 15% less damage.', mods: { earthbreaker: 1 } }] },
+      { id: 'd_earth', name: 'Earthbreaker', key: true, text: 'Enemies who start their turn next to you are Rooted.', mods: { earthbreaker: 1 } }] },
     { name: 'Ambusher', role: 'damage', color: '#ff9a4a', nodes: [
       { id: 'd_strike', name: 'From Below', text: '+15% damage on a turn you surface.', mods: { surfaceDmg: 0.15 } },
       { id: 'd_upheave', name: 'Rockburst', text: 'Upheaval +6 damage.', mods: { upheavalDmg: 6 } },
       { id: 'd_deep', name: 'Deep Runner', text: 'Underground move +1.', mods: { underMove: 1 } },
-      { id: 'd_undertow', name: 'Undertow', key: true, text: 'Upheaval doesn’t surface you: strike from below and stay under until the end of your next turn.', mods: { undertow: 1 } }] },
+      { id: 'd_undertow', name: 'Undertow', key: true, text: 'Upheaval cooldown −1, and it doesn’t surface you: strike from below and stay under until the end of your next turn.', mods: { undertow: 1 } }] },
     { name: 'Tunnelwright', role: 'support', color: '#8fd1a0', nodes: [
       { id: 'd_mouth', name: 'Shored Tunnels', text: 'Tunnel Mouths last 2 rounds longer.', mods: { mouthTurns: 2 } },
       { id: 'd_hp2', name: 'Thick Skin', text: '+20 max HP.', mods: { hp: 20 } },
       { id: 'd_shield', name: 'Safe Passage', text: 'Allies who come out of your tunnels get a 15 shield.', mods: { tunnelShield: 15 } },
-      { id: 'd_city', name: 'Undercity', key: true, text: 'Downed allies on your mouths don’t bleed, and enemies can’t cave your mouths in.', mods: { undercity: 1 } }] }],
+      { id: 'd_city', name: 'Undercity', key: true, text: 'Allies who end their turn on your mouths heal 10, Downed allies there don’t bleed, and enemies can’t cave your mouths in.', mods: { undercity: 1 } }] }],
   astromancer: [
     { name: 'Rime', role: 'tank', color: '#7fd8ff', nodes: [
       { id: 'a_frost', name: 'Hoarfrost', text: 'Frost +20% damage.', mods: { frostDmg: 0.2 } },
@@ -159,7 +159,7 @@ const TREE_TABLE = {
       { id: 'a_recall', name: 'Long Orbit', text: 'Recall range +2.', mods: { recallRange: 2 } },
       { id: 'a_hp', name: 'Starward', text: '+25 max HP.', mods: { hp: 25 } },
       { id: 'a_cleanse', name: 'Clean Return', text: 'Recall also cleanses debuffs.', mods: { recallCleanse: 1 } },
-      { id: 'a_benev', name: 'Benevolent Heavens', key: true, text: 'Your Calls heal allies in their area for half what they’d deal, instead of hurting them. Gravity Well doesn’t pull allies.', mods: { benevolent: 1 } }] }],
+      { id: 'a_benev', name: 'Benevolent Heavens', key: true, text: 'Your Calls heal allies in their area for a quarter of what they’d deal, instead of hurting them.', mods: { benevolent: 1 } }] }],
   weaver: [
     { name: 'Matriarch', role: 'tank', color: '#d06a9a', nodes: [
       { id: 'w_hp', name: 'Chitin', text: '+30 max HP.', mods: { hp: 30 } },
@@ -168,14 +168,14 @@ const TREE_TABLE = {
       { id: 'w_fate', name: 'Web of Fate', key: true, text: 'Start each turn with a 10 shield per Thread you hold. An enemy you hold that ends its turn more than 2 from you is pulled back to 2 and takes 12.', mods: { webOfFate: 1 } }] },
     { name: 'Widow', role: 'damage', color: '#8fe36b', nodes: [
       { id: 'w_poison', name: 'Virulence', text: 'Poison +3 a turn.', mods: { poisonDmg: 3 } },
-      { id: 'w_fang', name: 'Long Fangs', text: 'Fang +6 damage.', mods: { basicDmg: 6 } },
+      { id: 'w_fang', name: 'Long Fangs', text: 'Fang +10 damage.', mods: { basicDmg: 10 } },
       { id: 'w_bite', name: 'Drink Deep', text: 'Venom Bite heals you 8.', mods: { biteHeal: 8 } },
       { id: 'w_feast', name: 'Feast', key: true, text: 'Reel pulls enemies all the way to you, and you bite each one that arrives next to you for 12 and Poison.', mods: { feast: 1 } }] },
     { name: 'Spinner', role: 'support', color: '#b8e0ff', nodes: [
       { id: 'w_cocoon', name: 'Quick Silk', text: 'Cocoon cooldown −1.', mods: { cocoonCd: 1 } },
-      { id: 'w_reach', name: 'Long Line', text: 'Tether range +2.', mods: { threadRange: 2 } },
+      { id: 'w_reach', name: 'Long Line', text: 'Tether range +2 and +20 max HP.', mods: { threadRange: 2, hp: 20 } },
       { id: 'w_silk', name: 'Strong Silk', text: 'Webs last 2 rounds longer.', mods: { webTurns: 2 } },
-      { id: 'w_spare', name: 'Fate Weaver', key: true, text: 'The first time each ally you hold would be Downed, it is Encased at 1 HP instead.', mods: { fateWeaver: 1 } }] }],
+      { id: 'w_spare', name: 'Fate Weaver', key: true, text: 'The first time you or an ally you hold would be Downed, it is Encased at 1 HP instead.', mods: { fateWeaver: 1 } }] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
 

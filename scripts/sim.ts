@@ -1,11 +1,13 @@
 import { CLASS_ORDER, CLASSES, MAP_ORDER, TREES, aiDeploy, aiOrder, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
-// npm run sim -- [battles] [--blind] [--dumb]
+// npm run sim -- [battles] [--blind] [--dumb] [--from=K]
+// --from=K: start at battle K, so shards of one long run can go in parallel.
 // --blind: one team ignores the map rule (team 1 on even battles, team 0 on odd), to measure what playing around it is worth.
 // --dumb: team 0 is three damage keystones, team 1 covers tank, damage and support.
 const args = process.argv.slice(2), blindMode = args.includes('--blind'), dumbMode = args.includes('--dumb');
 const battles = Number(args.find(a => !a.startsWith('--'))) || 8;
+const from = Number(args.find(a => a.startsWith('--from='))?.slice(7)) || 0;
 
 const pick = <T>(r: Rng, xs: readonly T[]): T => {
   const x = xs[Math.floor(r() * xs.length)];
@@ -44,7 +46,7 @@ const cls: Record<string, [number, number]> = {}, path: Record<string, [number, 
 const mech: Record<Mechanic, [number, number]> = { burrow: [0, 0], call: [0, 0], thread: [0, 0] };
 let rounds = 0, ms = 0;
 
-for (let i = 0; i < battles; i++) {
+for (let i = from; i < from + battles; i++) {
   const r = mulberry32(100 + i);
   const map = MAP_ORDER[i % MAP_ORDER.length] ?? 'span', st = per.get(map);
   if (!st) throw new Error(`no stats for ${map}`);
