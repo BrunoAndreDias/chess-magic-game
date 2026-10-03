@@ -108,7 +108,9 @@ async function serve() {
   async function spectate() {
     await p.goto(`http://localhost:${PORT}/?ai&quick&map=${MAP}&seed=${SEED}`);
     const watcher = watchRuleEvents();
+    await keepLog();
     if (!(await until(async () => (await phase()) === 'result', 15 * 60000))) throw new Error(`no result screen (phase ${await phase()})`);
+    const used = await mechanics();
     watching = false;
     await watcher;
     await wait(500);
@@ -119,11 +121,12 @@ async function serve() {
     await wait(800);
     await shot('ai-new-map');
     const next = await p.textContent('#mp-name');
-    return `all-AI battle on ${fin.map} "${fin.title}" after round ${fin.round} (${fin.why}); rule shots ${ruleShots.length}; New battlefield drew ${next}`;
+    return `all-AI battle on ${fin.map} "${fin.title}" after round ${fin.round} (${fin.why}); rule shots ${ruleShots.length}; mechanics: ${used}; New battlefield drew ${next}`;
   }
 
   async function setupAndScout() {
     await p.goto(`http://localhost:${PORT}/?map=${MAP}&seed=${SEED}`);
+    await keepLog();
     if (!(await until(async () => (await phase()) === 'map'))) throw new Error('no map screen');
     await wait(1200);
     await shot('00-map');
@@ -134,8 +137,8 @@ async function serve() {
     await shot('01-setup');
     const strip = await p.textContent('#su-mapinfo');
     if (!strip.includes(mapName)) throw new Error(`setup strip does not name ${mapName}: ${strip}`);
-    await p.click('.ccard[data-cls="rogue"]');
-    await p.click('.ccard[data-cls="warden"]');
+    await p.click('.ccard[data-cls="weaver"]');
+    await p.click('.ccard[data-cls="delver"]');
     await p.click('#su-teams .pslot[data-team="0"][data-slot="1"]');
     await wait(600);
     const figure = await p.$eval('#su-teams .pslot[data-slot="0"]', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y - 50 }; });
@@ -167,6 +170,20 @@ async function serve() {
     }
     await p.click('#sc-ready');
   }
+
+  // How often each class mechanic showed up in the battle log, so a run proves the classes were actually played.
+  const MECHANICS = { burrows: /burrows underground/, tunnels: /surfaces\./, calls: /is called: it lands/, lands: /lands( at half power)?!/, threads: /ties a Thread/, webs: /Webs cover/, encased: /is Encased/ };
+  const mechanics = () => p.evaluate(m => {
+    const lines = window.__logLines ?? [];
+    return Object.entries(m).map(([k, re]) => `${k} ${lines.filter(l => new RegExp(re).test(l)).length}`).join(', ');
+  }, Object.fromEntries(Object.entries(MECHANICS).map(([k, re]) => [k, re.source])));
+
+  // The log goes away with the battle screen, so every line is copied out as it is added.
+  const keepLog = () => p.evaluate(() => {
+    window.__logLines = [];
+    new MutationObserver(ms => { for (const m of ms) if (m.target.id === 'log') for (const n of m.addedNodes) window.__logLines.push(n.textContent); })
+      .observe(document.body, { childList: true, subtree: true });
+  });
 
   let mapName = '';
   async function playBlue() {
@@ -215,6 +232,7 @@ async function serve() {
       await wait(250);
     }
     if (!(await until(async () => (await phase()) === 'result', 30000))) throw new Error(`no result screen (phase ${await phase()})`);
+    const used = await mechanics();
     watching = false;
     await watcher;
     await wait(500);
@@ -223,7 +241,7 @@ async function serve() {
     await p.click('#res-again');
     if (!(await until(async () => (await phase()) === 'scout'))) errors.push('Rematch did not reopen scouting');
     return `${mapName}: "${fin.title}" after round ${fin.round}, winner ${fin.phase.winner} (${fin.phase.reason}), combos ${fin.combos.join('/')}; `
-      + `blue turns ${turns.size}, moves ${stats.moves}, casts ${stats.casts}, camera orbits ${stats.orbits}, misses ${stats.misses}; hazard chip ${hazardShot ? 'seen' : 'never'}, rule shots ${ruleShots.length}`;
+      + `blue turns ${turns.size}, moves ${stats.moves}, casts ${stats.casts}, camera orbits ${stats.orbits}, misses ${stats.misses}; hazard chip ${hazardShot ? 'seen' : 'never'}, rule shots ${ruleShots.length}; mechanics: ${used}`;
   }
 
   let summary, failed = false;
