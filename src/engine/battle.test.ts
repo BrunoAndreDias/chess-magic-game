@@ -234,8 +234,8 @@ describe('party', () => {
   const spinner = build('weaver', ['w_cocoon', 'w_reach', 'w_silk', 'w_spare']);
   const maxHp = (team: MemberBuild[]) => createBattle({ map: 'storm', starter: 0, teams: [team, [bare('delver')]] }, mulberry32(1)).units.filter(u => u.team === 0).map(u => u.maxHp);
 
-  test('a party covering tank, damage and support gets +20 max HP each; three damage paths get nothing', () => {
-    expect(maxHp([sapper, pyre, spinner])).toEqual([240, 160, 190]);
+  test('a party covering tank, damage and support gets +40 max HP each; three damage paths get nothing', () => {
+    expect(maxHp([sapper, pyre, spinner])).toEqual([260, 180, 210]);
     expect(maxHp([pyre, pyre, pyre])).toEqual([140, 140, 140]);
   });
 

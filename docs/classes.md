@@ -166,7 +166,7 @@ Every pair of classes in a party, and every class taken twice, gives a bonus.
 | Astromancer × 2 | **Conjunction** | A Call that lands in a round where another of your Calls already landed deals +25%. |
 | Weaver × 2 | **Great Web** | +1 Thread each, and your webs last 1 round longer. |
 
-**Role coverage** replaces the old Holy Trinity, and it reads paths, not classes. A character's role is the role of the path holding its keystone, or, without a keystone, its path with the most points (the first path on a tie, and damage with no points). A party covering tank, damage and support gets +20 max HP each. Three damage builds get nothing.
+**Role coverage** replaces the old Holy Trinity, and it reads paths, not classes. A character's role is the role of the path holding its keystone, or, without a keystone, its path with the most points (the first path on a tie, and damage with no points). A party covering tank, damage and support gets +40 max HP each. Three damage builds get nothing.
 
 ## Verification
 

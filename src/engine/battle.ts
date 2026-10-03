@@ -34,7 +34,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     members.forEach((m, slot) => {
       const C = CLASSES[m.cls], mods = modsOf(m.cls, m.tree), p = pos[slot];
       if (!p) throw new Error(`team ${team} slot ${slot}: no deploy tile`);
-      const hp = C.hp + (mods.hp || 0) + (s.party[team].has('coverage') ? 20 : 0);
+      const hp = C.hp + (mods.hp || 0) + (s.party[team].has('coverage') ? 40 : 0);
       s.units.push({
         id: nextId++ as UnitId, team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, 3), tree: m.tree.slice(), mods,
         x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false,

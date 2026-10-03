@@ -200,7 +200,7 @@ const PAIR_TABLE = [
 ] satisfies readonly PairDef[];
 export const PAIRS: readonly PairDef[] = PAIR_TABLE;
 export type EveryPairListed = Assert<NoMissing<PairId, (typeof PAIR_TABLE)[number]['id']>>;
-export const COVERAGE: { id: 'coverage'; name: string; text: string } = { id: 'coverage', name: 'Role Coverage', text: 'A tank, a damage and a support path: +20 max HP for everyone.' };
+export const COVERAGE: { id: 'coverage'; name: string; text: string } = { id: 'coverage', name: 'Role Coverage', text: 'A tank, a damage and a support path: +40 max HP for everyone.' };
 
 // ---------- statuses: durations count the owner's turns and tick down at the end of each of them ----------
 export interface StatusDef { name: string; icon: string; color: string; bad?: true; text: string }
