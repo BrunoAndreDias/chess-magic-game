@@ -31,13 +31,13 @@ function lit(s: THREE.Scene, b = B): void {
   s.add(sun);
 }
 
-const spinners: THREE.Object3D[] = [];
+const idles: ((time: number) => void)[] = [];
 function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x: number, z: number, turn: number): void {
-  const root = new THREE.Group(), { body, spin } = buildModel(cls, team, team);
+  const root = new THREE.Group(), { body, idle } = buildModel(cls, team, team);
   root.add(body, decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[team], 0.35), 0.02));
   root.position.set(x, 0, z);
   root.rotation.y = turn;
-  if (spin) spinners.push(spin);
+  if (idle) idles.push(idle);
   s.add(root);
 }
 
@@ -81,7 +81,7 @@ function frame(t: number): void {
   requestAnimationFrame(frame);
   const w = canvas.clientWidth, h = canvas.clientHeight, split = Math.round(h * 0.55);
   if (renderer.getSize(new THREE.Vector2()).x !== w) renderer.setSize(w, h, false);
-  for (const s of spinners) s.rotation.y = (t / 1000) * 1.6;
+  for (const f of idles) f(t / 1000);
   closeCam.aspect = w / split;
   closeCam.updateProjectionMatrix();
   // The battle camera's 45° spans the whole window; this strip shows the same pixels per metre.

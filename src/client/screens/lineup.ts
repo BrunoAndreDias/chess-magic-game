@@ -16,7 +16,7 @@ const FIRE = new THREE.Vector3(0, 0, 0.2);
 
 interface Pose { x: number; z: number; scale: number; turn: number }
 interface Fire { light: THREE.PointLight; flames: THREE.Object3D[]; sprite: THREE.Sprite }
-interface Figure { key: string; root: THREE.Group; body: THREE.Group; spin: THREE.Object3D | null; from: Pose; to: Station; t: number; ph: number }
+interface Figure { key: string; root: THREE.Group; body: THREE.Group; idle: ((time: number) => void) | null; from: Pose; to: Station; t: number; ph: number }
 
 const ease = (t: number): number => 1 - (1 - t) ** 3;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -119,12 +119,12 @@ export class Lineup {
       let f = this.#figs[slot];
       if (f && f.key !== key) { disposeTree(f.root); f = null; }
       if (!f) {
-        const { body, spin } = buildModel(m.cls, team, slot + team), root = new THREE.Group();
+        const { body, idle } = buildModel(m.cls, team, slot + team), root = new THREE.Group();
         root.add(body);
         root.traverse(o => { o.userData.slot = slot; });
         this.#scene.add(root);
         const prev = this.#figs[slot];
-        f = { key, root, body, spin, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1 };
+        f = { key, root, body, idle, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1 };
         this.#figs[slot] = f;
         return;
       }
@@ -176,7 +176,7 @@ export class Lineup {
       r.rotation.y = lerp(f.from.turn, f.to.turn, k);
       f.body.position.y = Math.sin(time * 1.6 + f.ph) * 0.02;
       f.body.scale.y = 1 + Math.sin(time * 1.6 + f.ph + 0.8) * 0.012;
-      if (f.spin) f.spin.rotation.y = time * 1.6;
+      f.idle?.(time);
     }
     const fl = this.#fire;
     fl.light.intensity = 7 * (0.85 + 0.12 * Math.sin(time * 9) + 0.07 * Math.sin(time * 23));

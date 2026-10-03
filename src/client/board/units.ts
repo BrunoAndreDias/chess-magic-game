@@ -22,7 +22,7 @@ export interface UnitView {
   /** Glacial Prison's block and the Weaver's cocoon; `shown` picks which. */
   ice: THREE.Mesh;
   cocoon: THREE.Group;
-  spin: THREE.Object3D | null;
+  idle: ((time: number) => void) | null;
   label: HTMLElement;
   shown: Shown;
   /** 0 standing, 1 lying down. */
@@ -49,7 +49,7 @@ function buildCocoon(height: number): THREE.Group {
 }
 
 export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
-  const group = new THREE.Group(), { body, main, height, weapon, spin } = buildModel(u.cls, u.team, u.slot + u.team);
+  const group = new THREE.Group(), { body, main, height, weapon, idle } = buildModel(u.cls, u.team, u.slot + u.team);
   const ice = mesh(new THREE.BoxGeometry(0.86, height + 0.25, 0.86), iceMat, 0, (height + 0.25) / 2, 0), cocoon = buildCocoon(height);
   ice.visible = false;
   body.add(ice, cocoon);
@@ -74,7 +74,7 @@ export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   labels.appendChild(label);
 
   return {
-    id: u.id, team: u.team, group, body, weapon, height, main, disc, ice, cocoon, spin,
+    id: u.id, team: u.team, group, body, weapon, height, main, disc, ice, cocoon, idle,
     ring, bubble, blood, aura, label, shown: shownOf(u), pose: 0, bob: Math.random() * 6,
   };
 }
@@ -104,7 +104,7 @@ export function animateUnit(v: UnitView, time: number): void {
   const encased = s.st.has('encased');
   v.ice.visible = encased && s.ice;
   v.cocoon.visible = encased && !s.ice;
-  if (v.spin) v.spin.rotation.y = time * 1.6;
+  v.idle?.(time);
   v.bubble.visible = up && s.shield > 0;
   if (v.blood.visible) v.blood.material.opacity = 0.45 + 0.25 * Math.sin(time * 4);
   const aura = up ? AURA.find(([key]) => s.st.has(key)) : undefined;

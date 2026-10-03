@@ -4,8 +4,8 @@ import type { ClassId, Team } from '../../engine/index';
 import { basic, glow, hex, keep, mat, mesh, starGeometry } from './art';
 
 interface Kit { main: THREE.MeshStandardMaterial; trim: THREE.Material; skin: THREE.Material; accent: THREE.Material; accentHex: number }
-/** `spin` turns slowly every frame (the Astromancer's orbiting star). */
-interface Model { height: number; weapon: THREE.Object3D; spin: THREE.Object3D | null }
+/** `idle` runs every frame with the clock in seconds, for motion the figure owns (an orbiting star, a swaying bell). */
+interface Model { height: number; weapon: THREE.Object3D; idle: ((time: number) => void) | null }
 /** What the board needs from a figure: `main` flashes on a hit (its emissive is reset to 0 after), `weapon` bobs on a cast, `height` places labels and effects. */
 export type Figure = { body: THREE.Group; main: THREE.MeshStandardMaterial } & Model;
 
@@ -64,7 +64,7 @@ const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit, look: number)
     pick.position.set(0.5, 0.05, 0.2);
     pick.rotation.z = -0.25;
     body.add(pick);
-    return { height: 1.05, weapon: pick, spin: null };
+    return { height: 1.05, weapon: pick, idle: null };
   },
   astromancer: (body, k) => {
     body.add(
@@ -93,7 +93,7 @@ const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit, look: number)
       mesh(new THREE.TorusGeometry(0.06, 0.015, 6, 12), k.trim, 0, 1.36, 0));
     staff.position.set(0.34, 0, 0.06);
     body.add(hat, staff);
-    return { height: 1.75, weapon: staff, spin: orbit };
+    return { height: 1.75, weapon: staff, idle: t => { orbit.rotation.y = t * 1.6; } };
   },
   gravecaller: (body, k, look) => MODELS.astromancer(body, k, look),
   weaver: (body, k, look) => {
@@ -129,7 +129,7 @@ const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit, look: number)
     spool.position.set(0.24, 0.76, 0.2);
     spool.rotation.z = 0.5;
     body.add(limb(new THREE.Vector3(0.12, 0.88, 0.1), new THREE.Vector3(0.22, 0.72, 0.2), 0.035, k.trim), spool);
-    return { height: 1.25, weapon: spool, spin: null };
+    return { height: 1.25, weapon: spool, idle: null };
   },
 };
 

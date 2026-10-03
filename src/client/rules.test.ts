@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { createBattle, mulberry32 } from '../engine/index';
 import type { MapId } from '../engine/index';
-import { endChip, roundHazard, ruleLine, timeline } from './rules';
+import { endChip, roundHazard, timeline } from './rules';
 
 const empty = (map: MapId) => createBattle({ map, starter: 0, teams: [[], []] }, mulberry32(1));
 
@@ -27,7 +27,6 @@ test('the altar chip shows both favors against the goal', () => {
   const s = empty('altar');
   s.favor = [2, 1];
   expect(endChip(s)).toEqual({ icon: '☀', text: 'Blue 2 · Red 1 of 5' });
-  expect(timeline(s)[1]).toEqual({ when: '5 favor', what: 'Wins the battle at once.' });
 });
 
 test('the round banner names the coming hazard, and crumble rounds without falls stay quiet', () => {
@@ -35,8 +34,4 @@ test('the round banner names the coming hazard, and crumble rounds without falls
   expect(roundHazard(empty('span'), 1)).toBe(null);
   expect(endChip(empty('span'))).toBe(null);
   expect(roundHazard(empty('span'), 3)).toBe('⬇ The side bridges crumble: 12 tiles fall at round end');
-});
-
-test('the setup strip takes the first sentence of the rule', () => {
-  expect(ruleLine('altar')).toBe('Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor.');
 });

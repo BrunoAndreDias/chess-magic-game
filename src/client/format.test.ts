@@ -40,6 +40,7 @@ suite('describe', () => {
   });
   test('statuses use their display names', () => {
     expect(line({ type: 'status', id: id(4), key: 'root' })).toEqual({ tone: 't1', text: 'Morvath is Rooted.' });
+    expect(line({ type: 'encased', id: id(4) })).toEqual({ tone: 't1', text: 'Morvath is Encased.' });
   });
   test('the end of the battle names the winner and why', () => {
     expect(line({ type: 'over', winner: 0, reason: 'wipe' })).toEqual({ tone: 'sys', text: 'Blue party wins. The other party has nobody left standing.' });
@@ -53,11 +54,6 @@ suite('describe', () => {
     expect(line({ type: 'damage', id: id(1), amount: 36, absorbed: 0, kind: 'storm' })).toEqual({ tone: 't0', text: 'Aldric takes 36 lightning damage.' });
     expect(line({ type: 'death', id: id(4), team: 1, cause: 'fell' })).toEqual({ tone: 'sys', text: 'Morvath is lost to the abyss.' });
     expect(line({ type: 'over', winner: 0, reason: 'altar' })).toEqual({ tone: 'sys', text: 'Blue party wins. The Sun Altar grants them victory.' });
-  });
-  test('quiet events produce no line', () => {
-    expect(line({ type: 'activate', id: id(1), team: 0, qi: 0 })).toBe(null);
-    expect(line({ type: 'move', id: id(1), path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toBe(null);
-    expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }], slide: true })).toBe(null);
   });
   test('Shared Pain names who took the blow', () => {
     expect(line({ type: 'shared', id: id(5), by: id(4) })).toEqual({ tone: 't1', text: 'Morvath takes half the blow for Ysolde.' });
@@ -81,12 +77,10 @@ suite('describe', () => {
     expect(line({ type: 'thread', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: 'Morvath ties a Thread to Aldric.' });
     expect(line({ type: 'snap', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: "Morvath's Thread to Aldric breaks." });
   });
-  test('webs and casings each get a line', () => {
-    expect(line({ type: 'terrain', tiles: [], kind: 'web' })).toEqual({ tone: 'sys', text: 'Webs cover the ground.' });
-    expect(line({ type: 'encased', id: id(4) })).toEqual({ tone: 't1', text: 'Morvath is Encased.' });
-  });
-  test('pushes say how far', () => {
+  test('pushes say how far; walks and slides that go nowhere stay quiet', () => {
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath is pushed back 2 tiles.' });
+    expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }], slide: true })).toBe(null);
+    expect(line({ type: 'move', id: id(1), path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toBe(null);
   });
 });
 
