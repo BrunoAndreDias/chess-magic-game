@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { DIR4, N, idx, inb } from '../../engine/index';
 import type { BattleState, Pos, TerrainChar, TileFx } from '../../engine/index';
 import type { Highlight, HighlightTone } from '../board';
+import { BIOMES } from '../biome';
+import type { Biome } from '../biome';
 import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
 
 export type FxKey = Exclude<keyof TileFx, 'spent' | 'whp'>;
@@ -26,10 +28,6 @@ export interface TileView {
 
 const TOP: Partial<Record<TerrainChar, number>> = { '^': 0.42, '~': -0.14 };
 const SLAB_H: Partial<Record<TerrainChar, number>> = { '^': 0.72, '~': 0.16 };
-const SLAB_COL: Partial<Record<TerrainChar, readonly [number, number]>> = {
-  '^': [0x8a7458, 0x7e6a50], 'G': [0x2c3a26, 0x283522],
-};
-const FLOOR_COL = [0x3b3740, 0x35313a] as const;
 const SCORCHED_COL = [0x2a2224, 0x261f20] as const;
 export const CHASM_Y = -1.4;
 
@@ -73,8 +71,7 @@ const HL_Y = 0.045;
 
 const pickMat = keep(new THREE.MeshBasicMaterial({ visible: false }));
 const shared = {
-  wall: mat(0x5a5260), cap: mat(0x6a6270), grass: mat(0x4f7a3a), rim: mat(0x2a2430), void: basic(0x0c0618),
-  water: new THREE.MeshStandardMaterial({ color: 0x1f5a8a, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.82, emissive: 0x0a2a44, emissiveIntensity: 0.6 }),
+  rim: mat(0x2a2430), void: basic(0x0c0618),
   bowl: mat(0x6a4a2a, { metalness: 0.4 }), leg: mat(0x3a2a1a), plank: mat(0x8a6a44), band: mat(0x5a4a34),
   ice: new THREE.MeshStandardMaterial({ color: 0xcff4ff, emissive: 0x5ab6e0, emissiveIntensity: 0.35, roughness: 0.1, transparent: true, opacity: 0.9 }),
   flood: new THREE.MeshStandardMaterial({ color: 0x2a6aa0, transparent: true, opacity: 0.7, roughness: 0.1, emissive: 0x0a2a44 }),
@@ -82,53 +79,66 @@ const shared = {
 };
 for (const m of Object.values(shared)) keep(m);
 
-type Build = (t: TileView, rnd: () => number, neighbour: (dx: number, dz: number) => TerrainChar | null) => void;
+/** Per-load materials the tiles of one map share, rebuilt when the biome changes. */
+interface Look { biome: Biome; wall: THREE.Material; cap: THREE.Material; grass: THREE.Material; water: THREE.MeshStandardMaterial }
 
-function slab(t: TileView): void {
+function makeLook(biome: Biome): Look {
+  return {
+    biome,
+    wall: keep(mat(biome.wall)), cap: keep(mat(biome.cap)), grass: keep(mat(biome.grass)),
+    water: keep(new THREE.MeshStandardMaterial({ color: biome.water, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.82, emissive: biome.waterGlow, emissiveIntensity: 0.6 })),
+  };
+}
+
+type Build = (t: TileView, rnd: () => number, neighbour: (dx: number, dz: number) => TerrainChar | null, look: Look) => void;
+
+const slabCols = (t: TileView, b: Biome): readonly [number, number] =>
+  t.base === '.' && t.origin === 'G' ? SCORCHED_COL : t.base === '^' ? b.high : t.base === 'G' ? b.grassBed : b.floor;
+
+function slab(t: TileView, { biome }: Look): void {
   const h = SLAB_H[t.base] ?? 0.3, top = TOP[t.base] ?? 0;
-  const cols = t.base === '.' && t.origin === 'G' ? SCORCHED_COL : SLAB_COL[t.base] ?? FLOOR_COL;
-  const m = mesh(new THREE.BoxGeometry(0.97, h, 0.97), mat(cols[(t.x + t.z) % 2]!), 0, top - h / 2, 0);
+  const m = mesh(new THREE.BoxGeometry(0.97, h, 0.97), mat(slabCols(t, biome)[(t.x + t.z) % 2]!, { roughness: biome.floorRough }), 0, top - h / 2, 0);
   m.receiveShadow = true;
   m.castShadow = t.base === '^';
   t.group.add(m);
 }
 
 const BUILD: Readonly<Record<TerrainChar, Build>> = {
-  '.': slab,
-  '^': slab,
-  '+': t => {
-    slab(t);
+  '.': (t, _r, _n, look) => slab(t, look),
+  '^': (t, _r, _n, look) => slab(t, look),
+  '+': (t, _r, _n, look) => {
+    slab(t, look);
     const rune = decal(new THREE.RingGeometry(0.22, 0.4, 6), new THREE.MeshBasicMaterial({ color: 0x7ee081, transparent: true, opacity: 0.8, side: THREE.DoubleSide }), 0.02);
     const g = glow(0x7ee081, 0.9, 0.5);
     g.position.y = 0.4;
     t.group.add(rune, g);
   },
-  'A': t => {
-    slab(t);
+  'A': (t, _r, _n, look) => {
+    slab(t, look);
     t.group.add(decal(new THREE.RingGeometry(0.22, 0.4, 8), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.8, side: THREE.DoubleSide }), 0.02));
   },
-  'G': (t, rnd) => {
-    slab(t);
+  'G': (t, rnd, _n, look) => {
+    slab(t, look);
     for (let i = 0; i < 7; i++) {
-      const tuft = mesh(new THREE.ConeGeometry(0.07, 0.5 + rnd() * 0.35, 4), shared.grass, (rnd() - 0.5) * 0.8, 0.28, (rnd() - 0.5) * 0.8);
+      const tuft = mesh(new THREE.ConeGeometry(0.07, 0.5 + rnd() * 0.35, 4), look.grass, (rnd() - 0.5) * 0.8, 0.28, (rnd() - 0.5) * 0.8);
       tuft.rotation.z = (rnd() - 0.5) * 0.4;
       tuft.castShadow = true;
       t.group.add(tuft);
     }
   },
-  '~': t => {
-    slab(t);
-    t.group.add(decal(new THREE.PlaneGeometry(1, 1), shared.water, -0.1));
+  '~': (t, _r, _n, look) => {
+    slab(t, look);
+    t.group.add(decal(new THREE.PlaneGeometry(1, 1), look.water, -0.1));
   },
-  'I': t => {
-    slab(t);
+  'I': (t, _r, _n, look) => {
+    slab(t, look);
     t.group.add(mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), shared.ice, 0, -0.02, 0));
   },
-  '#': (t, rnd) => {
-    slab(t);
-    const h = 1.5 + rnd() * 0.5, b = mesh(new THREE.BoxGeometry(0.98, h, 0.98), shared.wall, 0, h / 2, 0);
+  '#': (t, rnd, _n, look) => {
+    slab(t, look);
+    const h = 1.5 + rnd() * 0.5, b = mesh(new THREE.BoxGeometry(0.98, h, 0.98), look.wall, 0, h / 2, 0);
     b.castShadow = b.receiveShadow = true;
-    t.group.add(b, mesh(new THREE.BoxGeometry(1.04, 0.12, 1.04), shared.cap, 0, h + 0.06, 0));
+    t.group.add(b, mesh(new THREE.BoxGeometry(1.04, 0.12, 1.04), look.cap, 0, h + 0.06, 0));
   },
   'o': (t, _rnd, neighbour) => {
     t.group.add(mesh(new THREE.BoxGeometry(1, 0.1, 1), shared.void, 0, -1.5, 0));
@@ -141,8 +151,8 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
       t.group.add(mesh(new THREE.BoxGeometry(dx ? 0.12 : 1, 1.4, dz ? 0.12 : 1), shared.rim, dx * 0.45, -0.75, dz * 0.45));
     }
   },
-  'B': (t, rnd) => {
-    slab(t);
+  'B': (t, rnd, _n, look) => {
+    slab(t, look);
     const bowl = mesh(new THREE.CylinderGeometry(0.36, 0.18, 0.35, 10), shared.bowl, 0, 0.7, 0);
     bowl.castShadow = true;
     const flame = glow(0xff7a2a, 1.3), core = glow(0xffe0a0, 0.5);
@@ -192,6 +202,7 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
 export class Terrain {
   readonly root = new THREE.Group();
   #tiles: TileView[] = [];
+  #look = makeLook(BIOMES.span);
 
   constructor(parent: THREE.Object3D) { parent.add(this.root); }
 
@@ -201,6 +212,8 @@ export class Terrain {
   load(s: BattleState): void {
     for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); disposeTree(t.hz); }
     this.#tiles = [];
+    this.#disposeLook();
+    this.#look = makeLook(BIOMES[s.map]);
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
       const base = s.terr[idx(x, z)] ?? '.';
       const group = new THREE.Group();
@@ -222,7 +235,7 @@ export class Terrain {
 
   #build(t: TileView, s: BattleState): void {
     const rnd = seeded(1 + idx(t.x, t.z) * 31);
-    BUILD[t.base](t, rnd, (dx, dz) => (inb(t.x + dx, t.z + dz) ? s.terr[idx(t.x + dx, t.z + dz)] ?? null : null));
+    BUILD[t.base](t, rnd, (dx, dz) => (inb(t.x + dx, t.z + dz) ? s.terr[idx(t.x + dx, t.z + dz)] ?? null : null), this.#look);
     const top = t.base === 'o' ? 0 : t.base === '#' ? 1.6 : TOP[t.base] ?? 0;
     const pick = mesh(new THREE.BoxGeometry(1, top + 0.3, 1), pickMat, 0, (top - 0.3) / 2, 0);
     pick.userData.tile = { x: t.x, z: t.z } satisfies Pos;
@@ -315,7 +328,7 @@ export class Terrain {
   }
 
   update(time: number): void {
-    shared.water.emissiveIntensity = 0.5 + 0.15 * Math.sin(time * 1.5);
+    this.#look.water.emissiveIntensity = 0.5 + 0.15 * Math.sin(time * 1.5);
     for (const t of this.#tiles) {
       const b = t.brazier;
       if (b && !t.spent) {
@@ -336,9 +349,15 @@ export class Terrain {
     }
   }
 
+  #disposeLook(): void {
+    const { wall, cap, grass, water } = this.#look;
+    for (const m of [wall, cap, grass, water]) m.dispose();
+  }
+
   dispose(): void {
     for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); disposeTree(t.hz); }
     this.#tiles = [];
+    this.#disposeLook();
     this.root.removeFromParent();
   }
 }

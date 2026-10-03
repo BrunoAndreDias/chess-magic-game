@@ -1,6 +1,7 @@
 import { MAPS, MAX_ROUNDS, N, TERRAIN, doomed, threat, threatened, threatName } from '../engine/index';
 import type { BattleState, MapId, Pos, TerrainChar, Unit } from '../engine/index';
 import type { Highlight } from './board';
+import { BIOMES, css } from './biome';
 import { h } from './dom';
 
 /** How each map rule reads in the client: what it does, when, and where. Everything comes from `MAPS[id].rule` and the engine's `threat`. */
@@ -105,13 +106,14 @@ export function doomTip(s: BattleState, u: Unit): HTMLElement | null {
   return h('div', { style: { color: '#e2b8ff' } }, ruleOf(s).kind === 'crumble' ? "⬇ Can't escape: this tile falls this round." : "⚡ Can't escape the strike this round.");
 }
 
-const LEGEND: Partial<Record<TerrainChar, string>> = {
-  '#': '#5a5260', o: '#05030a', '~': '#1f5a8a', G: '#4f7a3a', '^': '#7a6e7c', B: '#ff7a2a', '+': '#7ee081', A: '#ffd36b', I: '#cff4ff',
+const LEGEND: Partial<Record<TerrainChar, (s: BattleState) => string>> = {
+  '#': s => css(BIOMES[s.map].wall), o: () => '#05030a', '~': s => css(BIOMES[s.map].water), G: s => css(BIOMES[s.map].grass),
+  '^': s => css(BIOMES[s.map].high[0]), B: () => '#ff7a2a', '+': () => '#7ee081', A: () => '#ffd36b', I: () => '#cff4ff',
 };
 
 /** A swatch per terrain present on the map, with its rule text. */
 export function legend(s: BattleState): HTMLElement {
   const used = new Set(s.terr);
   return h('div', { class: 'legend' }, (Object.keys(LEGEND) as TerrainChar[]).filter(c => used.has(c)).map(c =>
-    h('div', null, h('i', { style: { background: LEGEND[c] ?? '#000' } }), h('span', null, h('b', null, TERRAIN[c].name), `: ${TERRAIN[c].text ?? ''}`))));
+    h('div', null, h('i', { style: { background: LEGEND[c]?.(s) ?? '#000' } }), h('span', null, h('b', null, TERRAIN[c].name), `: ${TERRAIN[c].text ?? ''}`))));
 }

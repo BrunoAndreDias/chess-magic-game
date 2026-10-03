@@ -90,6 +90,7 @@ class BoardView implements Board {
     this.#overlay.clearFloats();
     for (const v of this.#views.values()) { disposeTree(v.group); v.label.remove(); }
     this.#views.clear();
+    this.#stage.setBiome(state.map);
     this.#terrain.load(state);
     this.#map = state.map;
     this.#snap(state);
