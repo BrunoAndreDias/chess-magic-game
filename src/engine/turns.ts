@@ -199,7 +199,6 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
   });
   atOnce(s, () => { for (const k of sinks) openPit(s, k % N, (k / N) | 0, ev); });
   if (over(s)) return;
-  breakThreads(s, ev);
   for (const m of s.mouths) m.t--;
   s.mouths = s.mouths.filter(m => m.t > 0);
   ev.push({ type: 'roundEnd', round: s.round, burnt });

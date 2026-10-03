@@ -132,6 +132,7 @@ export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | nul
     s.calls = s.calls.filter(c => c.by !== o.id);
     ev.push({ type: 'fizzle', id: o.id });
   }
+  breakThreads(s, ev);
   checkWinner(s);
 }
 /** An attack: attacker scaling × Exposed × combo × the context's power. Downed targets are finished. */

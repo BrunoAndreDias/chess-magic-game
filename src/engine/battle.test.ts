@@ -334,6 +334,13 @@ describe('threads', () => {
     expect(apply(r.state, move(1, 3, 0)).ok).toBe(true);
   });
 
+  test('a Thread snaps the moment its end is Downed, even by the blow that ends the battle', () => {
+    const s0 = stage({ a: [bare('astromancer'), bare('weaver')], b: [bare('delver')], place: { 1: [4, 0], 2: [5, 1], 3: [6, 3] }, hp: { 3: 10 } });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'meteor', 6, 3), end(1), end(3), cast(2, 'tether', 6, 3), end(2), ...orders([1, 2], [3]), end(3));
+    expect(after(r.events, 'downed')).toEqual([{ type: 'downed', id: 3, team: 1 }, { type: 'snap', by: 2, to: 3 }, { type: 'over', winner: 0, reason: 'wipe' }]);
+    expect(r.state.threads).toEqual([]);
+  });
+
   test('a Thread held by a Weaver who is not standing leashes nothing', () => {
     const s = stage({ a: [bare('weaver')], b: [bare('delver')], place: { 1: [5, 1], 2: [5, 3] }, life: { 1: { kind: 'downed', bleed: 2 } } });
     s.threads = [{ by: uid(1), to: uid(2), len: 1 }];
