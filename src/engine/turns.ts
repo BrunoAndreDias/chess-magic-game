@@ -67,10 +67,10 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
       continue;
     }
     if (u.st.stun || u.st.encased) {
-      delete u.st.stun;
       ev.push({ type: 'skip', id: u.id });
       tickStatuses(s, u, ev);
-      thaw(s, u, ev);
+      if (u.st.encased) thaw(s, u, ev);
+      else delete u.st.stun;
       if (advance(s, ev)) return;
       continue;
     }

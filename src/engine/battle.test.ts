@@ -205,6 +205,21 @@ describe('encased', () => {
     const turn = next.events.findIndex(e => e.type === 'activate' && e.id === 2);
     expect(next.events.slice(turn, turn + 2)).toEqual([{ type: 'activate', id: 2, team: 0, qi: 2 }, { type: 'skip', id: 2 }]);
   });
+
+  test('Absolute Zero on an Encased unit: the skipped turn spends the Encase, and the Stun skips the turn after', () => {
+    const rime = bare('astromancer', ['thunderhead', 'prison', 'frostbolt'], ['a_frost', 'a_prison', 'a_wet', 'a_zero']);
+    const s0 = stage({
+      a: [rime, bare('astromancer', ['prison', 'meteor', 'frostbolt'])], b: [bare('weaver'), bare('weaver')],
+      place: { 1: [2, 2], 2: [4, 3], 3: [10, 10], 4: [3, 5] },
+    });
+    const jailed = run(s0, ...orders([1, 2], [3, 4]), cast(1, 'thunderhead', 3, 5), end(1), end(3), end(4), cast(2, 'prison', 3, 5), end(2));
+    const r2 = run(jailed.state, ...orders([3, 4], [1, 2]), end(3), end(1), end(2));
+    expect(r2.events).toContainEqual({ type: 'skip', id: 4 });
+    expect(unit(r2.state, 4).st).toEqual({ stun: { t: 1, by: 1 }, wet: { t: 2, by: 2 } });
+    const r3 = run(r2.state, ...orders([1, 2], [3, 4]), end(1), end(3));
+    expect(r3.events.slice(-3, -1)).toEqual([{ type: 'activate', id: 4, team: 1, qi: 2 }, { type: 'skip', id: 4 }]);
+    expect(unit(r3.state, 4).st).toEqual({ wet: { t: 1, by: 2 } });
+  });
 });
 
 describe('threads', () => {
