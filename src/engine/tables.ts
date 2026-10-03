@@ -100,10 +100,8 @@ export function mapTerrain(id: MapId): TerrainChar[] {
   });
 }
 
-/** The figure the board draws for a class; classes may share one in their own colours. */
-export type ModelId = 'guardian' | 'elementalist' | 'rogue';
 export interface ClassDef {
-  id: ClassId; name: string; icon: string; color: string; model: ModelId; hp: number; move: number;
+  id: ClassId; name: string; icon: string; color: string; hp: number; move: number;
   /** One line: the class mechanic. */
   mechanic: string;
   plays: string; basic: { name: string; range: number; dmg: number }; innate: InnateSkillId;
@@ -111,22 +109,22 @@ export interface ClassDef {
 }
 
 export const CLASSES = {
-  astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', model: 'elementalist', hp: 140, move: 3, innate: 'snap',
+  astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', hp: 140, move: 3, innate: 'snap',
     mechanic: 'Calls: the big spells land at the start of your next turn.',
     plays: 'The battle mage whose big spells fall from the sky, where the enemy will be.', basic: { name: 'Starbolt', range: 4, dmg: 10 },
     skills: ['meteor', 'thunderhead', 'gravitywell', 'frostbolt', 'firebolt', 'prison', 'recall'], defaults: ['meteor', 'frostbolt', 'gravitywell'],
     tree: ['a_fire', 'a_range', 'a_burn', 'a_twin', 'a_frost', 'a_prison'] },
-  weaver: { id: 'weaver', name: 'Weaver', icon: '🕸️', color: '#d06a9a', model: 'rogue', hp: 170, move: 3, innate: 'tether',
+  weaver: { id: 'weaver', name: 'Weaver', icon: '🕸️', color: '#d06a9a', hp: 170, move: 3, innate: 'tether',
     mechanic: 'Threads: tie up to 3 units, then pull, leash or share damage along them.',
     plays: 'A spider-kin who ties the battlefield together with silk.', basic: { name: 'Fang', range: 1, dmg: 14 },
     skills: ['reel', 'web', 'cocoon', 'venombite', 'puppet', 'sharedpain', 'skitter'], defaults: ['reel', 'web', 'venombite'],
     tree: ['w_hp', 'w_leash', 'w_thread', 'w_fate', 'w_poison', 'w_fang'] },
-  gravecaller: { id: 'gravecaller', name: 'Gravecaller', icon: '💀', color: '#9fe0b8', model: 'elementalist', hp: 160, move: 3, innate: 'harvest',
+  gravecaller: { id: 'gravecaller', name: 'Gravecaller', icon: '💀', color: '#9fe0b8', hp: 160, move: 3, innate: 'harvest',
     mechanic: 'Souls: hard hits and Downs drop Souls; gather them and spend them on Rites.',
     plays: 'A bone priest who ferries souls, raising the fallen and reaping the dying.', basic: { name: 'Bone Lash', range: 2, dmg: 12 },
     skills: ['lastrites', 'bonewall', 'wither', 'soulbolt', 'soulburst', 'siphon', 'equalize'], defaults: ['soulbolt', 'lastrites', 'siphon'],
     tree: ['g_bolt', 'g_reach', 'g_burst', 'g_reap', 'g_hp', 'g_cap'] },
-  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', model: 'guardian', hp: 175, move: 3, innate: 'toll',
+  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', hp: 175, move: 3, innate: 'toll',
     mechanic: 'Toll: move a unit’s turn in this round’s queue.',
     plays: 'A monk with a great bronze bell on its back, who calls the hour.', basic: { name: 'Clapper', range: 1, dmg: 15 },
     skills: ['knell', 'hush', 'peal', 'encore', 'overture', 'hourglass', 'bellguard'], defaults: ['knell', 'hush', 'peal'],

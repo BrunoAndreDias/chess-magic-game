@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { SKILLS, callTiles, getUnit } from '../../engine/index';
 import type { BattleState, Call, Pos, Team, Thread, UnitId } from '../../engine/index';
-import { TEAM_CSS, TEAM_HEX, basic, decal, disposeTree, glow, hex, keep, mat, mesh } from './art';
+import { TEAM_CSS, TEAM_HEX, basic, decal, disposeTree, glow, hex, keep, mat, mesh, starGeometry } from './art';
 import type { Overlay } from './overlay';
 import type { Terrain } from './terrain';
 import type { Tweens } from './tween';
-import { starGeometry } from './units';
 import type { UnitView } from './units';
 
 /**

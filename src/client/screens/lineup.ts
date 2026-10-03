@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Team } from '../../engine/index';
-import { buildModel } from '../board/units';
+import { buildModel } from '../board/models';
 import { disposeTree, glow, mat, mesh, seeded } from '../board/art';
 import type { Draft } from '../draft';
 

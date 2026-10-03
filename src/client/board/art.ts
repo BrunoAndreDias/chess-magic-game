@@ -66,3 +66,15 @@ export function disposeTree(o: THREE.Object3D): void {
   });
   o.removeFromParent();
 }
+
+/** A flat five-pointed star facing +z. */
+export function starGeometry(outer: number, inner = outer * 0.45, depth = outer * 0.25): THREE.BufferGeometry {
+  const sh = new THREE.Shape();
+  for (let i = 0; i <= 10; i++) {
+    const a = Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? inner : outer;
+    if (i === 0) sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); else sh.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false });
+  g.translate(0, 0, -depth / 2);
+  return g;
+}
