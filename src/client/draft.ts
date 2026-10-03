@@ -16,7 +16,7 @@ export interface Draft {
 }
 
 const NAMES: readonly [readonly string[], readonly string[]] = [['Aldric', 'Seren', 'Kip'], ['Morvath', 'Ysolde', 'Grix']];
-const CLASSES_BY_TEAM: readonly [readonly ClassId[], readonly ClassId[]] = [['weaver', 'astromancer', 'weaver'], ['weaver', 'astromancer', 'astromancer']];
+const CLASSES_BY_TEAM: readonly [readonly ClassId[], readonly ClassId[]] = [['gravecaller', 'astromancer', 'bellringer'], ['bellringer', 'weaver', 'gravecaller']];
 
 export function defaultDraft(opts: { allAi: boolean; map: MapId }): Draft {
   const team = (t: Team): Member[] => CLASSES_BY_TEAM[t].map((c, i) => ({ ...newMember(c, NAMES[t][i] ?? 'Hero'), human: t === 0 && !opts.allAi }));

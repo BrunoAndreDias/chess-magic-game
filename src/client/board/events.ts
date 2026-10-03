@@ -144,7 +144,12 @@ async function castPose(c: PlayCtx, v: UnitView): Promise<void> {
 /** One entry per event type: adding an event type to the engine fails compilation here until it has an animation. */
 export const PLAY: Handlers = {
   round: () => {},
-  queue: () => {},
+  queue: (_e, c) => {
+    const id = c.active(), v = id !== null ? c.views.get(id) : undefined;
+    if (!v) return;
+    void c.fx.ring(above(v, 0.1), 0xe0b04a, 3.2, 0.6);
+    c.overlay.float('🔔 the order changes', '#e0b04a', above(v, 2.6));
+  },
   storm: async (e, c) => {
     for (const t of e.tiles) {
       const ground = c.terrain.at(t.x, t.z, 0.1);

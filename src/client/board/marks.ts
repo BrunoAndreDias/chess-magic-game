@@ -32,7 +32,9 @@ const SILK = new THREE.Color(0xf4eefa);
 const SOUL = 0x9fe0b8;
 const soulCore = keep(basic(0xeafff4));
 const soulTail = keep(new THREE.MeshBasicMaterial({ color: SOUL, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
-const soulRing = keep(basic(SOUL, 0.55));
+const soulRing = keep(basic(SOUL, 0.7));
+/** The wisp's orbit around the tile centre, and its height. */
+const SOUL_ORBIT = 0.38, SOUL_Y = 0.65;
 
 /**
  * The call area's tile: a bright dashed rim and diagonal hatching, tinted per material. Fill is nearly clear and the
@@ -105,14 +107,14 @@ export class Marks {
   }
 
   // ---------- souls ----------
-  /** A small floating wisp over a faint ring on the tile. */
+  /** A small wisp circling the tile over a faint ring, so it still shows beside the unit it dropped from, from any angle. */
   #buildSoul(p: Pos): SoulView {
     const g = new THREE.Group(), wisp = new THREE.Group();
-    const tail = mesh(new THREE.ConeGeometry(0.08, 0.32, 8, 1, true), soulTail, 0, -0.18, 0);
+    const tail = mesh(new THREE.ConeGeometry(0.07, 0.28, 8, 1, true), soulTail, 0, -0.16, 0);
     tail.rotation.x = Math.PI;
-    wisp.add(glow(SOUL, 0.85, 0.85), mesh(new THREE.SphereGeometry(0.08, 10, 8), soulCore), tail);
-    wisp.position.y = 0.6;
-    const ring = decal(new THREE.RingGeometry(0.15, 0.21, 20), soulRing, 0.05);
+    wisp.add(glow(SOUL, 1.25, 1), mesh(new THREE.SphereGeometry(0.1, 10, 8), soulCore), tail);
+    wisp.position.y = SOUL_Y;
+    const ring = decal(new THREE.RingGeometry(0.4, 0.46, 28), soulRing, 0.05);
     ring.renderOrder = 6;
     g.add(wisp, ring);
     g.position.copy(this.terrain.at(p.x, p.z, 0, false));
@@ -265,7 +267,10 @@ export class Marks {
 
   update(dt: number): void {
     const t = (this.#time += dt);
-    for (const v of this.#souls.values()) v.wisp.position.y = 0.6 + 0.07 * Math.sin(t * 2.2 + v.ph);
+    for (const v of this.#souls.values()) {
+      const a = t * 0.9 + v.ph;
+      v.wisp.position.set(Math.cos(a) * SOUL_ORBIT, SOUL_Y + 0.07 * Math.sin(t * 2.2 + v.ph), Math.sin(a) * SOUL_ORBIT);
+    }
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     for (const v of this.#calls.values()) {
       const k = t - v.t0;

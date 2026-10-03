@@ -69,6 +69,14 @@ suite('describe', () => {
     expect(line({ type: 'land', id: id(5), skill: 'gravitywell', x: 5, z: 5, tiles: [], power: 0.5 })).toEqual({ tone: 't1', text: "Ysolde's Gravity Well lands at half power!" });
     expect(line({ type: 'fizzle', id: id(2) })).toEqual({ tone: 't0', text: "Seren's Call fizzles." });
   });
+  test('a Gravecaller gathers a Soul or several', () => {
+    expect(line({ type: 'gather', id: id(1), from: [{ x: 0, z: 0 }] })).toEqual({ tone: 't0', text: 'Aldric gathers a Soul.' });
+    expect(line({ type: 'gather', id: id(4), from: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toEqual({ tone: 't1', text: 'Morvath gathers 2 Souls.' });
+  });
+  test('a queue change reads the new order and marks extra turns', () => {
+    expect(line({ type: 'queue', queue: [{ id: id(1), extra: false }, { id: id(4), extra: false }, { id: id(2), extra: true }] }))
+      .toEqual({ tone: 'sys', text: 'The order is now Aldric → Morvath → Seren (extra).' });
+  });
   test('Threads are tied and break, coloured by the Weaver', () => {
     expect(line({ type: 'thread', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: 'Morvath ties a Thread to Aldric.' });
     expect(line({ type: 'snap', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: "Morvath's Thread to Aldric breaks." });

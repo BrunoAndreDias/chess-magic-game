@@ -1,6 +1,6 @@
 import {
   CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aiOrder, aoeTiles, buildQueue, callsOf, canUse, castTargets, current, getUnit, holders, idx, isCall,
-  moveOf, mulberry32, predict, puppetMoves, reachable, unitAt,
+  moveOf, mulberry32, predict, puppetMoves, reachable, soulCap, soulsInReach, unitAt,
 } from '../../engine/index';
 import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Unit, UnitId } from '../../engine/index';
 import type { Match } from '../../host/match';
@@ -78,6 +78,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const announce = async (e: BattleEvent) => {
       const line = describe(e, b.state);
       if (line) addLog(line);
+      if (e.type === 'queue' || e.type === 'activate' || e.type === 'round') livePhase(e);
       if (e.type === 'round') await roundBanner(e.round, e.starter, b.state);
       if (e.type === 'combo') comboBanner(e.name, comboCredit(e, b.state), comboInfo(e));
     };
@@ -89,6 +90,15 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     }
     shown = b.state;
     renderHud();
+  }
+
+  /** The initiative bar follows a batch as it plays: whose turn it is, and the order a Toll, Overture or Encore just made. */
+  function livePhase(e: Extract<BattleEvent, { type: 'queue' | 'activate' | 'round' }>): void {
+    const ph = shown.phase;
+    if (e.type === 'round') { shown = { ...shown, round: e.round, starter: e.starter, phase: { kind: 'act', queue: e.queue, qi: 0, tolled: [] } }; renderInitbar(); return; }
+    if (ph.kind !== 'act') return;
+    shown = { ...shown, phase: e.type === 'queue' ? { ...ph, queue: e.queue } : { ...ph, qi: e.qi } };
+    renderInitbar();
   }
 
   async function roundBanner(round: number, starter: Team, s: BattleState): Promise<void> {
@@ -272,21 +282,28 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     return ids.map(id => getUnit(s, id)?.team ?? st);
   }
 
+  /** The order last drawn, so a chip whose turn moved can flash. */
+  let drawn: string[] = [];
   function renderInitbar(): void {
     const s = shown, st = s.starter, ph = s.phase;
     const head = h('div', { class: 'rd' }, `Round ${s.round}`, h('small', { style: { color: TEAM_TEXT[st] } }, `${TEAM_NAME[st]} starts`));
     let chips: HTMLElement[];
     if (ph.kind === 'act') {
-      chips = ph.queue.map(({ id }, k) => {
+      const order = ph.queue.map(t => `${t.id}${t.extra ? '+' : ''}`), was = drawn;
+      drawn = order;
+      const moved = (k: number) => was.length > 0 && was.length <= order.length && was.includes(order[k] ?? '') && was.indexOf(order[k] ?? '') !== k;
+      chips = ph.queue.map(({ id, extra }, k) => {
         const u = getUnit(s, id);
         if (!u) return h('div');
         const C = CLASSES[u.cls], closes = k === ph.queue.length - 1 && u.team === st && ph.queue.length > 2;
-        const state = k < ph.qi ? ' done' : k === ph.qi ? ' now' : '';
+        const state = (k < ph.qi ? ' done' : k === ph.qi ? ' now' : '') + (extra ? ' extra' : '') + (moved(k) || (extra && !was.includes(order[k] ?? '') && was.length > 0) ? ' moved' : '');
         const calls = s.calls.filter(c => c.by === u.id);
         const star = calls.length ? withTip(h('span', { class: 'cstar' }, '☄'), () => calls.map(c => h('div', null, `${SKILLS[c.skill].icon} ${SKILLS[c.skill].name} lands at the start of ${u.name}'s turn.`))) : null;
-        return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []));
+        const xtra = extra ? withTip(h('span', { class: 'xtra' }, '+1'), () => [h('div', null, `An extra turn for ${u.name}: cooldowns don't tick on it.`)]) : null;
+        return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []), ...(xtra ? [xtra] : []));
       });
     } else {
+      drawn = [];
       const teams = slotTeams(s);
       chips = teams.map((t, k) => chip(t, k, k === teams.length - 1 && t === st && teams.length > 2, '', h('span', { class: 'ic' }, '?'), h('span', { class: 'nm' }, '…')));
     }
@@ -306,10 +323,11 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
         const status = u.life.kind === 'dead' ? h('span', null, 'fallen')
           : u.life.kind === 'downed' ? h('span', { class: 'dn' }, `DOWNED · ${u.life.bleed} turn${u.life.bleed > 1 ? 's' : ''}`)
           : h('span', null, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`);
+        const cap = soulCap(shown, u), souls = cap ? h('span', { class: 'souls', title: `Holds ${u.souls} of ${cap} Souls` }, ` 👻${u.souls}/${cap}`) : null;
         return withTip(h('div', { class: `rcard t${t}${cur?.id === u.id ? ' now' : ''}${life}`, data: { unit: String(u.id) } },
           h('div', { class: 'rtop' }, h('b', null, u.name, human(u) ? null : h('span', { style: { 'font-size': '11px' } }, ' 🤖')), h('span', null, `${C.icon} ${C.name}`)),
           h('div', { class: 'rbar' }, h('i', { style: { width: `${hp}%` } }), h('s', { style: { width: `${sh}%` } })),
-          h('div', { class: 'rsub' }, status, statusChips(u))), () => unitTip(shown, u, human(u)));
+          h('div', { class: 'rsub' }, status, souls, statusChips(u))), () => unitTip(shown, u, human(u)));
       }));
   }
 
@@ -325,7 +343,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     selinfo.replaceChildren(
       h('b', { style: { color: TEAM_TEXT[u.team] } }, u.name),
       h('div', null, `${C.icon} ${C.name}${human(u) ? '' : ' · 🤖'}`),
-      h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`),
+      h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`, soulCap(s, u) ? h('span', { class: 'souls' }, ` · 👻 ${u.souls}/${soulCap(s, u)}`) : null),
       h('div', { class: 'mv' }, `${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}`} · ${u.acted ? 'action used' : 'action ready'}`));
     endBtn.disabled = !mine;
     if (!human(u)) {
@@ -346,6 +364,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   /** Why a ready skill can't be used right now, for the class mechanics that gate it. */
   function blocked(s: BattleState, u: Unit, id: SkillId): string | null {
+    if (u.st.hush && !SKILLS[id].basic) return 'Hushed';
+    if (SKILLS[id].rite && u.souls < 1) return 'Needs a Soul';
+    if (id === 'harvest') return u.souls >= soulCap(s, u) ? 'Hands full' : soulsInReach(s, u).length ? null : 'No Souls in reach';
     if (id === 'snap' && !callsOf(s, u)) return 'No pending Call';
     if (isCall(id) && !canUse(s, u, id) && callsOf(s, u)) return 'Already holding a Call';
     return null;

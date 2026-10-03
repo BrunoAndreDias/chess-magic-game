@@ -2,7 +2,7 @@
 
 A turn-based 3v3 party tactics game. Each character is one player's build: a class, 3 of its 7 skills and a passive tree.
 
-There are two classes, and each owns one mechanic through an innate skill every build has: the Astromancer casts Calls that land at the start of its next turn (Snap), and the Weaver ties Threads that leash, pull and share damage (Tether). The passive tree has 3 paths of 4 nodes, one each for tank, damage and support, and 6 points: enough for one keystone and a dip into a second path. A character's role is its keystone path's, and a party covering all three roles gets Role Coverage. `docs/classes.md` is the full rules spec.
+There are four classes, and each owns one mechanic through an innate skill every build has: the Astromancer casts Calls that land at the start of its next turn (Snap), the Weaver ties Threads that leash, pull and share damage (Tether), the Gravecaller gathers the Souls that hard hits and Downs drop and spends them on Rites (Harvest), and the Bellringer moves turns in the round's queue (Toll). The passive tree has 3 paths of 4 nodes, one each for tank, damage and support, and 6 points: enough for one keystone and a dip into a second path. A character's role is its keystone path's, and a party covering all three roles gets Role Coverage. `docs/classes.md` is the full rules spec.
 
 ## Run it
 

@@ -70,7 +70,7 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .seg button.on { background: var(--gold); color: #1b1405 }
 .sec h3 { font-size: 15px; margin: 0 0 7px; display: flex; gap: 10px; align-items: baseline; color: #e9d7b4; letter-spacing: .02em }
 .sec h3 small { font: 12px -apple-system, system-ui, sans-serif; color: var(--muted) }
-.ccards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px }
+.ccards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
 .ccard { display: flex; flex-direction: column; align-items: center; gap: 1px; background: #19141d; border: 1px solid var(--line); border-radius: 10px; padding: 7px 4px 6px; min-width: 0 }
 .ccard:hover { background: #231c27; border-color: color-mix(in srgb, var(--cc) 50%, var(--line)) }
 .ccard.on { background: color-mix(in srgb, var(--cc) 16%, #19141d); border-color: var(--cc); box-shadow: 0 0 0 1px var(--cc), 0 0 18px color-mix(in srgb, var(--cc) 30%, transparent) }
@@ -156,6 +156,11 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 .ichip .ic { font-size: 18px; display: block }
 .ichip.t0 { border-bottom: 3px solid var(--you) } .ichip.t1 { border-bottom: 3px solid var(--foe) }
 .ichip.done { opacity: .35 }
+.ichip.extra { border-style: dashed }
+.ichip .xtra { position: absolute; top: -7px; left: -6px; font: 700 10px ui-monospace, Menlo, monospace; color: #8fd1ff; background: #14101a; border: 1px solid #8fd1ff; border-radius: 6px; padding: 0 3px }
+.ichip.moved { animation: tolled 1.1s ease-out }
+@keyframes tolled { 0% { transform: translateY(-9px); box-shadow: 0 0 0 2px #e0b04a, 0 0 18px #e0b04a } 100% { transform: none; box-shadow: none } }
+.souls { color: #9fe0b8; font-weight: 700 }
 .ichip .cstar { position: absolute; top: -7px; right: -6px; font-size: 14px; line-height: 1; color: #c9bfff; text-shadow: 0 0 6px #9a8cff, 0 1px 2px #000; cursor: help }
 .ichip.now { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); background: #2b2433 }
 .ichip .k { position: absolute; top: 2px; left: 4px; font: 700 10px ui-monospace, Menlo, monospace; color: var(--muted) }

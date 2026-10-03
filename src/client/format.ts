@@ -130,6 +130,10 @@ export function previewLines(events: readonly BattleEvent[], s: BattleState): Li
       case 'encased': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: Encased` }); break;
       case 'thread': out.push({ tone: teamOf(s, e.to), text: `${name(s, e.to)}: tied by a Thread` }); break;
       case 'snap': out.push({ tone: teamOf(s, e.by), text: `Thread to ${name(s, e.to)} breaks` }); break;
+      case 'soul': out.push({ tone: 'sys', text: 'A Soul drops' }); break;
+      case 'gather': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: +${e.from.length} Soul${e.from.length === 1 ? '' : 's'}` }); break;
+      case 'spend': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: spends a Soul` }); break;
+      case 'queue': out.push({ tone: 'sys', text: `Order: ${e.queue.map(t => `${name(s, t.id)}${t.extra ? '+' : ''}`).join(' → ')}` }); break;
       default: break;
     }
   }

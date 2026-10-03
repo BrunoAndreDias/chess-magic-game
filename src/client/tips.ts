@@ -1,4 +1,4 @@
-import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, callTiles, getUnit, holders, idx, moveOf, roleOf, threadCap } from '../engine/index';
+import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, actedThisRound, callTiles, getUnit, holders, idx, moveOf, roleOf, soulAt, soulCap, threadCap, undying } from '../engine/index';
 import type { BattleState, StatusKey, Unit } from '../engine/index';
 import { h } from './dom';
 import type { Child } from './dom';
@@ -25,7 +25,7 @@ export function statusChips(u: Unit): HTMLElement[] {
 const turns = (n: number) => `${n} turn${n === 1 ? '' : 's'}`;
 const rounds = (n: number) => `${n} round${n === 1 ? '' : 's'}`;
 
-/** The class-mechanic lines for a unit: Threads on and from it, pending Calls. */
+/** The class-mechanic lines for a unit: Threads on and from it, pending Calls, held Souls, its place in the round. */
 function mechanicLines(s: BattleState, u: Unit): HTMLElement[] {
   const out: HTMLElement[] = [];
   for (const t of holders(s, u)) {
@@ -38,6 +38,10 @@ function mechanicLines(s: BattleState, u: Unit): HTMLElement[] {
   const held = s.threads.filter(t => t.by === u.id).map(t => getUnit(s, t.to)?.name ?? '?');
   if (held.length) out.push(h('div', { style: { color: '#f0c8e0' } }, `🧵 Holds ${held.join(', ')} (${held.length} of ${threadCap(s, u)}).`));
   for (const c of s.calls) if (c.by === u.id) out.push(h('div', { style: { color: '#c9bfff' } }, `☄ ${SKILLS[c.skill].name} called: lands at the start of its next turn.`));
+  const cap = soulCap(s, u);
+  if (cap) out.push(h('div', { class: 'souls' }, `👻 Holds ${u.souls} of ${cap} Souls: each Rite spends one.`));
+  if (undying(u)) out.push(h('div', { class: 'souls' }, 'Undying: still takes its turns while Downed (move 1, one skill), spending a Soul instead of bleeding.'));
+  if (s.phase.kind === 'act' && u.life.kind !== 'dead') out.push(h('div', { class: 'm' }, actedThisRound(s, u.id) ? '🔔 Late: already acted this round.' : '🔔 Early: hasn’t acted yet this round.'));
   return out;
 }
 
@@ -65,6 +69,9 @@ export function unitTip(s: BattleState, u: Unit, human: boolean): Child[] {
 export function terrainTip(s: BattleState, x: number, z: number): HTMLElement[] {
   const t = s.terr[idx(x, z)] ?? '.', T = TERRAIN[t], f = s.fx[idx(x, z)] ?? {};
   const out: HTMLElement[] = [h('div', null, h('b', null, T.name), T.text ? h('span', { class: 'm' }, ` · ${T.text}`) : null)];
+  const soul = soulAt(s, x, z);
+  if (soul) out.push(h('div', null, h('b', { class: 'souls' }, '👻 Soul'), ` (${rounds(soul.t)}): a Gravecaller gathers it with Harvest or by ending a move here.`));
+  if (f.bone) out.push(h('div', null, h('b', { style: { color: '#e8e2d0' } }, '🦴 Bone Wall'), ` (${rounds(f.bone)}): blocks moves and sight, and breaks Threads.`));
   if (f.web) out.push(h('div', null, h('b', { style: { color: '#f3e6ff' } }, '🕸 Web'), ` (${rounds(f.web)}): stepping on stops you and Roots you. Weavers walk it freely. Fire burns it.`));
   if (f.fire) out.push(h('div', null, h('b', { style: { color: '#ff8a4a' } }, '🔥 Fire'), ` (${rounds(f.fire)}): sets whoever steps or stands here Burning.`));
   if (f.smoke) out.push(h('div', null, h('b', { style: { color: '#b8bcc8' } }, '💨 Smoke'), ` (${rounds(f.smoke)}): blocks line of sight.`));

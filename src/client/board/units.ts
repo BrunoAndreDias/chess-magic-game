@@ -247,7 +247,7 @@ export function setPose(v: UnitView, down: number): void {
 }
 
 const AURA: readonly (readonly [StatusKey, number])[] = [
-  ['burn', 0xff6a2b], ['stun', 0xffd36b], ['expose', 0xff8a8a], ['share', 0xd06a9a], ['wet', 0x4fb3ff], ['poison', 0x8fe36b],
+  ['burn', 0xff6a2b], ['stun', 0xffd36b], ['hush', 0xc8b4ff], ['wither', 0xb89a6a], ['expose', 0xff8a8a], ['share', 0xd06a9a], ['guard', 0xe0b04a], ['wet', 0x4fb3ff], ['poison', 0x8fe36b],
 ];
 
 export function animateUnit(v: UnitView, time: number): void {
