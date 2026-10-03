@@ -49,7 +49,7 @@ function buildCocoon(height: number): THREE.Group {
 }
 
 export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
-  const group = new THREE.Group(), { body, main, height, weapon, idle } = buildModel(u.cls, u.team, u.slot + u.team);
+  const group = new THREE.Group(), { body, main, height, weapon, idle } = buildModel(u.cls, u.team);
   const ice = mesh(new THREE.BoxGeometry(0.86, height + 0.25, 0.86), iceMat, 0, (height + 0.25) / 2, 0), cocoon = buildCocoon(height);
   ice.visible = false;
   body.add(ice, cocoon);

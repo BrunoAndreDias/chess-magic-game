@@ -4,6 +4,7 @@ import type { BattleState } from '../engine/index';
 import { createApp } from './app';
 import type { Phase } from './app';
 import { createBoard } from './board/index';
+import { loadFigures } from './board/models';
 import { byId } from './dom';
 import { defaultDraft, drawMap } from './draft';
 import { installErrorOverlay } from './overlay';
@@ -31,4 +32,5 @@ window.__party = {
   phase: () => app.mounted()?.phase() ?? 'map',
 };
 
+await loadFigures();
 app.go({ kind: params.has('quick') ? 'scout' : 'map', draft });

@@ -3,16 +3,13 @@ import { CLASSES, CLASS_ORDER } from '../engine/index';
 import type { MapId, Team } from '../engine/index';
 import { BIOMES } from './biome';
 import { TEAM_HEX, basic, decal, mat, mesh } from './board/art';
-import { buildModel as shipped } from './board/models';
-import type { Figure } from './board/models';
+import { buildModel, loadFigures } from './board/models';
 import { installErrorOverlay } from './overlay';
 
-/** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`, `?models=<file in board/candidates>`. */
+/** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`. After `art/build.sh`, reload to see new figures. */
 installErrorOverlay();
 const params = new URLSearchParams(location.search);
-const candidates = import.meta.glob<{ buildModel: typeof shipped }>('./board/candidates/*.ts');
-const pick = candidates[`./board/candidates/${params.get('models')}.ts`];
-const buildModel: (...a: Parameters<typeof shipped>) => Figure = pick ? (await pick()).buildModel : shipped;
+await loadFigures();
 const canvas = document.getElementById('c') as HTMLCanvasElement, names = document.getElementById('names')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -33,7 +30,7 @@ function lit(s: THREE.Scene, b = B): void {
 
 const idles: ((time: number) => void)[] = [];
 function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x: number, z: number, turn: number): void {
-  const root = new THREE.Group(), { body, idle } = buildModel(cls, team, team);
+  const root = new THREE.Group(), { body, idle } = buildModel(cls, team);
   root.add(body, decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[team], 0.35), 0.02));
   root.position.set(x, 0, z);
   root.rotation.y = turn;

@@ -119,7 +119,7 @@ export class Lineup {
       let f = this.#figs[slot];
       if (f && f.key !== key) { disposeTree(f.root); f = null; }
       if (!f) {
-        const { body, idle } = buildModel(m.cls, team, slot + team), root = new THREE.Group();
+        const { body, idle } = buildModel(m.cls, team), root = new THREE.Group();
         root.add(body);
         root.traverse(o => { o.userData.slot = slot; });
         this.#scene.add(root);

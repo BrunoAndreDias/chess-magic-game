@@ -53,14 +53,14 @@ export function seeded(seed: number): () => number {
   return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
 
-/** Materials made once and reused by many meshes; disposing a tile must not free them. */
+/** Materials made once and reused by many meshes; disposing a tile must not free them. Loaded figure geometry carries the same flag. */
 export function keep<T extends THREE.Material>(m: T): T { m.userData.shared = true; return m; }
 
 export function disposeTree(o: THREE.Object3D): void {
   o.traverse(c => {
     if (!(c instanceof THREE.Mesh || c instanceof THREE.Sprite || c instanceof THREE.Line)) return;
     // Every Sprite shares one module-level geometry inside three.
-    if (!(c instanceof THREE.Sprite)) c.geometry.dispose();
+    if (!(c instanceof THREE.Sprite) && !c.geometry.userData.shared) c.geometry.dispose();
     const m = c.material as THREE.Material | THREE.Material[];
     for (const x of Array.isArray(m) ? m : [m]) if (!x.userData.shared) x.dispose();
   });
