@@ -18,8 +18,8 @@ import type { UnitView } from './units';
 /** What the scene currently shows, read back from the meshes for the browser playtest. */
 export interface BoardDebug {
   units(): { id: UnitId; x: number; z: number; visible: boolean; down: boolean; hp: number; shield: number }[];
-  /** How many pending Calls and Threads are drawn. */
-  marks(): { calls: number; threads: number };
+  /** How many ground Souls, pending Calls and Threads are drawn. */
+  marks(): { souls: number; calls: number; threads: number };
   /** Per tile `x,z` the base terrain char and overlay keys, e.g. `3,4:.:fire+smoke`. */
   tiles(): string[];
   busy(): boolean;

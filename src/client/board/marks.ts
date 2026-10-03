@@ -9,10 +9,11 @@ import { starGeometry } from './units';
 import type { UnitView } from './units';
 
 /**
- * The class mechanics drawn on the board: pending Calls and Threads.
+ * The class mechanics drawn on the board: Souls on the ground, pending Calls and Threads.
  * Each is keyed by what identifies it in the state, so `sync` can add and drop exactly the ones that changed.
  */
 
+interface SoulView { group: THREE.Group; wisp: THREE.Object3D; ph: number }
 interface CallView { call: Call; group: THREE.Group; tiles: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[]; sigil: THREE.Group; label: HTMLElement; anchor: THREE.Vector3; t0: number }
 interface ThreadView {
   thread: Thread; foe: boolean; color: THREE.Color;
@@ -23,10 +24,15 @@ interface ThreadView {
   key: string;
 }
 
+const soulKey = (p: Pos) => `${p.x},${p.z}`;
 const callKey = (c: Call) => `${c.by}:${c.skill}:${c.x},${c.z}`;
 const threadKey = (t: { by: UnitId; to: UnitId }) => `${t.by}>${t.to}`;
 
 const SILK = new THREE.Color(0xf4eefa);
+const SOUL = 0x9fe0b8;
+const soulCore = keep(basic(0xeafff4));
+const soulTail = keep(new THREE.MeshBasicMaterial({ color: SOUL, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+const soulRing = keep(basic(SOUL, 0.55));
 
 /**
  * The call area's tile: a bright dashed rim and diagonal hatching, tinted per material. Fill is nearly clear and the
@@ -66,6 +72,7 @@ const CSS = `
 
 export class Marks {
   readonly root = new THREE.Group();
+  readonly #souls = new Map<string, SoulView>();
   readonly #calls = new Map<string, CallView>();
   readonly #threads = new Map<string, ThreadView>();
   readonly #style: HTMLStyleElement;
@@ -85,15 +92,57 @@ export class Marks {
     document.head.appendChild(this.#style);
   }
 
-  get counts(): { calls: number; threads: number } {
-    return { calls: this.#calls.size, threads: this.#threads.size };
+  get counts(): { souls: number; calls: number; threads: number } {
+    return { souls: this.#souls.size, calls: this.#calls.size, threads: this.#threads.size };
   }
 
   /** Make every mark match `s` at once. */
   sync(s: BattleState): void {
+    syncMap(this.#souls, s.souls, soulKey, o => this.#buildSoul(o), v => disposeTree(v.group));
     syncMap(this.#calls, s.calls, callKey, c => this.#buildCall(c, s), v => this.#disposeCall(v));
     syncMap(this.#threads, s.threads, threadKey, t => this.#buildThread(t, s, 1), v => { disposeTree(v.core); disposeTree(v.halo); });
     for (const t of s.threads) { const v = this.#threads.get(threadKey(t)); if (v) v.thread = { ...t }; }
+  }
+
+  // ---------- souls ----------
+  /** A small floating wisp over a faint ring on the tile. */
+  #buildSoul(p: Pos): SoulView {
+    const g = new THREE.Group(), wisp = new THREE.Group();
+    const tail = mesh(new THREE.ConeGeometry(0.08, 0.32, 8, 1, true), soulTail, 0, -0.18, 0);
+    tail.rotation.x = Math.PI;
+    wisp.add(glow(SOUL, 0.85, 0.85), mesh(new THREE.SphereGeometry(0.08, 10, 8), soulCore), tail);
+    wisp.position.y = 0.6;
+    const ring = decal(new THREE.RingGeometry(0.15, 0.21, 20), soulRing, 0.05);
+    ring.renderOrder = 6;
+    g.add(wisp, ring);
+    g.position.copy(this.terrain.at(p.x, p.z, 0, false));
+    this.root.add(g);
+    return { group: g, wisp, ph: Math.random() * 6 };
+  }
+
+  /** A Soul drops: the wisp rises out of the tile. */
+  async dropSoul(p: Pos): Promise<void> {
+    const k = soulKey(p);
+    if (this.#souls.has(k)) return;
+    const v = this.#buildSoul(p);
+    this.#souls.set(k, v);
+    await this.tweens.run(0.35, q => v.group.scale.setScalar(0.05 + 0.95 * q));
+  }
+
+  /** The Souls on `from` drift into the gatherer. A Soul handed over straight from a Down starts on that tile. */
+  async gather(e: { from: readonly Pos[] }, to: UnitView | undefined): Promise<void> {
+    const flying = e.from.map(p => {
+      const k = soulKey(p), v = this.#souls.get(k) ?? this.#buildSoul(p);
+      this.#souls.delete(k);
+      return v;
+    });
+    const dest = to ? to.group.position.clone().add(new THREE.Vector3(0, to.height * 0.6, 0)) : null;
+    const starts = flying.map(v => v.group.position.clone());
+    await this.tweens.run(0.4, q => flying.forEach((v, i) => {
+      if (dest) v.group.position.lerpVectors(starts[i]!, dest, q);
+      v.group.scale.setScalar(1 - 0.7 * q);
+    }));
+    for (const v of flying) disposeTree(v.group);
   }
 
   // ---------- calls ----------
@@ -216,6 +265,7 @@ export class Marks {
 
   update(dt: number): void {
     const t = (this.#time += dt);
+    for (const v of this.#souls.values()) v.wisp.position.y = 0.6 + 0.07 * Math.sin(t * 2.2 + v.ph);
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     for (const v of this.#calls.values()) {
       const k = t - v.t0;

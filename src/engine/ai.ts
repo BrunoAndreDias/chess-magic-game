@@ -14,7 +14,7 @@ function depthOf(team: Team, z: number): number { return team === 0 ? z : N - 1 
 /** `ignoreMap` plays as if the map had no rule, so the sim can measure what playing around it is worth. */
 export interface AiOpts { ignoreMap?: boolean }
 
-const DEPLOY_FIRST: Record<ClassId, number> = { weaver: 1, astromancer: 2 };
+const DEPLOY_FIRST: Record<ClassId, number> = { weaver: 1, gravecaller: 2, astromancer: 3 };
 
 export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBuild[], rng: Rng, opts: AiOpts = {}): Pos[] {
   const pos: (Pos | null)[] = members.map(() => null), mid = (N - 1) / 2;
@@ -43,7 +43,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
   return pos.map(p => { if (!p) throw new Error(`team ${team}: no deploy tile left`); return p; });
 }
 
-const ROLE_BAND: Record<ClassId, readonly [number, number]> = { weaver: [1, 2], astromancer: [3, 5] };
+const ROLE_BAND: Record<ClassId, readonly [number, number]> = { weaver: [1, 2], gravecaller: [2, 3], astromancer: [3, 5] };
 /** What standing in a pending Call's area is likely to cost, in evalDelta's HP-like units. */
 const CALL_DANGER: Record<CallSkill, number> = { meteor: 22, thunderhead: 16, gravitywell: 6, recall: 0 };
 

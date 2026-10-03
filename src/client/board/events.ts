@@ -40,12 +40,12 @@ function track(c: PlayCtx, v: UnitView, team: Team): void {
 
 const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
   phys: '#ff6b5b', fire: '#ff8a4a', burn: '#ff8a4a', poison: '#8fe36b', frost: '#9ad8ff', shock: '#d6b8ff',
-  dark: '#c8a0ff', slam: '#ffb08a', share: '#f0a0d0', storm: '#bfe0ff',
+  dark: '#c8a0ff', slam: '#ffb08a', share: '#f0a0d0', storm: '#bfe0ff', drain: '#ff8a8a',
 };
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
-  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain',
+  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain', wither: 'Withered!',
 };
-const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa };
+const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa, bone: 0xe8e2d0 };
 const DUST = 0x9a7a5a;
 
 type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'none';
@@ -53,8 +53,9 @@ type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | '
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
   snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
   tether: 'none', reel: 'nova', web: 'lob', cocoon: 'link', venombite: 'melee', puppet: 'link', sharedpain: 'nova', skitter: 'none',
+  harvest: 'nova', lastrites: 'heal', bonewall: 'raise', wither: 'link', soulbolt: 'proj', soulburst: 'raise', siphon: 'link', equalize: 'link',
   helpup: 'heal',
-  basic_astromancer: 'proj', basic_weaver: 'melee',
+  basic_astromancer: 'proj', basic_weaver: 'melee', basic_gravecaller: 'proj',
 };
 
 interface Shot { e: Extract<BattleEvent, { type: 'cast' }>; c: PlayCtx; v: UnitView; from: THREE.Vector3; to: THREE.Vector3; color: number; basic: boolean }
@@ -398,6 +399,14 @@ export const PLAY: Handlers = {
     void c.fx.burst(above(v, v.height * 0.5), ice ? 0xbfeaff : 0xf4eefa, 2.4, 0.45);
     c.fx.sparkles(above(v, 0.2), ice ? 0xcff4ff : 0xffffff, 8);
     c.overlay.float(ice ? '🧊 Encased' : '🥚 Cocooned', ice ? '#b8e8ff' : '#f3e6ff', above(v, 2.1));
+  },
+  soul: (e, c) => c.marks.dropSoul(e),
+  gather: (e, c) => c.marks.gather(e, c.views.get(e.id)),
+  spend: (e, c) => {
+    const v = c.views.get(e.id);
+    if (!v) return;
+    c.fx.sparkles(above(v, 1), 0x9fe0b8, 8);
+    c.overlay.float('−1 Soul', '#9fe0b8', above(v, 2.2));
   },
   over: () => {},
 };

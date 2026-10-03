@@ -36,14 +36,14 @@ function keystonePath(m: MemberBuild): string {
   return `${m.cls} ${b?.name ?? '-'}`;
 }
 
-type Mechanic = 'call' | 'thread';
-const MECHANIC_OF: Record<ClassId, Mechanic> = { astromancer: 'call', weaver: 'thread' };
+type Mechanic = 'call' | 'thread' | 'harvest';
+const MECHANIC_OF: Record<ClassId, Mechanic> = { astromancer: 'call', weaver: 'thread', gravecaller: 'harvest' };
 
 interface MapStats { n: number; rounds: number; reasons: Record<string, number>; storm: number; falls: number; awareWins: number; draws: number }
 const per = new Map<MapId, MapStats>(MAP_ORDER.map(m => [m, { n: 0, rounds: 0, reasons: {}, storm: 0, falls: 0, awareWins: 0, draws: 0 }]));
 const wins: [number, number, number] = [0, 0, 0], combos: Record<string, number> = {};
 const cls: Record<string, [number, number]> = {}, path: Record<string, [number, number]> = {};
-const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0] };
+const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0], harvest: [0, 0] };
 let rounds = 0, ms = 0;
 
 for (let i = from; i < from + battles; i++) {
@@ -70,6 +70,7 @@ for (let i = from; i < from + battles; i++) {
         if (e.type === 'fall' && !res.events.some(c => c.type === 'combo' && c.name === 'ABYSS' && c.id === e.id)) st.falls++;
         if (e.type === 'call') used[e.team]?.add('call');
         if (e.type === 'thread') { const u = getUnit(s, e.by); if (u) used[u.team]?.add('thread'); }
+        if (e.type === 'gather') { const u = getUnit(s, e.id); if (u) used[u.team]?.add('harvest'); }
       });
       s = res.state;
     }

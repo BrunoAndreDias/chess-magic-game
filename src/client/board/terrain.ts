@@ -7,7 +7,7 @@ import type { Biome } from '../biome';
 import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
 
 export type FxKey = Exclude<keyof TileFx, 'spent'>;
-export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'web'];
+export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'web', 'bone'];
 
 interface Brazier { flame: THREE.Sprite; core: THREE.Sprite; light: THREE.PointLight; ph: number }
 
@@ -111,6 +111,7 @@ const shared = {
   ice: new THREE.MeshStandardMaterial({ color: 0xcff4ff, emissive: 0x5ab6e0, emissiveIntensity: 0.35, roughness: 0.1, transparent: true, opacity: 0.9 }),
   fireBase: basic(0xff5a1a, 0.35),
   web: new THREE.MeshBasicMaterial({ map: canvasTex(drawWeb), transparent: true, depthWrite: false }),
+  bone: mat(0xe8e2d0, { roughness: 0.6 }), marrow: mat(0x9a8f78),
 };
 for (const m of Object.values(shared)) keep(m);
 
@@ -223,6 +224,21 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
     return g;
   },
   ice: () => mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), shared.ice, 0, -0.02, 0),
+  /** Ribs and long bones lashed upright, tall enough to read as a wall from above. */
+  bone: () => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(0.9, 0.14, 0.5), shared.marrow, 0, 0.07, 0));
+    for (let i = 0; i < 5; i++) {
+      const h = 1.05 + (i % 2) * 0.3, x = -0.36 + i * 0.18;
+      const b = mesh(new THREE.CylinderGeometry(0.05, 0.065, h, 6), shared.bone, x, h / 2, (i % 2 ? 0.06 : -0.06));
+      b.rotation.z = (i - 2) * 0.06;
+      b.castShadow = true;
+      g.add(b, mesh(new THREE.SphereGeometry(0.085, 8, 6), shared.bone, x + (i - 2) * 0.03, h, b.position.z));
+    }
+    const rib = mesh(new THREE.TorusGeometry(0.42, 0.03, 5, 16, Math.PI), shared.bone, 0, 0.75, 0);
+    g.add(rib);
+    return g;
+  },
   web: () => {
     const w = decal(new THREE.PlaneGeometry(1.02, 1.02), shared.web, 0.07);
     w.rotation.z = Math.random() * Math.PI;

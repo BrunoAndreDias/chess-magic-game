@@ -8,6 +8,10 @@ export const MAX_ROUNDS = 20;
 export const BLEED = 2;
 export const POINTS = 6;
 export const DARK_ROUND = 8;
+/** Rounds a Soul lies on the ground. */
+export const SOUL_ROUNDS = 3;
+/** One hit at least this big (after shields) drops a Soul. */
+export const SOUL_HIT = 20;
 
 export const DIR4: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 export const DIR8: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -117,8 +121,13 @@ export const CLASSES = {
     plays: 'A spider-kin who ties the battlefield together with silk.', basic: { name: 'Fang', range: 1, dmg: 14 },
     skills: ['reel', 'web', 'cocoon', 'venombite', 'puppet', 'sharedpain', 'skitter'], defaults: ['reel', 'web', 'venombite'],
     tree: ['w_hp', 'w_leash', 'w_thread', 'w_fate', 'w_poison', 'w_fang'] },
+  gravecaller: { id: 'gravecaller', name: 'Gravecaller', icon: '💀', color: '#9fe0b8', model: 'elementalist', hp: 160, move: 3, innate: 'harvest',
+    mechanic: 'Souls: hard hits and Downs drop Souls on the ground, which you gather and spend on Rites.',
+    plays: 'A bone priest who ferries souls, raising the fallen and reaping the dying.', basic: { name: 'Bone Lash', range: 2, dmg: 12 },
+    skills: ['lastrites', 'bonewall', 'wither', 'soulbolt', 'soulburst', 'siphon', 'equalize'], defaults: ['soulbolt', 'lastrites', 'siphon'],
+    tree: ['g_bolt', 'g_reach', 'g_burst', 'g_reap', 'g_hp', 'g_cap'] },
 } satisfies Record<ClassId, ClassDef>;
-export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver'];
+export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver', 'gravecaller'];
 
 // ---------- passive trees: 3 paths of 4 (three nodes, then a keystone). A node needs the one before it ----------
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
@@ -157,6 +166,22 @@ const TREE_TABLE = {
       { id: 'w_reach', name: 'Long Line', text: 'Tether range +2 and +20 max HP.', mods: { threadRange: 2, hp: 20 } },
       { id: 'w_silk', name: 'Strong Silk', text: 'Webs last 2 rounds longer.', mods: { webTurns: 2 } },
       { id: 'w_spare', name: 'Fate Weaver', key: true, text: 'The first time you or an ally you hold would be Downed, it is Encased at 1 HP instead.', mods: { fateWeaver: 1 } }] }],
+  gravecaller: [
+    { name: 'Lich', role: 'tank', color: '#9fe0b8', nodes: [
+      { id: 'g_hp', name: 'Grave Flesh', text: '+25 max HP.', mods: { hp: 25 } },
+      { id: 'g_cap', name: 'Deep Pockets', text: 'Hold 1 more Soul.', mods: { soulCap: 1 } },
+      { id: 'g_ward', name: 'Soul Ward', text: 'Start your turn with a 6 shield for each Soul you hold.', mods: { soulShield: 6 } },
+      { id: 'g_undying', name: 'Undying', key: true, text: 'While Downed you still take turns: move 1, then one skill but not your basic. Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal.', mods: { undying: 1 } }] },
+    { name: 'Reaper', role: 'damage', color: '#c06aff', nodes: [
+      { id: 'g_bolt', name: 'Sharp Bones', text: 'Soul Bolt +4 damage.', mods: { soulBoltDmg: 4 } },
+      { id: 'g_reach', name: 'Long Scythe', text: 'Harvest range +2.', mods: { harvestRange: 2 } },
+      { id: 'g_burst', name: 'Overflow', text: 'Soul Burst +8 damage.', mods: { burstDmg: 8 } },
+      { id: 'g_reap', name: 'Reap', key: true, text: 'Enemies a hit of yours leaves at 20% HP or less are Downed at once (REAP), and every Down you cause hands you its Soul directly.', mods: { reap: 1 } }] },
+    { name: 'Psychopomp', role: 'support', color: '#fff3b0', nodes: [
+      { id: 'g_rites', name: 'Far Call', text: 'Last Rites range +2.', mods: { riteRange: 2 } },
+      { id: 'g_hp2', name: 'Pale Robes', text: '+20 max HP.', mods: { hp: 20 } },
+      { id: 'g_shield', name: 'Safe Passage', text: 'Allies you stand up get a 20 shield.', mods: { riteShield: 20 } },
+      { id: 'g_ferry', name: 'Ferryman', key: true, text: 'Downed allies within 2 of you don’t bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at 60% HP.', mods: { ferryman: 1 } }] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
 
@@ -191,6 +216,7 @@ const STATUS_TABLE = {
   expose: { name: 'Exposed', icon: '🩸', color: '#ff8a8a', bad: true, text: 'Takes +25% damage.' },
   encased: { name: 'Encased', icon: '🧊', color: '#b8e8ff', text: 'Skips its turn, can’t be damaged or moved.' },
   share: { name: 'Shared Pain', icon: '🕸️', color: '#d06a9a', text: 'Half the damage to the allies it holds comes to it instead.' },
+  wither: { name: 'Withered', icon: '🥀', color: '#b89a6a', bad: true, text: 'Can’t be healed or shielded. A hit that leaves it at 20% HP or less Downs it (REAP).' },
 } satisfies Record<StatusKey, StatusDef>;
 export const STATUS: Readonly<Record<StatusKey, StatusDef>> = STATUS_TABLE;
 
@@ -200,6 +226,8 @@ export interface SkillDef {
   sets?: readonly string[]; pays?: readonly string[]; map?: true; empty?: true; noSelf?: true; free?: true; generic?: true; basic?: true;
   /** Marks its area now and lands at the start of the caster's next activation. */
   call?: true;
+  /** Costs one held Soul, and can't be cast without one. */
+  rite?: true;
   innate?: true;
   cls?: ClassId; text: string;
 }
@@ -245,11 +273,29 @@ const SKILL_TABLE = {
   skitter: { name: 'Skitter', icon: '🦗', target: 'any', range: 5, cd: 3, free: true, cls: 'weaver',
     text: 'Free. Leap next to a unit you hold.' },
 
+  harvest: { name: 'Harvest', icon: '🌾', target: 'self', cd: 2, free: true, innate: true, cls: 'gravecaller', color: '#9fe0b8',
+    text: 'Free. Gather every Soul within 3. You also gather a Soul by ending a move on it. You hold 3.' },
+  lastrites: { name: 'Last Rites', icon: '🕯️', target: 'downed', range: 3, cd: 3, rite: true, cls: 'gravecaller', color: '#fff3b0',
+    text: 'Rite. A Downed ally within 3 stands up at 40% HP.' },
+  bonewall: { name: 'Bone Wall', icon: '🦴', target: 'tile', range: 3, cd: 2, empty: true, map: true, rite: true, cls: 'gravecaller', color: '#e8e2d0',
+    text: 'Rite. A wall of 3 tiles across your line, for 2 rounds. It blocks moves and sight, and breaks Threads. Tiles with units are skipped.' },
+  wither: { name: 'Wither', icon: '🥀', target: 'enemy', range: 3, cd: 3, rite: true, cls: 'gravecaller', color: '#b89a6a', sets: ['Withered → REAP'],
+    text: 'Rite. Withered for 2 turns: no healing or shields, and a hit that leaves it at 20% HP or less Downs it (REAP).' },
+  soulbolt: { name: 'Soul Bolt', icon: '👻', target: 'enemy', range: 4, los: true, cd: 2, cls: 'gravecaller', color: '#9fe0b8',
+    text: '14, plus 6 for each Soul you hold. Spends none.' },
+  soulburst: { name: 'Soul Burst', icon: '💥', target: 'tile', range: 4, cd: 2, aoe: 1, map: true, cls: 'gravecaller', color: '#c06aff',
+    text: 'A Soul on the ground bursts: 18 to every enemy within 1 of it.' },
+  siphon: { name: 'Siphon', icon: '🩸', target: 'enemy', range: 3, cd: 2, cls: 'gravecaller', color: '#ff8a8a',
+    text: '12, and the most wounded ally within 3 of you (yourself included) heals what it took.' },
+  equalize: { name: 'Equalize', icon: '⚖️', target: 'any', range: 3, cd: 3, cls: 'gravecaller',
+    text: 'Your HP % and its HP % even out, moving at most 30 HP. Take from an enemy healthier than you, give to an ally hurt worse.' },
+
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
     text: 'Pull a Downed ally next to you back up at 30% HP.' },
 
   basic_astromancer: basicSkill('astromancer'),
   basic_weaver: basicSkill('weaver'),
+  basic_gravecaller: basicSkill('gravecaller'),
 } satisfies Record<SkillId, SkillDef>;
 export const SKILLS: Readonly<Record<SkillId, SkillDef>> = SKILL_TABLE;
 export function isCall(id: SkillId): id is CallSkill { return !!SKILLS[id].call; }
@@ -258,4 +304,5 @@ export const COMBO_INFO = {
   SLAM: 'Forced into an obstacle: stunned.', ABYSS: 'Forced into a chasm or pit: Downed at its edge.', FREEZE: 'Frostbolt on a Wet enemy: stunned.',
   CONDUCT: 'Thunderhead on a Wet enemy: ×1.5.', COMBUST: 'Firebolt on a Burning enemy: the whole burn at once, tripled.',
   SHATTER: 'Venom Bite on a Stunned or Rooted enemy: ×2.', EXECUTE: 'Any hit on a Downed enemy finishes it.', IGNITE: 'Fire on a brazier: it bursts into flames.',
+  REAP: 'A hit leaves a Withered enemy (or a Reaper’s target) at 20% HP or less: Downed at once.',
 } satisfies Record<ComboName, string>;

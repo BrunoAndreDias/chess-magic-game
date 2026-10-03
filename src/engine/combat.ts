@@ -1,11 +1,11 @@
 import {
-  BAD_KEYS, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, los,
-  nearestFree, onHigh, puppetMoves, reachable, sign, square, standing, terrAt, threadCap, unitAt, unitsIn,
+  BAD_KEYS, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, los,
+  nearestFree, onHigh, puppetMoves, reachable, sign, soulAt, soulCap, soulsInReach, square, standing, terrAt, threadCap, unitAt, unitsIn,
 } from './board';
-import { BLEED, CLASSES, DARK_ROUND, DIR8, SKILLS, isCall } from './tables';
+import { BLEED, CLASSES, DARK_ROUND, DIR8, SKILLS, SOUL_HIT, SOUL_ROUNDS, isCall } from './tables';
 import type { SkillDef } from './tables';
 import type {
-  BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, SkillId, Statuses, StatusKey,
+  BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, SkillId, Soul, Statuses, StatusKey,
   TileFx, Unit, UnitId,
 } from './types';
 
@@ -85,7 +85,10 @@ function fateWeaver(s: BattleState, o: Unit): Unit | null {
   return null;
 }
 
-/** Raw damage to one unit (no attacker scaling): Encased immunity, Shared Pain, shields, Fate Weaver, downing, finishing. */
+/**
+ * Raw damage to one unit (no attacker scaling): Encased immunity, Shared Pain, shields, Fate Weaver, downing, finishing.
+ * A hit of 20 or more drops a Soul; a unit's hit that leaves a Withered enemy (or a Reaper's target) at 20% HP or less Downs it (REAP).
+ */
 export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], kind: DamageKind, src: Unit | null): number {
   if (!isAlive(o) || amt <= 0 || o.st.encased) return 0;
   if (isDowned(o)) {
@@ -112,7 +115,12 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (src) s.stats.dmg[src.team] += d + ab;
   ev.push({ type: 'damage', id: o.id, amount: d, absorbed: ab, kind });
   if (fw) { o.spared = true; encase(o, 1, fw.id, false, ev); }
-  if (o.hp <= 0) down(s, o, ev, src);
+  if (o.hp <= 0) { down(s, o, ev, src); return d; }
+  if (d >= SOUL_HIT) dropSoul(s, o.x, o.z, ev);
+  if (src && src.team !== o.team && !o.st.encased && o.hp * 5 <= o.maxHp && (o.st.wither || src.mods.reap)) {
+    emitCombo(s, ev, 'REAP', src, o.id, o.st.wither?.by ?? null);
+    down(s, o, ev, src);
+  }
   return d;
 }
 /** A standing unit drops into the chasm at (x, z) and clings to the edge: Downed on the nearest free tile of solid ground. */
@@ -122,11 +130,17 @@ export function fall(s: BattleState, o: Unit, x: number, z: number, ev: BattleEv
   ev.push({ type: 'fall', id: o.id, x: o.x, z: o.z });
   down(s, o, ev, src);
 }
+/** Downed: its Soul drops, or goes straight to a Reaper who caused it; a Gravecaller without Undying spills the Souls it held. */
 export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | null): void {
   o.life = { kind: 'downed', bleed: BLEED };
   o.shield = 0; o.st = {}; o.hp = 0;
   if (src) s.stats.downs[src.team]++;
   ev.push({ type: 'downed', id: o.id, team: o.team });
+  if (src && src !== o && src.mods.reap && isAlive(src) && src.souls < soulCap(s, src)) {
+    src.souls++;
+    ev.push({ type: 'gather', id: src.id, from: [{ x: o.x, z: o.z }] });
+  } else dropSoul(s, o.x, o.z, ev);
+  if (o.souls && !o.mods.undying) { spillSouls(s, o, ev); o.souls = 0; }
   if (s.calls.some(c => c.by === o.id)) {
     s.calls = s.calls.filter(c => c.by !== o.id);
     ev.push({ type: 'fizzle', id: o.id });
@@ -161,7 +175,7 @@ function root(s: BattleState, o: Unit, by: UnitId | null, ev: BattleEvent[]): vo
   addStatus(o, 'root', { t: current(s) === o ? 2 : 1, by }, ev);
 }
 export function heal(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], src: Unit | null): number {
-  if (!standing(o)) return 0;
+  if (!standing(o) || o.st.wither) return 0;
   if (s.round >= DARK_ROUND) amt /= 2;
   const h = Math.min(Math.round(amt), o.maxHp - o.hp);
   o.hp += h;
@@ -170,15 +184,47 @@ export function heal(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], sr
   return h;
 }
 function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
+  if (o.st.wither) return;
   o.shield = Math.max(o.shield, amt);
   ev.push({ type: 'shield', id: o.id, amount: amt });
 }
+/** Stands a Downed ally up at `frac` of its max HP, 60% while its party has a Ferryman; a Psychopomp's touch adds a shield. */
 function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
+  if (s.units.some(f => f.team === src.team && isAlive(f) && f.mods.ferryman)) frac = Math.max(frac, 0.6);
   o.life = { kind: 'up' };
   delete o.st.encased;
   o.hp = Math.max(1, Math.round(o.maxHp * frac));
   s.stats.revives[o.team]++;
   ev.push({ type: 'revive', id: o.id, by: src.id });
+  if (src.mods.riteShield) shield(o, src.mods.riteShield, ev);
+}
+
+// ---------- souls ----------
+/** A Soul drops on (x, z), unless one already lies there. */
+function dropSoul(s: BattleState, x: number, z: number, ev: BattleEvent[]): void {
+  if (soulAt(s, x, z) || isSolid(s, x, z)) return;
+  s.souls.push({ x, z, t: SOUL_ROUNDS });
+  ev.push({ type: 'soul', x, z });
+}
+/** A Downed Gravecaller's held Souls fall on its tile and the nearest free ones around it. */
+function spillSouls(s: BattleState, o: Unit, ev: BattleEvent[]): void {
+  let left = o.souls;
+  for (let r = 1; r <= 2 && left > 0; r++) {
+    for (const p of square(o.x, o.z, r)) {
+      if (left <= 0) break;
+      if (cheb(p.x, p.z, o.x, o.z) !== r || soulAt(s, p.x, p.z) || isSolid(s, p.x, p.z)) continue;
+      dropSoul(s, p.x, p.z, ev);
+      left--;
+    }
+  }
+}
+/** `u` takes `souls` into its hand, as many as it has room for. */
+function gather(s: BattleState, u: Unit, souls: readonly Soul[], ev: BattleEvent[]): void {
+  const taken = souls.slice(0, soulCap(s, u) - u.souls);
+  if (!taken.length) return;
+  s.souls = s.souls.filter(o => !taken.includes(o));
+  u.souls += taken.length;
+  ev.push({ type: 'gather', id: u.id, from: taken.map(o => ({ x: o.x, z: o.z })) });
 }
 
 // ---------- the map reacting ----------
@@ -236,7 +282,7 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   const s = c.s;
   if (!inb(x, z)) return;
   const t = terrAt(s, x, z);
-  if (t === '#' || t === 'o' || t === '~' || t === 'I' || t === 'B') return;
+  if (isSolid(s, x, z) || t === '~' || t === 'I') return;
   clearFx(s, x, z, 'web');
   setFx(s, x, z, 'fire', turns);
   c.ev.push({ type: 'fire', x, z });
@@ -379,6 +425,40 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     const at = landingNear(c.s, c.u, tgt(c), c.u.x, c.u.z);
     if (at) teleport(c, c.u, at);
   },
+
+  harvest(c) { gather(c.s, c.u, soulsInReach(c.s, c.u), c.ev); },
+  lastrites(c) { revive(c.s, tgt(c), 0.4, c.ev, c.u); },
+  bonewall(c) {
+    const tiles = boneTiles(c.s, c.u, c.tx, c.tz);
+    for (const t of tiles) setFx(c.s, t.x, t.z, 'bone', 2);
+    c.ev.push({ type: 'terrain', tiles, kind: 'bone' });
+  },
+  wither(c) { addStatus(tgt(c), 'wither', { t: 2, by: c.u.id }, c.ev); },
+  soulbolt(c) { hit(c, tgt(c), 14 + 6 * c.u.souls + (c.u.mods.soulBoltDmg || 0), 'phys'); },
+  soulburst(c) {
+    const s = c.s, u = c.u;
+    s.souls = s.souls.filter(o => o.x !== c.tx || o.z !== c.tz);
+    for (const o of unitsIn(s, square(c.tx, c.tz, 1))) if (o.team !== u.team) hit(c, o, 18 + (u.mods.burstDmg || 0), 'phys');
+  },
+  siphon(c) {
+    const s = c.s, u = c.u, took = hit(c, tgt(c), 12, 'drain');
+    const hurt = (a: Unit) => a.hp / a.maxHp;
+    const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && cheb(a.x, a.z, u.x, u.z) <= 3).sort((a, b) => hurt(a) - hurt(b))[0];
+    if (mend && took > 0) heal(s, mend, took, c.ev, u);
+  },
+  equalize(c) {
+    const s = c.s, u = c.u, o = tgt(c), mid = (u.hp / u.maxHp + o.hp / o.maxHp) / 2;
+    if (o.team === u.team) {
+      const give = Math.min(30, Math.round((mid - o.hp / o.maxHp) * o.maxHp), u.hp - 1);
+      if (give <= 0) return;
+      u.hp -= give;
+      c.ev.push({ type: 'damage', id: u.id, amount: give, absorbed: 0, kind: 'drain' });
+      heal(s, o, give, c.ev, u);
+      return;
+    }
+    const took = damage(s, o, Math.min(30, Math.round((o.hp / o.maxHp - mid) * o.maxHp)), c.ev, 'drain', u);
+    if (took > 0) heal(s, u, took, c.ev, u);
+  },
 };
 
 // ---------- Calls ----------
@@ -486,7 +566,8 @@ export function performCast(s: BattleState, id: SkillId, tx: number, tz: number)
   const target = sk.target === 'tile' || sk.target === 'self' ? null : unitAt(s, tx, tz);
   const cast: CastEvent = { type: 'cast', id: u.id, team: u.team, skill: id, tx, tz, fx: u.x, fz: u.z, target: target ? target.id : null };
   const ev: BattleEvent[] = [cast];
-  if (standing(u)) {
+  if (sk.rite) { u.souls--; ev.push({ type: 'spend', id: u.id }); }
+  if (isAlive(u)) {
     if (isCall(id)) {
       s.calls.push({ by: u.id, team: u.team, skill: id, x: tx, z: tz, recall: id === 'recall' && target ? { id: target.id, x: target.x, z: target.z, hp: target.hp } : null });
       ev.push({ type: 'call', id: u.id, team: u.team, skill: id, tiles: callTiles(id, tx, tz) });
@@ -512,6 +593,8 @@ export function performMove(s: BattleState, x: number, z: number): BattleEvent[]
   u.x = x; u.z = z; u.moved = true;
   for (const b of p.slice(1)) if (s.fx[idx(b.x, b.z)]?.fire && !u.st.burn && !u.st.wet) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
   arrive(s, u, ev);
+  const here = soulAt(s, x, z);
+  if (here && soulCap(s, u)) gather(s, u, [here], ev);
   breakThreads(s, ev);
   checkWinner(s);
   return ev;

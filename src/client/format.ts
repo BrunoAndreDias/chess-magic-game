@@ -13,7 +13,7 @@ function teamOf(s: BattleState, id: UnitId): Tone {
 function toneOf(t: Team): Tone { return t === 0 ? 't0' : 't1'; }
 
 const DAMAGE_WORD: Record<DamageKind, string> = {
-  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', poison: ' poison', burn: ' burn', dark: '', slam: ' slam', share: '', storm: ' lightning',
+  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', poison: ' poison', burn: ' burn', dark: '', slam: ' slam', share: '', storm: ' lightning', drain: ' drain',
 };
 
 export const REASON: Record<OverReason, string> = {
@@ -81,6 +81,9 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'thread': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} ties a Thread to ${name(s, e.to)}.` };
     case 'snap': return { tone: teamOf(s, e.by), text: `${name(s, e.by)}'s Thread to ${name(s, e.to)} breaks.` };
     case 'encased': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is Encased.` };
+    case 'soul': return null;
+    case 'gather': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} gathers ${e.from.length === 1 ? 'a Soul' : `${e.from.length} Souls`}.` };
+    case 'spend': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} spends a Soul.` };
     case 'over': return { tone: 'sys', text: `${winnerTitle(e.winner)}. ${REASON[e.reason]}` };
   }
 }
@@ -91,6 +94,7 @@ const TERRAIN_LINE: Readonly<Record<TerrainChange, string>> = {
   ice: 'The water freezes into ice.',
   smoke: 'Smoke fills the air.',
   web: 'Webs cover the ground.',
+  bone: 'A Bone Wall rises.',
 };
 
 function bonusNames(s: BattleState, t: Team): string[] {

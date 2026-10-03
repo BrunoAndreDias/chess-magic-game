@@ -17,7 +17,9 @@ describe('storm', () => {
     expect(strike?.type === 'storm' && [strike.line, strike.tiles.length]).toEqual(['The edges', 48]);
     expect(rest).toEqual([
       { type: 'damage', id: 1, amount: 24, absorbed: 0, kind: 'storm' },
+      { type: 'soul', x: 0, z: 2 },
       { type: 'damage', id: 2, amount: 36, absorbed: 0, kind: 'storm' },
+      { type: 'soul', x: 10, z: 3 },
       { type: 'death', id: 5, team: 1, cause: 'finished' },
       { type: 'roundEnd', round: 1, burnt: [] },
     ]);
@@ -26,7 +28,7 @@ describe('storm', () => {
     const r2 = run(r.state, ...orders([1, 2, 3], [4]), end(4), end(1), end(2), end(3));
     const [strike2, ...rest2] = after(r2.events, 'storm');
     expect(strike2?.type === 'storm' && strike2.line).toBe('The center');
-    expect(rest2).toEqual([{ type: 'damage', id: 4, amount: 24, absorbed: 0, kind: 'storm' }, { type: 'roundEnd', round: 2, burnt: [] }]);
+    expect(rest2).toEqual([{ type: 'damage', id: 4, amount: 24, absorbed: 0, kind: 'storm' }, { type: 'soul', x: 5, z: 9 }, { type: 'roundEnd', round: 2, burnt: [] }]);
   });
 });
 
@@ -43,6 +45,7 @@ describe('crumble', () => {
     expect(rest).toEqual([
       { type: 'fall', id: 1, x: 1, z: 2 },
       { type: 'downed', id: 1, team: 0 },
+      { type: 'soul', x: 1, z: 2 },
       { type: 'death', id: 3, team: 1, cause: 'fell' },
       { type: 'roundEnd', round: 3, burnt: [] },
     ]);
@@ -55,6 +58,7 @@ describe('crumble', () => {
     expect(after(r.events, 'crumble').slice(1)).toEqual([
       { type: 'fall', id: 2, x: 3, z: 5 },
       { type: 'downed', id: 2, team: 1 },
+      { type: 'soul', x: 3, z: 5 },
       { type: 'over', winner: 0, reason: 'wipe' },
     ]);
   });

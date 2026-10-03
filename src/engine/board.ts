@@ -1,5 +1,5 @@
 import { CLASSES, DEPLOY_ROWS, DIR4, DIR8, N, SKILLS, STATUS, TERRAIN, isCall } from './tables';
-import type { BasicSkillId, BattleState, Phase, Pos, SkillId, StatusKey, Statuses, Team, TerrainChar, Thread, Unit, UnitId } from './types';
+import type { BasicSkillId, BattleState, Phase, Pos, SkillId, Soul, StatusKey, Statuses, Team, TerrainChar, Thread, Unit, UnitId } from './types';
 
 export interface Target extends Pos { id?: UnitId }
 
@@ -31,10 +31,12 @@ export function terrAt(s: BattleState, x: number, z: number): TerrainChar {
   if (s.fx[idx(x, z)]?.ice) return 'I';
   return s.terr[idx(x, z)] ?? '#';
 }
-export function isSolid(s: BattleState, x: number, z: number): boolean { return !!TERRAIN[terrAt(s, x, z)].solid; }
+/** Solid terrain, or a Bone Wall standing on the tile. */
+export function isSolid(s: BattleState, x: number, z: number): boolean { return !!(TERRAIN[terrAt(s, x, z)].solid || s.fx[idx(x, z)]?.bone); }
 function blocksSight(s: BattleState, x: number, z: number): boolean {
   if (!inb(x, z)) return true;
-  return !!(TERRAIN[terrAt(s, x, z)].sight || s.fx[idx(x, z)]?.smoke);
+  const f = s.fx[idx(x, z)];
+  return !!(TERRAIN[terrAt(s, x, z)].sight || f?.smoke || f?.bone);
 }
 export function los(s: BattleState, ax: number, az: number, bx: number, bz: number): boolean {
   const dx = bx - ax, dz = bz - az, steps = Math.max(Math.abs(dx), Math.abs(dz)) * 4;
@@ -68,9 +70,27 @@ export function threadCap(s: BattleState, w: Unit): number {
   return 3 + (w.mods.threads || 0) + (s.party[w.team].has('greatweb') ? 1 : 0);
 }
 
+// ---------- souls ----------
+/** How many Souls `u` can hold: 0 unless its class gathers them. */
+export function soulCap(_s: BattleState, u: Unit): number {
+  return CLASSES[u.cls].innate === 'harvest' ? 3 + (u.mods.soulCap || 0) : 0;
+}
+export function harvestRange(u: Unit): number { return 3 + (u.mods.harvestRange || 0); }
+/** The ground Souls Harvest would gather if `u` stood at (px, pz), nearest first. */
+export function soulsInReach(s: BattleState, u: Unit, px = u.x, pz = u.z): Soul[] {
+  const r = harvestRange(u);
+  return s.souls.filter(o => cheb(o.x, o.z, px, pz) <= r).sort((a, b) => cheb(a.x, a.z, px, pz) - cheb(b.x, b.z, px, pz));
+}
+export function soulAt(s: BattleState, x: number, z: number): Soul | null {
+  for (const o of s.souls) if (o.x === x && o.z === z) return o;
+  return null;
+}
+/** Undying: a Downed unit that still takes its turns. */
+export function undying(u: Unit): boolean { return u.life.kind === 'downed' && !!u.mods.undying; }
+
 // ---------- movement ----------
 export function moveOf(u: Unit): number {
-  return CLASSES[u.cls].move;
+  return undying(u) ? 1 : CLASSES[u.cls].move;
 }
 
 function pathTo(prev: Map<number, number>, k: number): Pos[] {
@@ -112,7 +132,7 @@ function walkPaths(s: BattleState, u: Unit, range: number): Map<number, number> 
 /** Tile index → path (start first) for every tile the unit can end its move on. Insertion order breaks AI ties. */
 export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>();
-  if (!u || !standing(u) || u.moved || u.st.encased) return res;
+  if (!u || !(standing(u) || undying(u)) || u.moved || u.st.encased) return res;
   return paths(s, u, moveOf(u), true);
 }
 
@@ -152,6 +172,7 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
   if (isCall(id)) r += u.mods.callRange || 0;
   if (id === 'recall') r += u.mods.recallRange || 0;
   if (id === 'tether') r += u.mods.threadRange || 0;
+  if (id === 'lastrites') r += u.mods.riteRange || 0;
   if (r > 1 && terrAt(s, px, pz) === '^') r += 1;
   return r;
 }
@@ -163,7 +184,11 @@ export function callsOf(s: BattleState, u: Unit): number {
 export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
   if (!actionsOf(u).includes(id) || u.st.encased) return false;
   if ((u.cd[id] || 0) > 0) return false;
-  if (u.acted && !SKILLS[id].free) return false;
+  const sk = SKILLS[id];
+  if (u.acted && !sk.free) return false;
+  if (undying(u) && (sk.basic || id === 'helpup')) return false;
+  if (sk.rite && u.souls < 1) return false;
+  if (id === 'harvest') return u.souls < soulCap(s, u) && soulsInReach(s, u).length > 0;
   if (id === 'snap') return callsOf(s, u) > 0;
   if (isCall(id)) return callsOf(s, u) < 1 + (u.mods.twinStars || 0);
   return true;
@@ -215,6 +240,7 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
     default: return false;
   }
   if (id === 'cocoon') return d <= r || held();
+  if (id === 'equalize' && !evens(u, o)) return false;
   if (d > r) return false;
   if (id === 'skitter') return held() && !!landingNear(s, u, o, px, pz);
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
@@ -230,6 +256,7 @@ export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz =
     return out;
   }
   const r = skillRange(s, u, id, px, pz);
+  if (id === 'soulburst') return s.souls.filter(o => cheb(o.x, o.z, px, pz) <= r).map(o => ({ x: o.x, z: o.z }));
   if (sk.target !== 'tile') {
     for (const o of s.units) if (isAlive(o) && unitOk(s, u, id, o, px, pz, r)) out.push({ x: o === u ? px : o.x, z: o === u ? pz : o.z, id: o.id });
     return out;
@@ -268,9 +295,22 @@ export function unitsIn(s: BattleState, tiles: readonly Pos[]): Unit[] {
   return out;
 }
 
+/** Equalize does something: an enemy healthier than `u`, or an ally hurt worse. */
+export function evens(u: Unit, o: Unit): boolean {
+  const mine = u.hp / u.maxHp, theirs = o.hp / o.maxHp;
+  return o.team === u.team ? theirs < mine : theirs > mine;
+}
+
+/** A Bone Wall's tiles: three across the line from `u` to (tx, tz), centred there, skipping solid tiles and units. */
+export function boneTiles(s: BattleState, u: Unit, tx: number, tz: number): Pos[] {
+  const dx = sign(tx - u.x), dz = sign(tz - u.z);
+  return [-1, 0, 1].map(k => ({ x: tx - dz * k, z: tz + dx * k })).filter(p => inb(p.x, p.z) && !isSolid(s, p.x, p.z) && !unitAt(s, p.x, p.z));
+}
+
 /** The tiles a cast at (tx, tz) affects, for highlighting (and a Call's area). */
-export function aoeTiles(_s: BattleState, u: Unit, id: SkillId, tx: number, tz: number): Pos[] {
+export function aoeTiles(s: BattleState, u: Unit, id: SkillId, tx: number, tz: number): Pos[] {
   const sk = SKILLS[id];
+  if (id === 'bonewall') return boneTiles(s, u, tx, tz);
   if (sk.aoe && sk.target === 'self') return square(u.x, u.z, sk.aoe);
   if (sk.aoe && sk.target === 'tile') return square(tx, tz, sk.aoe);
   return [{ x: tx, z: tz }];
@@ -301,6 +341,7 @@ function cloneStatuses(st: Statuses): Statuses {
   if (st.poison) o.poison = { ...st.poison };
   if (st.encased) o.encased = { ...st.encased };
   if (st.share) o.share = { ...st.share };
+  if (st.wither) o.wither = { ...st.wither };
   return o;
 }
 function clonePhase(p: Phase): Phase {
@@ -324,6 +365,7 @@ export function cloneState(s: BattleState): BattleState {
       dmg: [s.stats.dmg[0], s.stats.dmg[1]], heal: [s.stats.heal[0], s.stats.heal[1]],
       downs: [s.stats.downs[0], s.stats.downs[1]], revives: [s.stats.revives[0], s.stats.revives[1]],
     },
+    souls: s.souls.map(o => ({ ...o })),
     calls: s.calls.map(c => ({ ...c, recall: c.recall ? { ...c.recall } : null })),
     threads: s.threads.map(t => ({ ...t })),
     callRound: [s.callRound[0], s.callRound[1]],

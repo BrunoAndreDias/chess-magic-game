@@ -81,10 +81,11 @@ describe('calls', () => {
     expect(called.state.calls).toEqual([{ by: 1, team: 0, skill: 'meteor', x: 6, z: 2, recall: null }]);
 
     const landed = run(called.state, end(1), end(3), end(2), ...orders([1, 2], [3]), end(3));
-    expect(after(landed.events, 'activate').slice(-6)).toEqual([
+    expect(after(landed.events, 'activate').slice(-7)).toEqual([
       { type: 'activate', id: 1, team: 0, qi: 1 },
       expect.objectContaining({ type: 'land', id: 1, skill: 'meteor', x: 6, z: 2, power: 1 }),
       { type: 'damage', id: 3, amount: 30, absorbed: 0, kind: 'fire' },
+      { type: 'soul', x: 6, z: 2 },
       { type: 'status', id: 3, key: 'burn' },
       { type: 'damage', id: 2, amount: 15, absorbed: 0, kind: 'fire' },
       { type: 'status', id: 2, key: 'burn' },
@@ -99,6 +100,7 @@ describe('calls', () => {
     expect(r.events.slice(1)).toEqual([
       { type: 'damage', id: 1, amount: 14, absorbed: 0, kind: 'phys' },
       { type: 'downed', id: 1, team: 0 },
+      { type: 'soul', x: 4, z: 0 },
       { type: 'fizzle', id: 1 },
       { type: 'over', winner: 1, reason: 'wipe' },
     ]);
@@ -233,7 +235,7 @@ describe('threads', () => {
   test('a Thread snaps the moment its end is Downed, even by the blow that ends the battle', () => {
     const s0 = stage({ a: [bare('astromancer'), bare('weaver')], b: [bare('weaver')], place: { 1: [4, 0], 2: [5, 1], 3: [6, 3] }, hp: { 3: 10 } });
     const r = run(s0, ...orders([1, 2], [3]), cast(1, 'meteor', 6, 3), end(1), end(3), cast(2, 'tether', 6, 3), end(2), ...orders([1, 2], [3]), end(3));
-    expect(after(r.events, 'downed')).toEqual([{ type: 'downed', id: 3, team: 1 }, { type: 'snap', by: 2, to: 3 }, { type: 'over', winner: 0, reason: 'wipe' }]);
+    expect(after(r.events, 'downed')).toEqual([{ type: 'downed', id: 3, team: 1 }, { type: 'soul', x: 6, z: 3 }, { type: 'snap', by: 2, to: 3 }, { type: 'over', winner: 0, reason: 'wipe' }]);
     expect(r.state.threads).toEqual([]);
   });
 

@@ -5,14 +5,15 @@ export interface Pos { x: number; z: number }
 
 export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 'A';
 export type MapId = 'span' | 'storm' | 'altar';
-export type ClassId = 'astromancer' | 'weaver';
+export type ClassId = 'astromancer' | 'weaver' | 'gravecaller';
 export type Role = 'tank' | 'damage' | 'support';
 
 export type ClassSkillId =
   | 'meteor' | 'thunderhead' | 'gravitywell' | 'frostbolt' | 'firebolt' | 'prison' | 'recall'
-  | 'reel' | 'web' | 'cocoon' | 'venombite' | 'puppet' | 'sharedpain' | 'skitter';
+  | 'reel' | 'web' | 'cocoon' | 'venombite' | 'puppet' | 'sharedpain' | 'skitter'
+  | 'lastrites' | 'bonewall' | 'wither' | 'soulbolt' | 'soulburst' | 'siphon' | 'equalize';
 /** Every build has its class's innate: the class mechanic, always on. */
-export type InnateSkillId = 'snap' | 'tether';
+export type InnateSkillId = 'snap' | 'tether' | 'harvest';
 export type BasicSkillId = `basic_${ClassId}`;
 export type SkillId = ClassSkillId | InnateSkillId | BasicSkillId | 'helpup';
 /** Skills that mark an area now and land at the start of the caster's next activation. */
@@ -26,7 +27,10 @@ export type NodeId =
   | 'a_recall' | 'a_hp' | 'a_cleanse' | 'a_benev'
   | 'w_hp' | 'w_leash' | 'w_thread' | 'w_fate'
   | 'w_poison' | 'w_fang' | 'w_bite' | 'w_feast'
-  | 'w_cocoon' | 'w_reach' | 'w_silk' | 'w_spare';
+  | 'w_cocoon' | 'w_reach' | 'w_silk' | 'w_spare'
+  | 'g_hp' | 'g_cap' | 'g_ward' | 'g_undying'
+  | 'g_bolt' | 'g_reach' | 'g_burst' | 'g_reap'
+  | 'g_rites' | 'g_hp2' | 'g_shield' | 'g_ferry';
 
 /** Summed numeric effects of a character's passive-tree picks. */
 export type Mods = Partial<Record<
@@ -34,7 +38,8 @@ export type Mods = Partial<Record<
   | 'fireDmg' | 'callRange' | 'burnDmg' | 'twinStars' | 'frostDmg' | 'prisonCd' | 'callWet' | 'absZero'
   | 'recallRange' | 'recallCleanse' | 'benevolent'
   | 'leashDmg' | 'threads' | 'webOfFate' | 'poisonDmg' | 'basicDmg' | 'biteHeal' | 'feast'
-  | 'cocoonCd' | 'threadRange' | 'webTurns' | 'fateWeaver',
+  | 'cocoonCd' | 'threadRange' | 'webTurns' | 'fateWeaver'
+  | 'soulCap' | 'soulShield' | 'undying' | 'soulBoltDmg' | 'harvestRange' | 'burstDmg' | 'reap' | 'riteRange' | 'riteShield' | 'ferryman',
   number>>;
 
 /** A pair of classes in a party; `a === b` means that class twice. */
@@ -42,7 +47,7 @@ export type PairId = 'startether' | 'conjunction' | 'greatweb';
 export type PartyBonusId = PairId | 'coverage';
 export type PartyBonuses = ReadonlySet<PartyBonusId>;
 
-export type ComboName = 'SLAM' | 'ABYSS' | 'FREEZE' | 'CONDUCT' | 'COMBUST' | 'SHATTER' | 'EXECUTE' | 'IGNITE';
+export type ComboName = 'SLAM' | 'ABYSS' | 'FREEZE' | 'CONDUCT' | 'COMBUST' | 'SHATTER' | 'EXECUTE' | 'IGNITE' | 'REAP';
 
 /** `t` counts the owner's remaining turns. `by` is the unit that applied it (null for terrain), shown as the combo's setup. */
 export interface Timed { t: number; by: UnitId | null }
@@ -57,6 +62,8 @@ export interface Statuses {
   encased?: Timed & { ice: boolean };
   /** Shared Pain on the Weaver: half the damage to the allies it holds comes to it. */
   share?: Timed;
+  /** Can't be healed or shielded; a hit that leaves it at 20% HP or less Downs it (REAP). */
+  wither?: Timed;
 }
 export type StatusKey = keyof Statuses;
 
@@ -86,6 +93,8 @@ export interface Unit {
   acted: boolean;
   /** Fate Weaver already saved it once. */
   spared: boolean;
+  /** Souls a Gravecaller holds; 0 for everyone else. */
+  souls: number;
 }
 
 /** Overlays on a tile. Each number is the rounds left. */
@@ -94,8 +103,13 @@ export interface TileFx {
   smoke?: number;
   ice?: number;
   web?: number;
+  /** A Bone Wall: blocks moves, sight and Threads like a wall. */
+  bone?: number;
   spent?: true;
 }
+
+/** A Soul on the ground, one per tile. `t` is rounds left. */
+export interface Soul { x: number; z: number; t: number }
 
 /** A pending Call. `recall` is Recall's snapshot of the ally, taken at cast. */
 export interface Call {
@@ -133,6 +147,7 @@ export interface BattleState {
   /** Sun Altar points; [0, 0] on every other map. */
   favor: [number, number];
   stats: BattleStats;
+  souls: Soul[];
   /** Oldest first. */
   calls: Call[];
   /** Oldest first: a Weaver past its cap drops its oldest. */
@@ -163,8 +178,8 @@ export type Command =
   | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos }
   | { kind: 'endTurn'; unit: UnitId };
 
-export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'poison' | 'burn' | 'dark' | 'slam' | 'share' | 'storm';
-export type TerrainChange = 'ice' | 'smoke' | 'web';
+export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'poison' | 'burn' | 'dark' | 'slam' | 'share' | 'storm' | 'drain';
+export type TerrainChange = 'ice' | 'smoke' | 'web' | 'bone';
 
 export type BattleEvent =
   | { type: 'round'; round: number; starter: Team; queue: UnitId[] }
@@ -201,6 +216,12 @@ export type BattleEvent =
   /** A Thread broke. */
   | { type: 'snap'; by: UnitId; to: UnitId }
   | { type: 'encased'; id: UnitId }
+  /** A Soul drops on a tile. */
+  | { type: 'soul'; x: number; z: number }
+  /** A Gravecaller takes the Souls from these tiles into its hand. */
+  | { type: 'gather'; id: UnitId; from: Pos[] }
+  /** A Gravecaller spends a held Soul: a Rite, or an Undying turn instead of bleeding. */
+  | { type: 'spend'; id: UnitId }
   | { type: 'roundEnd'; round: number; burnt: number[] }
   | { type: 'over'; winner: Team | 'draw'; reason: OverReason };
 

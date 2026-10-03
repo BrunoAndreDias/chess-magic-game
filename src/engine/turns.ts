@@ -1,4 +1,4 @@
-import { actionsOf, current, idx, isAlive, standing, terrAt } from './board';
+import { actionsOf, cheb, current, idx, isAlive, standing, terrAt } from './board';
 import { addStatus, breakThreads, checkWinner, damage, fxEmpty, heal, landCalls, webOfFate } from './combat';
 import { endOfRound } from './hazards';
 import { DARK_ROUND, MAX_ROUNDS } from './tables';
@@ -55,7 +55,9 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     if (over(s)) return;
     delete u.st.share;
     if (u.life.kind === 'downed') {
+      if (u.mods.undying && u.souls > 0 && !u.st.encased) { u.souls--; ev.push({ type: 'spend', id: u.id }); return; }
       bleed(s, u, ev);
+      if (u.mods.undying && u.life.kind === 'downed') return;
       if (advance(s, ev)) return;
       continue;
     }
@@ -79,11 +81,12 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
   }
 }
 
-/** A Downed unit's turn: it bleeds, unless Encased (a Cocoon). */
+/** A Downed unit's turn: it bleeds, unless Encased (a Cocoon) or lying within 2 of its party's standing Ferryman. */
 function bleed(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   if (u.life.kind !== 'downed') return;
   const enc = u.st.encased;
   if (enc) { if (--enc.t <= 0) delete u.st.encased; return; }
+  if (s.units.some(f => f.team === u.team && f.mods.ferryman && standing(f) && cheb(f.x, f.z, u.x, u.z) <= 2)) return;
   const left = u.life.bleed - 1;
   if (left <= 0) {
     u.life = { kind: 'dead' };
@@ -109,9 +112,11 @@ function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
     const n = s.threads.filter(t => t.by === u.id).length;
     if (n && 10 * n > u.shield) { u.shield = 10 * n; ev.push({ type: 'shield', id: u.id, amount: 10 * n }); }
   }
+  const ward = (u.mods.soulShield || 0) * u.souls;
+  if (ward > u.shield && !u.st.wither) { u.shield = ward; ev.push({ type: 'shield', id: u.id, amount: ward }); }
 }
 
-const TICKING = ['root', 'expose', 'burn', 'poison'] as const;
+const TICKING = ['root', 'expose', 'burn', 'poison', 'wither'] as const;
 function tickStatuses(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   for (const k of TICKING) {
     const v = u.st[k];
@@ -159,7 +164,7 @@ function advance(s: BattleState, ev: BattleEvent[]): boolean {
   return false;
 }
 
-const EXPIRING = ['fire', 'smoke', 'ice', 'web'] as const;
+const EXPIRING = ['fire', 'smoke', 'ice', 'web', 'bone'] as const;
 function endRound(s: BattleState, ev: BattleEvent[]): void {
   endOfRound(s, ev);
   if (s.phase.kind === 'over') return;
@@ -175,6 +180,8 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
     }
     if (fxEmpty(f)) s.fx[k] = undefined;
   });
+  for (const o of s.souls) o.t--;
+  s.souls = s.souls.filter(o => o.t > 0);
   ev.push({ type: 'roundEnd', round: s.round, burnt });
   s.round++;
   s.starter = s.starter === 0 ? 1 : 0;
