@@ -32,6 +32,7 @@ const MOD_KEYS = [
   'leashDmg', 'threads', 'webOfFate', 'poisonDmg', 'basicDmg', 'biteHeal', 'feast',
   'cocoonCd', 'threadRange', 'webTurns', 'fateWeaver',
   'soulCap', 'soulShield', 'undying', 'soulBoltDmg', 'harvestRange', 'burstDmg', 'reap', 'riteRange', 'riteShield', 'ferryman',
+  'guardShield', 'tollHush', 'tollCd', 'knellDmg', 'lastDmg', 'pealDmg', 'finalHour', 'tollRange', 'encoreCd', 'accel',
 ] satisfies ModKey[];
 type Assert<T extends true> = T;
 export type EveryModKeyListed = Assert<[Exclude<ModKey, (typeof MOD_KEYS)[number]>] extends [never] ? true : false>;

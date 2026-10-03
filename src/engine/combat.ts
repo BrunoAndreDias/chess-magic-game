@@ -1,5 +1,5 @@
 import {
-  BAD_KEYS, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, los,
+  BAD_KEYS, actedCount, actedThisRound, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, lastToAct, los, nextTurn,
   nearestFree, onHigh, puppetMoves, reachable, sign, soulAt, soulCap, soulsInReach, square, standing, terrAt, threadCap, unitAt, unitsIn,
 } from './board';
 import { BLEED, CLASSES, DARK_ROUND, DIR8, SKILLS, SOUL_HIT, SOUL_ROUNDS, isCall } from './tables';
@@ -56,6 +56,8 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
   if (kind === 'fire') v *= 1 + (m.fireDmg || 0);
   if (kind === 'frost') v *= 1 + (m.frostDmg || 0);
   if (onHigh(s, u) && terrAt(s, tgt.x, tgt.z) !== '^' && cheb(u.x, u.z, tgt.x, tgt.z) > 1) v *= 1.15;
+  if (m.lastDmg && lastToAct(s, u, false)) v *= 1 + m.lastDmg;
+  if (m.finalHour && lastToAct(s, u, true)) v *= 1 + m.finalHour;
   for (const t of s.threads) {
     if (t.to !== u.id || t.by === tgt.id) continue;
     const w = getUnit(s, t.by);
@@ -115,6 +117,7 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (src) s.stats.dmg[src.team] += d + ab;
   ev.push({ type: 'damage', id: o.id, amount: d, absorbed: ab, kind });
   if (fw) { o.spared = true; encase(o, 1, fw.id, false, ev); }
+  if (o.st.guard && src && src.team !== o.team && standing(src)) hush(s, src, o.id, ev);
   if (o.hp <= 0) { down(s, o, ev, src); return d; }
   if (d >= SOUL_HIT) dropSoul(s, o.x, o.z, ev);
   if (src && src.team !== o.team && !o.st.encased && o.hp * 5 <= o.maxHp && (o.st.wither || src.mods.reap)) {
@@ -173,6 +176,10 @@ function encase(o: Unit, t: number, by: UnitId, ice: boolean, ev: BattleEvent[])
 /** A Root that still holds on the unit's next turn, even when it lands during its own. */
 function root(s: BattleState, o: Unit, by: UnitId | null, ev: BattleEvent[]): void {
   addStatus(o, 'root', { t: current(s) === o ? 2 : 1, by }, ev);
+}
+/** Hushed through the unit's next turn, even when it lands during its own. */
+function hush(s: BattleState, o: Unit, by: UnitId, ev: BattleEvent[]): void {
+  addStatus(o, 'hush', { t: current(s) === o ? 2 : 1, by }, ev);
 }
 export function heal(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], src: Unit | null): number {
   if (!standing(o) || o.st.wither) return 0;
@@ -445,6 +452,63 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     const hurt = (a: Unit) => a.hp / a.maxHp;
     const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && cheb(a.x, a.z, u.x, u.z) <= 3).sort((a, b) => hurt(a) - hurt(b))[0];
     if (mend && took > 0) heal(s, mend, took, c.ev, u);
+  },
+  toll(c) {
+    const s = c.s, u = c.u, o = tgt(c), ph = s.phase;
+    if (ph.kind !== 'act') return;
+    ph.tolled.push(o.id);
+    if (o === u) {
+      ph.queue.splice(ph.qi, 1);
+      ph.queue.push({ id: u.id, extra: true });
+    } else {
+      const [turn] = ph.queue.splice(nextTurn(s, o.id), 1);
+      if (!turn) return;
+      if (o.team === u.team) ph.queue.splice(ph.qi + 1, 0, turn); else ph.queue.push(turn);
+    }
+    c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
+    if (o.team === u.team && o !== u && u.mods.accel) { addStatus(o, 'haste', { t: 1, by: u.id }, c.ev); shield(o, 15, c.ev); }
+    if (o.team !== u.team && u.mods.tollHush) addStatus(o, 'hush', { t: 1, by: u.id }, c.ev);
+  },
+  knell(c) {
+    const s = c.s, o = tgt(c), late = actedThisRound(s, o.id);
+    hit(c, o, (12 + (c.u.mods.knellDmg || 0)) * (late ? 1.5 : 1), 'phys');
+    if (late && standing(o)) root(s, o, c.u.id, c.ev);
+  },
+  hush(c) { hush(c.s, tgt(c), c.u.id, c.ev); },
+  peal(c) {
+    const s = c.s, u = c.u, dmg = 10 + 3 * actedCount(s) + (u.mods.pealDmg || 0);
+    for (const o of s.units) if (o.team !== u.team && standing(o) && cheb(o.x, o.z, u.x, u.z) <= 2) hit(c, o, dmg, 'phys');
+  },
+  encore(c) {
+    const ph = c.s.phase;
+    if (ph.kind !== 'act') return;
+    ph.queue.push({ id: tgt(c).id, extra: true });
+    c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
+  },
+  overture(c) {
+    const s = c.s, u = c.u, ph = s.phase;
+    if (ph.kind !== 'act') return;
+    const later = ph.queue.slice(ph.qi + 1), ours = later.filter(t => getUnit(s, t.id)?.team === u.team);
+    ph.queue = [...ph.queue.slice(0, ph.qi + 1), ...ours, ...later.filter(t => !ours.includes(t))];
+    c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
+  },
+  hourglass(c) {
+    const s = c.s, u = c.u, o = tgt(c);
+    if (o.team === u.team) {
+      for (const k of BAD_KEYS) delete o.st[k];
+      c.ev.push({ type: 'cleanse', id: o.id });
+      return;
+    }
+    const { burn: b, poison: p } = o.st;
+    o.st = {};
+    o.shield = 0;
+    c.ev.push({ type: 'cleanse', id: o.id });
+    if (b) damage(s, o, b.dmg * b.t, c.ev, 'burn', u);
+    if (p && standing(o)) damage(s, o, p.dmg * p.t, c.ev, 'poison', u);
+  },
+  bellguard(c) {
+    shield(c.u, 25 + (c.u.mods.guardShield || 0), c.ev);
+    addStatus(c.u, 'guard', { t: 1, by: c.u.id }, c.ev);
   },
   equalize(c) {
     const s = c.s, u = c.u, o = tgt(c), mid = (u.hp / u.maxHp + o.hp / o.maxHp) / 2;

@@ -43,7 +43,7 @@ const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
   dark: '#c8a0ff', slam: '#ffb08a', share: '#f0a0d0', storm: '#bfe0ff', drain: '#ff8a8a',
 };
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
-  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain', wither: 'Withered!',
+  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain', wither: 'Withered!', hush: 'Hushed!', guard: 'Bell Guard', haste: 'Quickened',
 };
 const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa, bone: 0xe8e2d0 };
 const DUST = 0x9a7a5a;
@@ -53,9 +53,10 @@ type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | '
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
   snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
   tether: 'none', reel: 'nova', web: 'lob', cocoon: 'link', venombite: 'melee', puppet: 'link', sharedpain: 'nova', skitter: 'none',
+  toll: 'link', knell: 'proj', hush: 'link', peal: 'nova', encore: 'heal', overture: 'nova', hourglass: 'link', bellguard: 'nova',
   harvest: 'nova', lastrites: 'heal', bonewall: 'raise', wither: 'link', soulbolt: 'proj', soulburst: 'raise', siphon: 'link', equalize: 'link',
   helpup: 'heal',
-  basic_astromancer: 'proj', basic_weaver: 'melee', basic_gravecaller: 'proj',
+  basic_astromancer: 'proj', basic_weaver: 'melee', basic_gravecaller: 'proj', basic_bellringer: 'melee',
 };
 
 interface Shot { e: Extract<BattleEvent, { type: 'cast' }>; c: PlayCtx; v: UnitView; from: THREE.Vector3; to: THREE.Vector3; color: number; basic: boolean }
@@ -143,6 +144,7 @@ async function castPose(c: PlayCtx, v: UnitView): Promise<void> {
 /** One entry per event type: adding an event type to the engine fails compilation here until it has an animation. */
 export const PLAY: Handlers = {
   round: () => {},
+  queue: () => {},
   storm: async (e, c) => {
     for (const t of e.tiles) {
       const ground = c.terrain.at(t.x, t.z, 0.1);

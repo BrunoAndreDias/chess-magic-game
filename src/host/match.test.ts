@@ -24,7 +24,7 @@ describe('Match', () => {
     expect(m.submit('ana', { kind: 'order', team: 0, order: [id(1), id(2), id(3)] }).ok).toBe(true);
 
     const ph = m.state.phase;
-    expect(ph.kind === 'act' && ph.queue[ph.qi]).toBe(1);
+    expect(ph.kind === 'act' && ph.queue[ph.qi]).toEqual({ id: 1, extra: false });
     expect(m.submit('ana', { kind: 'endTurn', unit: id(4) })).toEqual({ ok: false, error: 'ana does not hold unit 4' });
     expect(m.submit('bob', { kind: 'endTurn', unit: id(1) })).toEqual({ ok: false, error: 'bob does not hold unit 1' });
 
@@ -34,7 +34,7 @@ describe('Match', () => {
     expect(seen[0]).toEqual({ type: 'activate', id: 6, team: 1, qi: 1 });
     expect(seen.at(-1)).toEqual({ type: 'activate', id: 2, team: 0, qi: 2 });
     const after = m.state.phase;
-    expect(after.kind === 'act' && after.queue[after.qi]).toBe(2);
+    expect(after.kind === 'act' && after.queue[after.qi]).toEqual({ id: 2, extra: false });
   });
 
   test('an all-AI match plays to the end, the same way for the same seed', () => {

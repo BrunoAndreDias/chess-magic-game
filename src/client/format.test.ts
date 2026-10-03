@@ -17,7 +17,7 @@ const line = (e: BattleEvent) => describe(e, s);
 
 suite('describe', () => {
   test('names the round order', () => {
-    expect(line({ type: 'round', round: 2, starter: 1, queue: [id(4), id(1), id(5), id(2), id(3), id(6)] }))
+    expect(line({ type: 'round', round: 2, starter: 1, queue: [4, 1, 5, 2, 3, 6].map(n => ({ id: id(n), extra: false })) }))
       .toEqual({ tone: 'sys', text: 'Round 2: Morvath → Aldric → Ysolde → Seren → Kip → Grix' });
   });
   test('casts name the skill and the target, coloured by the caster', () => {

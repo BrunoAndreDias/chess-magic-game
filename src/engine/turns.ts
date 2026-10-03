@@ -28,9 +28,9 @@ export function setOrders(s: BattleState, ord0: readonly UnitId[], ord1: readonl
     return out;
   };
   const o: [UnitId[], UnitId[]] = [fix(0, ord0), fix(1, ord1)];
-  const queue = buildQueue(o[s.starter], o[s.starter === 0 ? 1 : 0]);
-  s.phase = { kind: 'act', queue, qi: 0 };
-  const ev: BattleEvent[] = [{ type: 'round', round: s.round, starter: s.starter, queue: queue.slice() }];
+  const queue = buildQueue(o[s.starter], o[s.starter === 0 ? 1 : 0]).map(id => ({ id, extra: false }));
+  s.phase = { kind: 'act', queue, qi: 0, tolled: [] };
+  const ev: BattleEvent[] = [{ type: 'round', round: s.round, starter: s.starter, queue: queue.map(t => ({ ...t })) }];
   beginActivation(s, ev);
   return ev;
 }
@@ -50,10 +50,11 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     }
     ev.push({ type: 'activate', id: u.id, team: u.team, qi: ph.qi });
     u.moved = false; u.acted = false;
-    for (const id of actionsOf(u)) { const c = u.cd[id]; if (c !== undefined && c > 0) u.cd[id] = c - 1; }
+    if (!ph.queue[ph.qi]?.extra) for (const id of actionsOf(u)) { const c = u.cd[id]; if (c !== undefined && c > 0) u.cd[id] = c - 1; }
     landCalls(s, u, ev);
     if (over(s)) return;
     delete u.st.share;
+    delete u.st.guard;
     if (u.life.kind === 'downed') {
       if (u.mods.undying && u.souls > 0 && !u.st.encased) { u.souls--; ev.push({ type: 'spend', id: u.id }); return; }
       bleed(s, u, ev);
@@ -116,7 +117,7 @@ function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   if (ward > u.shield && !u.st.wither) { u.shield = ward; ev.push({ type: 'shield', id: u.id, amount: ward }); }
 }
 
-const TICKING = ['root', 'expose', 'burn', 'poison', 'wither'] as const;
+const TICKING = ['root', 'expose', 'burn', 'poison', 'wither', 'hush', 'haste'] as const;
 function tickStatuses(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   for (const k of TICKING) {
     const v = u.st[k];
@@ -133,6 +134,15 @@ function thaw(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   if (!enc || --enc.t > 0) return;
   delete u.st.encased;
   if (enc.ice) addStatus(u, 'wet', { t: 2, by: enc.by }, ev);
+}
+
+/** Starts whoever's turn the queue now points at: after a Final Hour Toll moved the caster's own turn to the end. */
+export function resumeQueue(s: BattleState): BattleEvent[] {
+  const ev: BattleEvent[] = [];
+  const ph = s.phase;
+  if (ph.kind !== 'act') return ev;
+  if (ph.qi >= ph.queue.length) endRound(s, ev); else beginActivation(s, ev);
+  return ev;
 }
 
 /** Ends the current unit's turn and runs the queue on to the next unit that can act. */

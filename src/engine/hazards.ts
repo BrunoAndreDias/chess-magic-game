@@ -120,7 +120,7 @@ export function doomed(s: BattleState, u: Unit): boolean {
   if (!standing(u) || u.st.root || u.st.stun) return true;
   const ph = s.phase;
   if (ph.kind !== 'act') return false;
-  const i = ph.queue.indexOf(u.id);
+  const i = ph.queue.findIndex(t => t.id === u.id);
   return (i >= 0 && i < ph.qi) || (i === ph.qi && u.moved);
 }
 

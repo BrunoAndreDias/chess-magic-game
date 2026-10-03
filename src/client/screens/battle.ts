@@ -277,7 +277,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const head = h('div', { class: 'rd' }, `Round ${s.round}`, h('small', { style: { color: TEAM_TEXT[st] } }, `${TEAM_NAME[st]} starts`));
     let chips: HTMLElement[];
     if (ph.kind === 'act') {
-      chips = ph.queue.map((id, k) => {
+      chips = ph.queue.map(({ id }, k) => {
         const u = getUnit(s, id);
         if (!u) return h('div');
         const C = CLASSES[u.cls], closes = k === ph.queue.length - 1 && u.team === st && ph.queue.length > 2;

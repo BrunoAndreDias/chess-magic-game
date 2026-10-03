@@ -1,9 +1,14 @@
 import { apply, createBattle } from './battle';
 import { mulberry32 } from './rng';
-import type { BattleEvent, BattleState, ClassId, ClassSkillId, Command, Life, MapId, MemberBuild, NodeId, SkillId, Team, TerrainChar, UnitId } from './types';
+import type { BattleEvent, BattleState, ClassId, ClassSkillId, Command, Life, MapId, MemberBuild, NodeId, SkillId, Team, TerrainChar, Turn, UnitId } from './types';
 import { CLASSES, N } from './tables';
 
 export const uid = (n: number) => n as UnitId;
+/** A queue of turns; ids after `'+'` are extra turns. */
+export const turns = (...ids: (number | '+')[]): Turn[] => {
+  let extra = false;
+  return ids.flatMap(n => (n === '+' ? ((extra = true), []) : [{ id: uid(n), extra }]));
+};
 
 /** A bare member: default skills, no passive picks, so damage numbers are the skill's base numbers. */
 export function bare(cls: ClassId, skills: readonly ClassSkillId[] = CLASSES[cls].defaults, tree: readonly NodeId[] = []): MemberBuild {

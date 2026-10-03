@@ -126,8 +126,13 @@ export const CLASSES = {
     plays: 'A bone priest who ferries souls, raising the fallen and reaping the dying.', basic: { name: 'Bone Lash', range: 2, dmg: 12 },
     skills: ['lastrites', 'bonewall', 'wither', 'soulbolt', 'soulburst', 'siphon', 'equalize'], defaults: ['soulbolt', 'lastrites', 'siphon'],
     tree: ['g_bolt', 'g_reach', 'g_burst', 'g_reap', 'g_hp', 'g_cap'] },
+  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', model: 'guardian', hp: 175, move: 3, innate: 'toll',
+    mechanic: 'Toll: move a unit’s turn in this round’s queue. Enemies to the end, allies to right after you.',
+    plays: 'A monk with a great bronze bell on its back, who calls the hour.', basic: { name: 'Clapper', range: 1, dmg: 15 },
+    skills: ['knell', 'hush', 'peal', 'encore', 'overture', 'hourglass', 'bellguard'], defaults: ['knell', 'hush', 'peal'],
+    tree: ['b_knell', 'b_last', 'b_peal', 'b_final', 'b_hp', 'b_clapper'] },
 } satisfies Record<ClassId, ClassDef>;
-export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver', 'gravecaller'];
+export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver', 'gravecaller', 'bellringer'];
 
 // ---------- passive trees: 3 paths of 4 (three nodes, then a keystone). A node needs the one before it ----------
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
@@ -182,6 +187,22 @@ const TREE_TABLE = {
       { id: 'g_hp2', name: 'Pale Robes', text: '+20 max HP.', mods: { hp: 20 } },
       { id: 'g_shield', name: 'Safe Passage', text: 'Allies you stand up get a 20 shield.', mods: { riteShield: 20 } },
       { id: 'g_ferry', name: 'Ferryman', key: true, text: 'Downed allies within 2 of you don’t bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at 60% HP.', mods: { ferryman: 1 } }] }],
+  bellringer: [
+    { name: 'Carillon', role: 'tank', color: '#e0b04a', nodes: [
+      { id: 'b_hp', name: 'Bronze Frame', text: '+30 max HP.', mods: { hp: 30 } },
+      { id: 'b_clapper', name: 'Heavy Clapper', text: 'Clapper +6 damage.', mods: { basicDmg: 6 } },
+      { id: 'b_guard', name: 'Thick Bell', text: 'Bell Guard +15 shield.', mods: { guardShield: 15 } },
+      { id: 'b_thee', name: 'Toll for Thee', key: true, text: 'Enemies you Toll are Hushed on their moved turn, and Toll’s cooldown −1.', mods: { tollHush: 1, tollCd: 1 } }] },
+    { name: 'Herald', role: 'damage', color: '#ff8a4a', nodes: [
+      { id: 'b_knell', name: 'Deep Knell', text: 'Knell +6 damage.', mods: { knellDmg: 6 } },
+      { id: 'b_last', name: 'Last Word', text: '+20% damage when you’re the last of your party to act this round.', mods: { lastDmg: 0.2 } },
+      { id: 'b_peal', name: 'Loud Peal', text: 'Peal +3 damage.', mods: { pealDmg: 3 } },
+      { id: 'b_final', name: 'Final Hour', key: true, text: 'Toll can target you before you move or act: your turn moves to the end of the round, and a turn you take last in the round deals +50% damage.', mods: { finalHour: 0.5 } }] },
+    { name: 'Conductor', role: 'support', color: '#8fd1ff', nodes: [
+      { id: 'b_reach', name: 'Far Toll', text: 'Toll range +2.', mods: { tollRange: 2 } },
+      { id: 'b_encore', name: 'Swift Encore', text: 'Encore cooldown −1.', mods: { encoreCd: 1 } },
+      { id: 'b_hp2', name: 'Steady Hands', text: '+20 max HP.', mods: { hp: 20 } },
+      { id: 'b_accel', name: 'Accelerando', key: true, text: 'Allies you Toll get +2 move and a 15 shield on that turn, and Toll’s cooldown −1.', mods: { accel: 1, tollCd: 1 } }] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
 
@@ -217,6 +238,9 @@ const STATUS_TABLE = {
   encased: { name: 'Encased', icon: '🧊', color: '#b8e8ff', text: 'Skips its turn, can’t be damaged or moved.' },
   share: { name: 'Shared Pain', icon: '🕸️', color: '#d06a9a', text: 'Half the damage to the allies it holds comes to it instead.' },
   wither: { name: 'Withered', icon: '🥀', color: '#b89a6a', bad: true, text: 'Can’t be healed or shielded. A hit that leaves it at 20% HP or less Downs it (REAP).' },
+  hush: { name: 'Hushed', icon: '🔇', color: '#c8b4ff', bad: true, text: 'Can move and use its basic attack, nothing else. Free skills included.' },
+  guard: { name: 'Bell Guard', icon: '🛎️', color: '#e0b04a', text: 'Until its next turn, enemies that hit it are Hushed.' },
+  haste: { name: 'Quickened', icon: '💨', color: '#8fd1ff', text: '+2 move on its next turn.' },
 } satisfies Record<StatusKey, StatusDef>;
 export const STATUS: Readonly<Record<StatusKey, StatusDef>> = STATUS_TABLE;
 
@@ -290,12 +314,30 @@ const SKILL_TABLE = {
   equalize: { name: 'Equalize', icon: '⚖️', target: 'any', range: 3, cd: 3, cls: 'gravecaller',
     text: 'Your HP % and its HP % even out, moving at most 30 HP. Take from an enemy healthier than you, give to an ally hurt worse.' },
 
+  toll: { name: 'Toll', icon: '🔔', target: 'any', range: 4, cd: 2, free: true, innate: true, cls: 'bellringer', color: '#e0b04a',
+    text: 'Free. A unit within 4 that hasn’t acted this round: an enemy moves to the end of the round, an ally to right after you. Once per unit per round.' },
+  knell: { name: 'Knell', icon: '🔕', target: 'enemy', range: 4, los: true, cd: 2, cls: 'bellringer', color: '#e0b04a', pays: ['Late → ×1.5, Rooted'],
+    text: '12. Late (it already acted this round): ×1.5 and Rooted.' },
+  hush: { name: 'Hush', icon: '🔇', target: 'enemy', range: 3, cd: 3, cls: 'bellringer', color: '#c8b4ff', sets: ['Hushed'],
+    text: 'Hushed for its next turn: it can move and use its basic attack, nothing else. Free innates included.' },
+  peal: { name: 'Peal', icon: '📯', target: 'self', aoe: 2, cd: 2, cls: 'bellringer', color: '#ffd36b',
+    text: 'Every enemy within 2 takes 10, plus 3 for each unit that already acted this round.' },
+  encore: { name: 'Encore', icon: '🎭', target: 'ally', range: 3, cd: 4, noSelf: true, cls: 'bellringer', color: '#8fd1ff',
+    text: 'An ally within 3 that already acted this round takes an extra turn at the end of the round. Cooldowns don’t tick on that turn.' },
+  overture: { name: 'Overture', icon: '🎼', target: 'self', cd: 4, free: true, cls: 'bellringer', color: '#8fd1ff',
+    text: 'Free. Every ally that hasn’t acted this round moves to right after you, in its current order. Not a Toll.' },
+  hourglass: { name: 'Hourglass', icon: '⏳', target: 'any', range: 3, cd: 3, cls: 'bellringer',
+    text: 'Its timed statuses run out now. An enemy takes its remaining Burn and Poison at once and loses its shield; an ally only loses its debuffs.' },
+  bellguard: { name: 'Bell Guard', icon: '🛎️', target: 'self', cd: 3, cls: 'bellringer', color: '#e0b04a',
+    text: 'A 25 shield. Until your next turn, enemies that hit you are Hushed.' },
+
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
     text: 'Pull a Downed ally next to you back up at 30% HP.' },
 
   basic_astromancer: basicSkill('astromancer'),
   basic_weaver: basicSkill('weaver'),
   basic_gravecaller: basicSkill('gravecaller'),
+  basic_bellringer: basicSkill('bellringer'),
 } satisfies Record<SkillId, SkillDef>;
 export const SKILLS: Readonly<Record<SkillId, SkillDef>> = SKILL_TABLE;
 export function isCall(id: SkillId): id is CallSkill { return !!SKILLS[id].call; }

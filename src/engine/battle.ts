@@ -4,7 +4,7 @@ import { partyBonuses, modsOf } from './builds';
 import { performCast, performMove } from './combat';
 import type { Rng } from './rng';
 import { CLASSES, N, mapTerrain } from './tables';
-import { endActivation, setOrders } from './turns';
+import { endActivation, resumeQueue, setOrders } from './turns';
 import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, SkillId, Team, TileFx, UnitId } from './types';
 
 const TEAMS: readonly Team[] = [0, 1];
@@ -83,7 +83,11 @@ export function apply(state: BattleState, cmd: Command): ApplyResult {
       break;
     }
     case 'move': events = performMove(s, cmd.to.x, cmd.to.z); break;
-    case 'cast': events = performCast(s, cmd.skill, cmd.at.x, cmd.at.z); break;
+    case 'cast': {
+      events = performCast(s, cmd.skill, cmd.at.x, cmd.at.z);
+      if (events && s.phase.kind === 'act' && current(s)?.id !== cmd.unit) events.push(...resumeQueue(s));
+      break;
+    }
     case 'endTurn': events = endActivation(s); break;
   }
   if (!events) return { ok: false, error: `${cmd.kind} rejected by the rules` };

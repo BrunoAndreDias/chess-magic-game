@@ -51,7 +51,7 @@ async function serve() {
     return a;
   };
   const snapshot = () => p.evaluate(() => {
-    const s = window.__party.state(), ph = s.phase, id = ph.kind === 'act' ? ph.queue[ph.qi] : null, u = s.units.find(o => o.id === id);
+    const s = window.__party.state(), ph = s.phase, id = ph.kind === 'act' ? ph.queue[ph.qi]?.id : null, u = s.units.find(o => o.id === id);
     return JSON.stringify([s.round, ph.kind, id, u && [u.x, u.z, u.moved, u.acted], document.querySelector('#endturn').disabled]);
   });
   const under = async t => { const xy = await tileXY(t); return p.evaluate(q => { const e = document.elementFromPoint(q.x, q.y); return e ? e.id || e.className || e.tagName : null; }, xy); };
@@ -233,7 +233,7 @@ async function serve() {
         await wait(700);
         const still = await p.evaluate(id => {
           const s = window.__party.state();
-          return s.phase.kind === 'act' && s.phase.queue[s.phase.qi] === id && !document.querySelector('#endturn').disabled;
+          return s.phase.kind === 'act' && s.phase.queue[s.phase.qi]?.id === id && !document.querySelector('#endturn').disabled;
         }, plan.unit);
         if (still) await p.keyboard.press(' ');
       }

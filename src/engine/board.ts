@@ -22,8 +22,32 @@ export function unitAt(s: BattleState, x: number, z: number): Unit | null {
   return null;
 }
 export function current(s: BattleState): Unit | null {
-  return s.phase.kind === 'act' ? getUnit(s, s.phase.queue[s.phase.qi]) : null;
+  return s.phase.kind === 'act' ? getUnit(s, s.phase.queue[s.phase.qi]?.id) : null;
 }
+
+// ---------- the round's queue ----------
+/** `id` already took a turn this round: Late. */
+export function actedThisRound(s: BattleState, id: UnitId): boolean {
+  const ph = s.phase;
+  return ph.kind === 'act' && ph.queue.slice(0, ph.qi).some(t => t.id === id);
+}
+/** Where `id`'s next turn after the current one sits in the queue, or -1. */
+export function nextTurn(s: BattleState, id: UnitId): number {
+  const ph = s.phase;
+  return ph.kind === 'act' ? ph.queue.findIndex((t, k) => k > ph.qi && t.id === id) : -1;
+}
+/** How many units already took a turn this round. */
+export function actedCount(s: BattleState): number {
+  const ph = s.phase;
+  return ph.kind === 'act' ? new Set(ph.queue.slice(0, ph.qi).map(t => t.id)).size : 0;
+}
+/** No turn of `u`'s party (or, with `anyone`, of anybody) comes after the current one this round. */
+export function lastToAct(s: BattleState, u: Unit, anyone: boolean): boolean {
+  const ph = s.phase;
+  if (ph.kind !== 'act' || current(s) !== u) return false;
+  return !ph.queue.slice(ph.qi + 1).some(t => anyone || getUnit(s, t.id)?.team === u.team);
+}
+function tolledThisRound(s: BattleState, id: UnitId): boolean { return s.phase.kind === 'act' && s.phase.tolled.includes(id); }
 
 /** Effective terrain: ice over water, then the base tile. Off the board reads as wall. */
 export function terrAt(s: BattleState, x: number, z: number): TerrainChar {
@@ -90,7 +114,7 @@ export function undying(u: Unit): boolean { return u.life.kind === 'downed' && !
 
 // ---------- movement ----------
 export function moveOf(u: Unit): number {
-  return undying(u) ? 1 : CLASSES[u.cls].move;
+  return undying(u) ? 1 : CLASSES[u.cls].move + (u.st.haste ? 2 : 0);
 }
 
 function pathTo(prev: Map<number, number>, k: number): Pos[] {
@@ -165,6 +189,8 @@ export function cdOf(u: Unit, id: SkillId): number {
   let c = SKILLS[id].cd;
   if (id === 'prison') c -= u.mods.prisonCd || 0;
   if (id === 'cocoon') c -= u.mods.cocoonCd || 0;
+  if (id === 'toll') c -= u.mods.tollCd || 0;
+  if (id === 'encore') c -= u.mods.encoreCd || 0;
   return c;
 }
 function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number): number {
@@ -173,6 +199,7 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
   if (id === 'recall') r += u.mods.recallRange || 0;
   if (id === 'tether') r += u.mods.threadRange || 0;
   if (id === 'lastrites') r += u.mods.riteRange || 0;
+  if (id === 'toll') r += u.mods.tollRange || 0;
   if (r > 1 && terrAt(s, px, pz) === '^') r += 1;
   return r;
 }
@@ -187,6 +214,8 @@ export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
   const sk = SKILLS[id];
   if (u.acted && !sk.free) return false;
   if (undying(u) && (sk.basic || id === 'helpup')) return false;
+  if (u.st.hush && !sk.basic) return false;
+  if (id === 'overture') return s.units.some(a => a.team === u.team && nextTurn(s, a.id) >= 0);
   if (sk.rite && u.souls < 1) return false;
   if (id === 'harvest') return u.souls < soulCap(s, u) && soulsInReach(s, u).length > 0;
   if (id === 'snap') return callsOf(s, u) > 0;
@@ -225,6 +254,7 @@ export function puppetMoves(s: BattleState, u: Unit): Map<number, { id: UnitId; 
 function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: number, r: number): boolean {
   const sk = SKILLS[id], ox = o === u ? px : o.x, oz = o === u ? pz : o.z, d = cheb(px, pz, ox, oz);
   const held = () => s.threads.some(t => t.by === u.id && t.to === o.id);
+  if (id === 'toll' && o === u) return !!u.mods.finalHour && !u.moved && !u.acted && !tolledThisRound(s, u.id) && !lastToAct(s, u, true);
   switch (sk.target) {
     case 'enemy':
       if (o.team === u.team || concealed(s, u, o, px, pz)) return false;
@@ -241,6 +271,8 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
   }
   if (id === 'cocoon') return d <= r || held();
   if (id === 'equalize' && !evens(u, o)) return false;
+  if (id === 'toll' && (actedThisRound(s, o.id) || nextTurn(s, o.id) < 0 || tolledThisRound(s, o.id))) return false;
+  if (id === 'encore' && (!actedThisRound(s, o.id) || nextTurn(s, o.id) >= 0)) return false;
   if (d > r) return false;
   if (id === 'skitter') return held() && !!landingNear(s, u, o, px, pz);
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
@@ -342,11 +374,14 @@ function cloneStatuses(st: Statuses): Statuses {
   if (st.encased) o.encased = { ...st.encased };
   if (st.share) o.share = { ...st.share };
   if (st.wither) o.wither = { ...st.wither };
+  if (st.hush) o.hush = { ...st.hush };
+  if (st.guard) o.guard = { ...st.guard };
+  if (st.haste) o.haste = { ...st.haste };
   return o;
 }
 function clonePhase(p: Phase): Phase {
   if (p.kind === 'order') return { kind: 'order', orders: [p.orders[0]?.slice() ?? null, p.orders[1]?.slice() ?? null] };
-  if (p.kind === 'act') return { kind: 'act', queue: p.queue.slice(), qi: p.qi };
+  if (p.kind === 'act') return { kind: 'act', queue: p.queue.map(t => ({ ...t })), qi: p.qi, tolled: p.tolled.slice() };
   return p;
 }
 export function cloneState(s: BattleState): BattleState {

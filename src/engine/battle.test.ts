@@ -4,7 +4,7 @@ import { partyBonuses, roleOf } from './builds';
 import { cdOf } from './board';
 import { idx, reachable, threadCap } from './index';
 import { mulberry32 } from './rng';
-import { bare, cast, end, move, orders, run, stage, uid, unit } from './testkit';
+import { bare, cast, end, move, orders, run, stage, turns, uid, unit } from './testkit';
 import type { BattleEvent, MemberBuild } from './types';
 
 const trio = () => [bare('astromancer'), bare('weaver'), bare('weaver')];
@@ -14,15 +14,15 @@ describe('turn order', () => {
   test('the starter opens and closes the round, and the next round flips the starter', () => {
     const s0 = stage({ a: trio(), b: trio() });
     const r1 = run(s0, ...orders([1, 2, 3], [4, 5, 6]));
-    expect(r1.events[0]).toEqual({ type: 'round', round: 1, starter: 0, queue: [1, 4, 2, 5, 6, 3] });
-    expect(r1.state.phase).toEqual({ kind: 'act', queue: [1, 4, 2, 5, 6, 3], qi: 0 });
+    expect(r1.events[0]).toEqual({ type: 'round', round: 1, starter: 0, queue: turns(1, 4, 2, 5, 6, 3) });
+    expect(r1.state.phase).toEqual({ kind: 'act', queue: turns(1, 4, 2, 5, 6, 3), qi: 0, tolled: [] });
 
     const r2 = run(r1.state, end(1), end(4), end(2), end(5), end(6), end(3));
     expect(r2.events.at(-1)).toEqual({ type: 'roundEnd', round: 1, burnt: [] });
     expect([r2.state.round, r2.state.starter, r2.state.phase]).toEqual([2, 1, { kind: 'order', orders: [null, null] }]);
 
     const r3 = run(r2.state, ...orders([1, 2, 3], [4, 5, 6]));
-    expect(r3.events[0]).toEqual({ type: 'round', round: 2, starter: 1, queue: [4, 1, 5, 2, 3, 6] });
+    expect(r3.events[0]).toEqual({ type: 'round', round: 2, starter: 1, queue: turns(4, 1, 5, 2, 3, 6) });
   });
 
   test('each team orders once, and the round waits for both', () => {
@@ -36,7 +36,7 @@ describe('turn order', () => {
   test('unknown ids are dropped and missing ones appended', () => {
     const s0 = stage({ a: trio(), b: trio() });
     const r = run(s0, { kind: 'order', team: 0, order: [uid(3), uid(99)] }, { kind: 'order', team: 1, order: [] });
-    expect(r.events[0]).toEqual({ type: 'round', round: 1, starter: 0, queue: [3, 4, 1, 5, 6, 2] });
+    expect(r.events[0]).toEqual({ type: 'round', round: 1, starter: 0, queue: turns(3, 4, 1, 5, 6, 2) });
   });
 });
 

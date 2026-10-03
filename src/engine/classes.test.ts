@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply } from './battle';
 import { idx, reachable } from './board';
-import { bare, cast, end, move, orders, run, stage, unit } from './testkit';
+import { bare, cast, end, move, orders, run, stage, turns, unit } from './testkit';
 import type { BattleEvent } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
@@ -139,5 +139,77 @@ describe('psychopomp', () => {
     const up = run(r.state, end(4), cast(3, 'helpup', 5, 1));
     expect(up.events.at(-1)).toEqual({ type: 'revive', id: 2, by: 3 });
     expect(unit(up.state, 2).hp).toBe(102);
+  });
+});
+
+describe('toll', () => {
+  const bells = () => {
+    const s0 = stage({
+      a: [bare('bellringer'), bare('bellringer'), bare('astromancer')], b: [bare('weaver'), bare('weaver'), bare('astromancer')],
+      place: { 1: [5, 2], 2: [4, 2], 3: [6, 2], 4: [5, 5], 5: [6, 5], 6: [9, 9] },
+    });
+    return run(s0, ...orders([1, 2, 3], [4, 5, 6])).state;
+  };
+
+  test('Toll sends an enemy to the end of the round and an ally to right after the caster', () => {
+    const live = bells();
+    const foe = run(live, cast(1, 'toll', 5, 5));
+    expect(foe.events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 2, 5, 6, 3, 4) });
+    const ally = run(live, cast(1, 'toll', 6, 2));
+    expect(ally.state.phase).toEqual({ kind: 'act', queue: turns(1, 3, 4, 2, 5, 6), qi: 0, tolled: [3] });
+  });
+
+  test('a unit Tolled once this round can\'t be Tolled again', () => {
+    const second = run(bells(), cast(1, 'toll', 5, 5), end(1)).state;
+    expect(apply(second, cast(2, 'toll', 5, 5))).toEqual({ ok: false, error: '(5, 5) is not a target of toll' });
+    expect(run(second, cast(2, 'toll', 6, 5)).events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 2, 6, 3, 4, 5) });
+  });
+
+  test('Final Hour: the Herald Tolls itself to the end, and its last-in-round Clapper hits for +50% and +20%', () => {
+    const herald = bare('bellringer', undefined, ['b_knell', 'b_last', 'b_peal', 'b_final']);
+    const s0 = stage({ a: [herald], b: [bare('weaver')], place: { 1: [5, 1], 2: [5, 2] } });
+    const r = run(s0, ...orders([1], [2]), cast(1, 'toll', 5, 1));
+    expect(r.events.slice(-2)).toEqual([{ type: 'queue', queue: turns(2, '+', 1) }, { type: 'activate', id: 2, team: 1, qi: 0 }]);
+    const last = run(r.state, end(2), cast(1, 'basic_bellringer', 5, 2));
+    expect(after(last.events, 'damage')[0]).toEqual({ type: 'damage', id: 2, amount: 27, absorbed: 0, kind: 'phys' });
+  });
+});
+
+describe('bellringer skills', () => {
+  test('Encore gives an ally that already acted an extra turn at the end of the round, and its cooldowns don\'t tick on it', () => {
+    const s0 = stage({ a: [bare('bellringer', ['encore', 'hush', 'peal']), bare('weaver')], b: [bare('weaver')], place: { 1: [4, 1], 2: [3, 1], 3: [9, 9] } });
+    const r = run(s0, ...orders([2, 1], [3]), cast(2, 'web', 3, 4), end(2), end(3), cast(1, 'encore', 3, 1));
+    expect(r.events.at(-1)).toEqual({ type: 'queue', queue: turns(2, 3, 1, '+', 2) });
+    const extra = run(r.state, end(1));
+    expect(extra.events.at(-1)).toEqual({ type: 'activate', id: 2, team: 0, qi: 3 });
+    expect(unit(extra.state, 2).cd.web).toBe(3);
+    const own = run(extra.state, end(2), ...orders([2, 1], [3]), end(3));
+    expect(unit(own.state, 2).cd.web).toBe(2);
+  });
+
+  test('a Hushed enemy can use its basic attack but no skill on its next turn, and is free again after', () => {
+    const s0 = stage({ a: [bare('bellringer')], b: [bare('astromancer')], place: { 1: [5, 1], 2: [5, 3] } });
+    const hushed = run(s0, ...orders([1], [2]), cast(1, 'hush', 5, 3), end(1)).state;
+    expect(apply(hushed, cast(2, 'frostbolt', 5, 1))).toEqual({ ok: false, error: 'frostbolt is not usable now' });
+    expect(apply(hushed, cast(2, 'basic_astromancer', 5, 1)).ok).toBe(true);
+    const next = run(hushed, end(2), ...orders([1], [2])).state;
+    expect(apply(next, cast(2, 'frostbolt', 5, 1)).ok).toBe(true);
+  });
+
+  test('Knell on a unit that already acted this round hits ×1.5 and Roots; on one still to act it hits 12', () => {
+    const s0 = stage({ a: [bare('bellringer')], b: [bare('weaver'), bare('weaver')], starter: 1, place: { 1: [5, 1], 2: [5, 4], 3: [6, 4] } });
+    const live = run(s0, ...orders([1], [2, 3]), end(2)).state;
+    expect(after(run(live, cast(1, 'knell', 5, 4)).events, 'damage')).toEqual([
+      { type: 'damage', id: 2, amount: 18, absorbed: 0, kind: 'phys' },
+      { type: 'status', id: 2, key: 'root' },
+    ]);
+    expect(after(run(live, cast(1, 'knell', 6, 4)).events, 'damage')).toEqual([{ type: 'damage', id: 3, amount: 12, absorbed: 0, kind: 'phys' }]);
+  });
+
+  test('an enemy that hits a Bell Guard is Hushed', () => {
+    const s0 = stage({ a: [bare('bellringer', ['bellguard', 'hush', 'peal'])], b: [bare('weaver')], place: { 1: [5, 1], 2: [5, 2] } });
+    const r = run(s0, ...orders([1], [2]), cast(1, 'bellguard', 5, 1), end(1), cast(2, 'basic_weaver', 5, 1));
+    expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 1, amount: 0, absorbed: 14, kind: 'phys' }, { type: 'status', id: 2, key: 'hush' }]);
+    expect(unit(r.state, 2).st.hush).toEqual({ t: 2, by: 1 });
   });
 });

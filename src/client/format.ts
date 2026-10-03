@@ -37,7 +37,8 @@ export function comboInfo(e: Extract<BattleEvent, { type: 'combo' }>): string { 
 /** One readable log line for an event, or null when the board's animation says it all. `s` is any state of the same battle (names never change). */
 export function describe(e: BattleEvent, s: BattleState): Line | null {
   switch (e.type) {
-    case 'round': return { tone: 'sys', text: `Round ${e.round}: ${e.queue.map(id => name(s, id)).join(' → ')}` };
+    case 'round': return { tone: 'sys', text: `Round ${e.round}: ${e.queue.map(t => name(s, t.id)).join(' → ')}` };
+    case 'queue': return { tone: 'sys', text: `The order is now ${e.queue.map(t => `${name(s, t.id)}${t.extra ? ' (extra)' : ''}`).join(' → ')}.` };
     case 'activate': return null;
     case 'move': return e.slide && e.path.length > 1 ? { tone: teamOf(s, e.id), text: `${name(s, e.id)} is pushed back ${e.path.length - 1} tile${e.path.length > 2 ? 's' : ''}.` } : null;
     case 'teleport': return null;

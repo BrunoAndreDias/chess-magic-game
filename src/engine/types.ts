@@ -5,15 +5,16 @@ export interface Pos { x: number; z: number }
 
 export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 'A';
 export type MapId = 'span' | 'storm' | 'altar';
-export type ClassId = 'astromancer' | 'weaver' | 'gravecaller';
+export type ClassId = 'astromancer' | 'weaver' | 'gravecaller' | 'bellringer';
 export type Role = 'tank' | 'damage' | 'support';
 
 export type ClassSkillId =
   | 'meteor' | 'thunderhead' | 'gravitywell' | 'frostbolt' | 'firebolt' | 'prison' | 'recall'
   | 'reel' | 'web' | 'cocoon' | 'venombite' | 'puppet' | 'sharedpain' | 'skitter'
-  | 'lastrites' | 'bonewall' | 'wither' | 'soulbolt' | 'soulburst' | 'siphon' | 'equalize';
+  | 'lastrites' | 'bonewall' | 'wither' | 'soulbolt' | 'soulburst' | 'siphon' | 'equalize'
+  | 'knell' | 'hush' | 'peal' | 'encore' | 'overture' | 'hourglass' | 'bellguard';
 /** Every build has its class's innate: the class mechanic, always on. */
-export type InnateSkillId = 'snap' | 'tether' | 'harvest';
+export type InnateSkillId = 'snap' | 'tether' | 'harvest' | 'toll';
 export type BasicSkillId = `basic_${ClassId}`;
 export type SkillId = ClassSkillId | InnateSkillId | BasicSkillId | 'helpup';
 /** Skills that mark an area now and land at the start of the caster's next activation. */
@@ -30,7 +31,10 @@ export type NodeId =
   | 'w_cocoon' | 'w_reach' | 'w_silk' | 'w_spare'
   | 'g_hp' | 'g_cap' | 'g_ward' | 'g_undying'
   | 'g_bolt' | 'g_reach' | 'g_burst' | 'g_reap'
-  | 'g_rites' | 'g_hp2' | 'g_shield' | 'g_ferry';
+  | 'g_rites' | 'g_hp2' | 'g_shield' | 'g_ferry'
+  | 'b_hp' | 'b_clapper' | 'b_guard' | 'b_thee'
+  | 'b_knell' | 'b_last' | 'b_peal' | 'b_final'
+  | 'b_reach' | 'b_encore' | 'b_hp2' | 'b_accel';
 
 /** Summed numeric effects of a character's passive-tree picks. */
 export type Mods = Partial<Record<
@@ -39,7 +43,8 @@ export type Mods = Partial<Record<
   | 'recallRange' | 'recallCleanse' | 'benevolent'
   | 'leashDmg' | 'threads' | 'webOfFate' | 'poisonDmg' | 'basicDmg' | 'biteHeal' | 'feast'
   | 'cocoonCd' | 'threadRange' | 'webTurns' | 'fateWeaver'
-  | 'soulCap' | 'soulShield' | 'undying' | 'soulBoltDmg' | 'harvestRange' | 'burstDmg' | 'reap' | 'riteRange' | 'riteShield' | 'ferryman',
+  | 'soulCap' | 'soulShield' | 'undying' | 'soulBoltDmg' | 'harvestRange' | 'burstDmg' | 'reap' | 'riteRange' | 'riteShield' | 'ferryman'
+  | 'guardShield' | 'tollHush' | 'tollCd' | 'knellDmg' | 'lastDmg' | 'pealDmg' | 'finalHour' | 'tollRange' | 'encoreCd' | 'accel',
   number>>;
 
 /** A pair of classes in a party; `a === b` means that class twice. */
@@ -64,6 +69,12 @@ export interface Statuses {
   share?: Timed;
   /** Can't be healed or shielded; a hit that leaves it at 20% HP or less Downs it (REAP). */
   wither?: Timed;
+  /** Can move and use its basic attack, nothing else. */
+  hush?: Timed;
+  /** Bell Guard until the Bellringer's next turn: enemies that hit it are Hushed. */
+  guard?: Timed;
+  /** +2 move on its next turn (Accelerando). */
+  haste?: Timed;
 }
 export type StatusKey = keyof Statuses;
 
@@ -119,9 +130,13 @@ export interface Call {
 /** A Weaver's Thread. `len` is the leash: how far the held enemy may end a move from the Weaver. */
 export interface Thread { by: UnitId; to: UnitId; len: number }
 
+/** One turn in the round's queue. `extra`: a turn beyond the unit's own (Encore) or its own put off to the end (Final Hour); cooldowns don't tick on it. */
+export interface Turn { id: UnitId; extra: boolean }
+
 export type Phase =
   | { kind: 'order'; orders: [UnitId[] | null, UnitId[] | null] }
-  | { kind: 'act'; queue: UnitId[]; qi: number }
+  /** `tolled`: the units Tolled this round; a second Toll on one is refused. */
+  | { kind: 'act'; queue: Turn[]; qi: number; tolled: UnitId[] }
   | { kind: 'over'; winner: Team | 'draw'; reason: OverReason };
 export type OverReason = 'wipe' | 'mutual' | 'rounds' | 'altar';
 
@@ -182,7 +197,9 @@ export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'poison' | 'burn'
 export type TerrainChange = 'ice' | 'smoke' | 'web' | 'bone';
 
 export type BattleEvent =
-  | { type: 'round'; round: number; starter: Team; queue: UnitId[] }
+  | { type: 'round'; round: number; starter: Team; queue: Turn[] }
+  /** A Toll, Overture or Encore changed this round's queue. */
+  | { type: 'queue'; queue: Turn[] }
   | { type: 'activate'; id: UnitId; team: Team; qi: number }
   | { type: 'move'; id: UnitId; path: Pos[]; slide?: true }
   | { type: 'teleport'; id: UnitId; x: number; z: number }
