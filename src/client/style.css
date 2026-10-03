@@ -92,8 +92,8 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .skc.innate { cursor: default; border-style: dashed }
 .skc.innate::after { content: '∞' }
 .mapc { color: #c8a064 }
-.call { color: #c9bfff } .quake { color: #e0a868 } .free { color: #8fe3b0 } .innate { color: var(--gold) }
-.detail .call, .detail .quake, .detail .free, .detail .innate { display: inline; margin-left: 6px }
+.call { color: #c9bfff } .free { color: #8fe3b0 } .innate { color: var(--gold) }
+.detail .call, .detail .free, .detail .innate { display: inline; margin-left: 6px }
 .detail { margin-top: 6px; min-height: 36px; font-size: 12.5px; line-height: 1.4; color: #cbbfae; padding: 5px 9px; border-left: 2px solid #4a3c2c; background: rgba(255, 255, 255, .025); border-radius: 0 6px 6px 0 }
 .detail .tt { display: inline; font-weight: 700; color: var(--text); margin-right: 6px }
 .detail .tt + .m { display: inline; margin-right: 6px }

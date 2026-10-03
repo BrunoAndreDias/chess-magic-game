@@ -17,9 +17,9 @@ import type { UnitView } from './units';
 
 /** What the scene currently shows, read back from the meshes for the browser playtest. */
 export interface BoardDebug {
-  units(): { id: UnitId; x: number; z: number; visible: boolean; down: boolean; under: boolean; hp: number; shield: number }[];
-  /** How many Tunnel Mouths, pending Calls and Threads are drawn. */
-  marks(): { mouths: number; calls: number; threads: number };
+  units(): { id: UnitId; x: number; z: number; visible: boolean; down: boolean; hp: number; shield: number }[];
+  /** How many pending Calls and Threads are drawn. */
+  marks(): { calls: number; threads: number };
   /** Per tile `x,z` the base terrain char and overlay keys, e.g. `3,4:.:fire+smoke`. */
   tiles(): string[];
   busy(): boolean;
@@ -71,7 +71,7 @@ class BoardView implements Board {
   get debug(): BoardDebug {
     return {
       units: () => [...this.#views.values()].map(v => ({
-        id: v.id, ...tileOf(v), visible: v.group.visible, down: v.pose === 1, under: v.dig >= 1, hp: v.shown.hp, shield: v.shown.shield,
+        id: v.id, ...tileOf(v), visible: v.group.visible, down: v.pose === 1, hp: v.shown.hp, shield: v.shown.shield,
       })),
       marks: () => this.#marks.counts,
       tiles: () => {
@@ -154,7 +154,6 @@ class BoardView implements Board {
     v.group.rotation.z = 0;
     v.group.visible = u.life.kind !== 'dead';
     v.shown = shownOf(u);
-    v.dig = u.under ? 1 : 0;
     setPose(v, u.life.kind === 'downed' ? 1 : 0);
   }
 

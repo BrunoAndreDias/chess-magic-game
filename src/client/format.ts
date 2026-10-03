@@ -75,17 +75,11 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'crumble': return { tone: 'sys', text: `The ground gives way: ${e.tiles.length} tiles fall into the abyss.` };
     case 'favor': return e.team === null ? null : { tone: toneOf(e.team), text: `${TEAM_NAME[e.team]} holds the altar: favor ${e.favor[0]}–${e.favor[1]}.` };
     case 'roundEnd': return e.burnt.length ? { tone: 'sys', text: `The fire burns away ${e.burnt.length} tile${e.burnt.length === 1 ? '' : 's'} of grass.` } : null;
-    case 'burrow': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} burrows underground.` };
-    case 'surface': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} surfaces.` };
-    case 'mouth': return null;
-    case 'cavein': return { tone: 'sys', text: 'A Tunnel Mouth caves in.' };
     case 'call': return { tone: toneOf(e.team), text: `${SKILLS[e.skill].name} is called: it lands at the start of ${name(s, e.id)}'s next turn.` };
     case 'land': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s ${SKILLS[e.skill].name} lands${e.power < 1 ? ' at half power' : ''}!` };
     case 'fizzle': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s Call fizzles.` };
     case 'thread': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} ties a Thread to ${name(s, e.to)}.` };
     case 'snap': return { tone: teamOf(s, e.by), text: `${name(s, e.by)}'s Thread to ${name(s, e.to)} breaks.` };
-    case 'charge': return { tone: 'sys', text: 'A Satchel Charge is planted.' };
-    case 'blast': return { tone: 'sys', text: 'A Satchel Charge blows!' };
     case 'encased': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is Encased.` };
     case 'over': return { tone: 'sys', text: `${winnerTitle(e.winner)}. ${REASON[e.reason]}` };
   }
@@ -97,8 +91,6 @@ const TERRAIN_LINE: Readonly<Record<TerrainChange, string>> = {
   ice: 'The water freezes into ice.',
   smoke: 'Smoke fills the air.',
   web: 'Webs cover the ground.',
-  sink: 'The ground is undermined: it collapses at the end of the round.',
-  pit: 'The ground collapses into a pit.',
 };
 
 function bonusNames(s: BattleState, t: Team): string[] {
@@ -133,8 +125,6 @@ export function previewLines(events: readonly BattleEvent[], s: BattleState): Li
       case 'encased': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: Encased` }); break;
       case 'thread': out.push({ tone: teamOf(s, e.to), text: `${name(s, e.to)}: tied by a Thread` }); break;
       case 'snap': out.push({ tone: teamOf(s, e.by), text: `Thread to ${name(s, e.to)} breaks` }); break;
-      case 'surface': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)} surfaces` }); break;
-      case 'blast': out.push({ tone: 'sys', text: 'The Satchel Charge blows' }); break;
       default: break;
     }
   }
@@ -149,13 +139,12 @@ export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, 
     if (o) out.push({ tone: teamOf(s, o.id), text: `${o.name} snaps back to this tile and regains the HP it lost.` });
     return out;
   }
-  const tiles = callTiles(skill, x, z), quake = !!SKILLS[skill].quake;
+  const tiles = callTiles(skill, x, z);
   const inside = s.units.filter(o => o.life.kind !== 'dead' && o !== u && tiles.some(t => t.x === o.x && t.z === o.z));
   if (tiles.some(t => t.x === u.x && t.z === u.z)) inside.unshift(u);
   for (const o of inside) {
     const tone = teamOf(s, o.id);
-    if (o.under) out.push({ tone, text: o.team !== u.team && quake ? `${o.name}: underground, forced up and Stunned (Quake)` : `${o.name}: underground, spared` });
-    else if (o.team !== u.team) out.push({ tone, text: `${o.name}: in the area now` });
+    if (o.team !== u.team) out.push({ tone, text: `${o.name}: in the area now` });
     else if (u.mods.benevolent && skill !== 'gravitywell') out.push({ tone, text: `${o.name}: ally, healed instead (Benevolent Heavens)` });
     else out.push({ tone: 'combo', text: `⚠ ${o.name}: ally in the area, friendly fire` });
   }

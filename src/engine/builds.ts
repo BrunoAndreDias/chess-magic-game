@@ -26,8 +26,7 @@ export function canDrop(cls: ClassId, picks: readonly NodeId[], id: NodeId): boo
 
 type ModKey = keyof Mods;
 const MOD_KEYS = [
-  'hp', 'surfaceDmg', 'upheavalDmg', 'underMove', 'undertow', 'quickSink', 'satchelDmg', 'earthbreaker',
-  'mouthTurns', 'tunnelShield', 'undercity',
+  'hp',
   'fireDmg', 'callRange', 'burnDmg', 'twinStars', 'frostDmg', 'prisonCd', 'callWet', 'absZero',
   'recallRange', 'recallCleanse', 'benevolent',
   'leashDmg', 'threads', 'webOfFate', 'poisonDmg', 'basicDmg', 'biteHeal', 'feast',

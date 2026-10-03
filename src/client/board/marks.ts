@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SKILLS, callTiles, getUnit } from '../../engine/index';
-import type { BattleState, Call, Mouth, Pos, Team, Thread, UnitId } from '../../engine/index';
+import type { BattleState, Call, Pos, Team, Thread, UnitId } from '../../engine/index';
 import { TEAM_CSS, TEAM_HEX, basic, decal, disposeTree, glow, hex, keep, mat, mesh } from './art';
 import type { Overlay } from './overlay';
 import type { Terrain } from './terrain';
@@ -9,11 +9,10 @@ import { starGeometry } from './units';
 import type { UnitView } from './units';
 
 /**
- * The class mechanics drawn on the board: Tunnel Mouths, pending Calls and Threads.
+ * The class mechanics drawn on the board: pending Calls and Threads.
  * Each is keyed by what identifies it in the state, so `sync` can add and drop exactly the ones that changed.
  */
 
-interface MouthView { team: Team; group: THREE.Group; ring: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial> }
 interface CallView { call: Call; group: THREE.Group; tiles: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[]; sigil: THREE.Group; label: HTMLElement; anchor: THREE.Vector3; t0: number }
 interface ThreadView {
   thread: Thread; foe: boolean; color: THREE.Color;
@@ -24,12 +23,9 @@ interface ThreadView {
   key: string;
 }
 
-const mouthKey = (p: Pos) => `${p.x},${p.z}`;
 const callKey = (c: Call) => `${c.by}:${c.skill}:${c.x},${c.z}`;
 const threadKey = (t: { by: UnitId; to: UnitId }) => `${t.by}>${t.to}`;
 
-const hole = keep(basic(0x050308));
-const holeRim = keep(mat(0x3a2a1c));
 const SILK = new THREE.Color(0xf4eefa);
 
 /**
@@ -70,7 +66,6 @@ const CSS = `
 
 export class Marks {
   readonly root = new THREE.Group();
-  readonly #mouths = new Map<string, MouthView>();
   readonly #calls = new Map<string, CallView>();
   readonly #threads = new Map<string, ThreadView>();
   readonly #style: HTMLStyleElement;
@@ -90,51 +85,15 @@ export class Marks {
     document.head.appendChild(this.#style);
   }
 
-  get counts(): { mouths: number; calls: number; threads: number } {
-    return { mouths: this.#mouths.size, calls: this.#calls.size, threads: this.#threads.size };
+  get counts(): { calls: number; threads: number } {
+    return { calls: this.#calls.size, threads: this.#threads.size };
   }
 
   /** Make every mark match `s` at once. */
   sync(s: BattleState): void {
-    syncMap(this.#mouths, s.mouths, mouthKey, m => this.#buildMouth(m), v => disposeTree(v.group));
     syncMap(this.#calls, s.calls, callKey, c => this.#buildCall(c, s), v => this.#disposeCall(v));
     syncMap(this.#threads, s.threads, threadKey, t => this.#buildThread(t, s, 1), v => { disposeTree(v.core); disposeTree(v.halo); });
     for (const t of s.threads) { const v = this.#threads.get(threadKey(t)); if (v) v.thread = { ...t }; }
-  }
-
-  // ---------- tunnel mouths ----------
-  #buildMouth(m: Pick<Mouth, 'team' | 'x' | 'z'>): MouthView {
-    const g = new THREE.Group(), ring = mesh(new THREE.TorusGeometry(0.4, 0.05, 6, 28), basic(TEAM_HEX[m.team], 0.95), 0, 0.08, 0) as MouthView['ring'];
-    ring.rotation.x = Math.PI / 2;
-    const pit = decal(new THREE.CircleGeometry(0.3, 20), hole, 0.05);
-    pit.renderOrder = 2;
-    const rim = mesh(new THREE.TorusGeometry(0.33, 0.06, 5, 14), holeRim, 0, 0.04, 0);
-    rim.rotation.x = Math.PI / 2;
-    g.add(pit, ring, rim);
-    const deep = glow(0x000000, 0.7, 0.9, false);
-    deep.position.y = 0.06;
-    g.add(deep);
-    g.position.copy(this.terrain.at(m.x, m.z, 0, false));
-    this.root.add(g);
-    return { team: m.team, group: g, ring };
-  }
-
-  /** A new mouth opening: the ring grows out of the ground. */
-  async openMouth(m: Pick<Mouth, 'team' | 'x' | 'z'>): Promise<void> {
-    const k = mouthKey(m);
-    if (this.#mouths.has(k)) return;
-    const v = this.#buildMouth(m);
-    this.#mouths.set(k, v);
-    await this.tweens.run(0.3, p => v.group.scale.setScalar(0.05 + 0.95 * p));
-  }
-
-  /** The mouth fills with rubble and is gone. */
-  async caveIn(p: Pos): Promise<void> {
-    const k = mouthKey(p), v = this.#mouths.get(k);
-    if (!v) return;
-    this.#mouths.delete(k);
-    await this.tweens.run(0.4, q => { v.group.scale.set(1 - q, 1, 1 - q); v.ring.material.opacity = 0.95 * (1 - q); });
-    disposeTree(v.group);
   }
 
   // ---------- calls ----------
@@ -224,11 +183,11 @@ export class Marks {
     disposeTree(v.halo);
   }
 
-  /** Where a Thread ends on a unit: chest height, or the ground over a mound. */
+  /** Where a Thread ends on a unit: chest height, or low on a Downed one. */
   #anchor(id: UnitId): THREE.Vector3 | null {
     const v = this.views.get(id);
     if (!v || !v.group.visible) return null;
-    const y = v.pose > 0.5 ? 0.25 : v.height * 0.55 * (1 - v.dig) + 0.2;
+    const y = v.pose > 0.5 ? 0.25 : v.height * 0.55 + 0.2;
     return v.group.position.clone().add(new THREE.Vector3(0, y, 0));
   }
 
@@ -257,7 +216,6 @@ export class Marks {
 
   update(dt: number): void {
     const t = (this.#time += dt);
-    for (const v of this.#mouths.values()) v.ring.material.opacity = 0.75 + 0.2 * Math.sin(t * 2.5);
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     for (const v of this.#calls.values()) {
       const k = t - v.t0;

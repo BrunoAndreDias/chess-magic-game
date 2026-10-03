@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CLASSES, N, SKILLS, STATUS, getUnit, idx } from '../../engine/index';
+import { CLASSES, N, SKILLS, STATUS, getUnit } from '../../engine/index';
 import type { BattleEvent, BattleState, CallSkill, DamageKind, Pos, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
 import { TEAM_CSS, TEAM_HEX, hex } from './art';
 import type { Fx } from './fx';
@@ -45,17 +45,16 @@ const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
   stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain',
 };
-const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa, sink: 0x8a6a44, pit: 0x7a3aff };
+const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa };
 const DUST = 0x9a7a5a;
 
 type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'none';
-/** How a cast looks from the caster. What it does to the board (a burrow, a Call's marker, a Thread) is its own event. */
+/** How a cast looks from the caster. What it does to the board (a Call's marker, a Thread) is its own event. */
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
-  burrow: 'none', upheaval: 'raise', undermine: 'raise', satchel: 'lob', dragunder: 'link', tremor: 'nova', stoneskin: 'nova', warren: 'lob',
   snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
   tether: 'none', reel: 'nova', web: 'lob', cocoon: 'link', venombite: 'melee', puppet: 'link', sharedpain: 'nova', skitter: 'none',
   helpup: 'heal',
-  basic_delver: 'melee', basic_astromancer: 'proj', basic_weaver: 'melee',
+  basic_astromancer: 'proj', basic_weaver: 'melee',
 };
 
 interface Shot { e: Extract<BattleEvent, { type: 'cast' }>; c: PlayCtx; v: UnitView; from: THREE.Vector3; to: THREE.Vector3; color: number; basic: boolean }
@@ -91,15 +90,6 @@ const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
 function skillColor(id: SkillId): number {
   const sk = SKILLS[id];
   return hex(sk.color ?? (sk.cls ? CLASSES[sk.cls].color : '#e8e2d0'));
-}
-
-/** Sinks the figure into its tile (`to` 1) or brings it up (`to` 0), throwing dirt. */
-async function dig(c: PlayCtx, v: UnitView, to: 0 | 1, sec: number): Promise<void> {
-  const from = v.dig, feet = v.group.position.clone().add(new THREE.Vector3(0, 0.2, 0));
-  void c.fx.burst(feet, DUST, to ? 1.6 : 2.4, 0.45);
-  c.fx.sparkles(v.group.position.clone(), DUST, to ? 5 : 9);
-  await c.tweens.run(sec, p => { v.dig = from + (to - from) * easeInOut(p); });
-  v.dig = to;
 }
 
 /** The middle tile of a Call's square area. */
@@ -192,19 +182,11 @@ export const PLAY: Handlers = {
   move: async (e, c) => {
     const v = c.views.get(e.id);
     if (!v) return;
-    const step = e.slide ? 0.09 : e.under ? 0.12 : 0.14, hop = e.slide ? 0.04 : e.under ? 0 : 0.12;
+    const step = e.slide ? 0.09 : 0.14, hop = e.slide ? 0.04 : 0.12;
     for (let i = 1; i < e.path.length; i++) {
       const a = e.path[i - 1]!, b = e.path[i]!;
       const pa = c.terrain.at(a.x, a.z, 0, false), pb = c.terrain.at(b.x, b.z, 0, false);
       if (!e.slide) face(v, pb.x, pb.z);
-      // Steps that aren't neighbours are a tunnel: down one mouth, up the other.
-      if (Math.max(Math.abs(a.x - b.x), Math.abs(a.z - b.z)) > 1) {
-        if (!e.under) await dig(c, v, 1, 0.25);
-        v.group.position.copy(pb);
-        if (!e.under) await dig(c, v, 0, 0.25);
-        continue;
-      }
-      if (e.under) c.fx.sparkles(pa, DUST, 2);
       await c.tweens.run(step, p => { v.group.position.lerpVectors(pa, pb, p); v.group.position.y += Math.sin(p * Math.PI) * hop; });
     }
     if (c.active() === e.id) track(c, v, v.team);
@@ -236,7 +218,7 @@ export const PLAY: Handlers = {
     if (sk.target !== 'self') face(v, to.x, to.z);
     await castPose(c, v);
     const shot: Shot = { e, c, v, from: above(v, v.height * 0.85), to, color: skillColor(e.skill), basic: !!sk.basic };
-    if (v.dig < 1) await CAST_FX[CAST_KIND[e.skill]](shot);
+    await CAST_FX[CAST_KIND[e.skill]](shot);
   },
   damage: async (e, c) => {
     const v = c.views.get(e.id);
@@ -367,13 +349,11 @@ export const PLAY: Handlers = {
   },
   terrain: async (e, c) => {
     for (const t of e.tiles) {
-      if (e.kind === 'pit') { c.terrain.setFx(t.x, t.z, 'sink', false); c.terrain.setFx(t.x, t.z, 'web', false); c.terrain.setFx(t.x, t.z, 'charge', false); void c.marks.caveIn(t); }
       c.terrain.setFx(t.x, t.z, e.kind, true);
       void c.fx.burst(c.terrain.at(t.x, t.z, 0.4, false), TERRAIN_COLOR[e.kind], e.kind === 'web' ? 1.1 : 1.6, 0.35);
       if (e.kind !== 'web') c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), DUST, 4);
     }
-    if (e.kind === 'pit') c.stage.shake(0.35);
-    await c.tweens.wait(e.kind === 'pit' ? 0.4 : 0.2);
+    await c.tweens.wait(0.2);
   },
   roundEnd: async (e, c) => {
     for (const k of e.burnt) {
@@ -383,29 +363,6 @@ export const PLAY: Handlers = {
     }
     c.terrain.sync(c.after);
     if (e.burnt.length) await c.tweens.wait(0.3);
-  },
-  burrow: async (e, c) => {
-    const v = c.views.get(e.id);
-    if (!v) return;
-    v.shown.under = true;
-    c.overlay.float('⛏ underground', '#d8b48a', above(v, 1.6));
-    await dig(c, v, 1, 0.5);
-  },
-  surface: async (e, c) => {
-    const v = c.views.get(e.id);
-    if (!v) return;
-    v.group.position.copy(c.terrain.at(e.x, e.z));
-    v.shown.under = false;
-    c.stage.shake(0.15);
-    void c.fx.ring(c.terrain.at(e.x, e.z, 0.08), DUST, 1.2, 0.4);
-    await dig(c, v, 0, 0.3);
-  },
-  mouth: (e, c) => c.marks.openMouth(e),
-  cavein: async (e, c) => {
-    const p = c.terrain.at(e.x, e.z, 0.2, false);
-    void c.fx.burst(p, DUST, 1.8, 0.5);
-    c.fx.sparkles(p, DUST, 6);
-    await c.marks.caveIn(e);
   },
   call: async (e, c) => {
     const at = centerOf(e.tiles);
@@ -432,22 +389,6 @@ export const PLAY: Handlers = {
     await c.marks.tie(t, c.after);
   },
   snap: (e, c) => c.marks.snap(e),
-  charge: async (e, c) => {
-    const owner = getUnit(c.after, c.after.fx[idx(e.x, e.z)]?.charge) ?? getUnit(c.after, c.active());
-    c.terrain.setFx(e.x, e.z, 'charge', true, owner?.team ?? null);
-    void c.fx.burst(c.terrain.at(e.x, e.z, 0.2), 0xffb04a, 1.2, 0.3);
-    await c.tweens.wait(0.15);
-  },
-  blast: async (e, c) => {
-    c.terrain.setFx(e.x, e.z, 'charge', false);
-    const p = c.terrain.at(e.x, e.z, 0.4);
-    void c.fx.burst(p, 0xff7a2a, 5.5, 0.55);
-    void c.fx.burst(p, 0xffe0a0, 2.6, 0.3);
-    void c.fx.ring(c.terrain.at(e.x, e.z, 0.08), 0xffa040, 1.8, 0.45);
-    c.fx.sparkles(p, 0x6a5a4a, 8);
-    c.stage.shake(0.4);
-    await c.tweens.wait(0.3);
-  },
   encased: (e, c) => {
     const v = c.views.get(e.id);
     if (!v) return;

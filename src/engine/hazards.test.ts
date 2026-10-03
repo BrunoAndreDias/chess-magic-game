@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { doomed, threatName } from './hazards';
-import { bare, cast, end, orders, run, stage, uid, unit } from './testkit';
+import { bare, cast, end, orders, run, stage, unit } from './testkit';
 import type { BattleEvent } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
@@ -8,7 +8,7 @@ const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice
 describe('storm', () => {
   test('the round-1 strike hits the edge columns: 24, 36 when Wet, and it finishes the Downed', () => {
     const s0 = stage({
-      a: [bare('delver'), bare('delver'), bare('delver')], b: [bare('weaver'), bare('delver')],
+      a: [bare('weaver'), bare('weaver'), bare('weaver')], b: [bare('weaver'), bare('weaver')],
       place: { 1: [0, 2], 2: [10, 3], 3: [2, 0], 4: [5, 9], 5: [11, 8] }, life: { 5: { kind: 'downed', bleed: 2 } },
     });
     expect(threatName(s0)).toBe('The edges');
@@ -21,7 +21,7 @@ describe('storm', () => {
       { type: 'death', id: 5, team: 1, cause: 'finished' },
       { type: 'roundEnd', round: 1, burnt: [] },
     ]);
-    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([166, 154, 190, 170]);
+    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([146, 134, 170, 170]);
 
     const r2 = run(r.state, ...orders([1, 2, 3], [4]), end(4), end(1), end(2), end(3));
     const [strike2, ...rest2] = after(r2.events, 'storm');
@@ -31,13 +31,13 @@ describe('storm', () => {
 });
 
 describe('crumble', () => {
-  test('at the end of round 3 the side bridges fall: the standing are Downed, the Downed are lost, the underground stay', () => {
+  test('at the end of round 3 the side bridges fall: the standing are Downed, the Downed are lost', () => {
     const s0 = stage({
-      map: 'span', round: 3, a: [bare('weaver'), bare('delver')], b: [bare('delver'), bare('astromancer')],
-      place: { 1: [1, 4], 2: [1, 5], 3: [10, 6], 4: [6, 9] }, life: { 3: { kind: 'downed', bleed: 2 } },
+      map: 'span', round: 3, a: [bare('weaver'), bare('astromancer')], b: [bare('weaver'), bare('astromancer')],
+      place: { 1: [1, 4], 2: [5, 2], 3: [10, 6], 4: [6, 9] }, life: { 3: { kind: 'downed', bleed: 2 } },
     });
     expect(threatName(s0)).toBe('The side bridges crumble');
-    const r = run(s0, ...orders([1, 2], [3, 4]), end(1), end(4), cast(2, 'burrow', 1, 5), end(2));
+    const r = run(s0, ...orders([1, 2], [3, 4]), end(1), end(4), end(2));
     const [fall, ...rest] = after(r.events, 'crumble');
     expect(fall?.type === 'crumble' && fall.tiles.length).toBe(12);
     expect(rest).toEqual([
@@ -47,14 +47,6 @@ describe('crumble', () => {
       { type: 'roundEnd', round: 3, burnt: [] },
     ]);
     expect([1, 3, 6, 10].map(x => r.state.terr[4 * 12 + x])).toEqual(['o', '.', '.', 'o']);
-    expect([unit(r.state, 2).life, unit(r.state, 2).under]).toEqual([{ kind: 'up' }, 1]);
-  });
-
-  test('Tunnel Mouths on falling tiles are gone', () => {
-    const s0 = stage({ map: 'span', round: 3, a: [bare('delver')], b: [bare('weaver')], place: { 1: [5, 2], 2: [6, 9] } });
-    s0.mouths = [{ team: 0, net: uid(1), x: 1, z: 4, t: 3 }, { team: 0, net: uid(1), x: 3, z: 4, t: 3 }];
-    const r = run(s0, ...orders([1], [2]), end(1), end(2));
-    expect(r.state.mouths).toEqual([{ team: 0, net: 1, x: 3, z: 4, t: 2 }]);
   });
 
   test('a fall that leaves a party nobody standing ends the battle', () => {
@@ -69,11 +61,10 @@ describe('crumble', () => {
 });
 
 describe('altar', () => {
-  const hold = (place: Record<number, [number, number]>, favor: [number, number] = [0, 0], burrow = false) => {
-    const s0 = stage({ map: 'altar', a: [bare('delver'), bare('weaver')], b: [bare('delver'), bare('weaver')], place });
+  const hold = (place: Record<number, [number, number]>, favor: [number, number] = [0, 0]) => {
+    const s0 = stage({ map: 'altar', a: [bare('astromancer'), bare('weaver')], b: [bare('astromancer'), bare('weaver')], place });
     s0.favor = favor;
-    const live = run(s0, ...orders([1, 2], [3, 4])).state;
-    return run(burrow ? run(live, cast(1, 'burrow', 5, 5)).state : live, end(1), end(3), end(4), end(2));
+    return run(s0, ...orders([1, 2], [3, 4]), end(1), end(3), end(4), end(2));
   };
 
   test('the party with more standing on the altar gains favor; a tie gains nothing', () => {
@@ -81,8 +72,6 @@ describe('altar', () => {
     expect(after(more.events, 'favor')).toEqual([{ type: 'favor', team: 0, favor: [1, 0] }, { type: 'roundEnd', round: 1, burnt: [] }]);
     const tie = hold({ 1: [5, 5], 2: [2, 2], 3: [5, 6], 4: [9, 9] }, [2, 1]);
     expect(after(tie.events, 'favor')[0]).toEqual({ type: 'favor', team: null, favor: [2, 1] });
-    const under = hold({ 1: [5, 5], 2: [6, 5], 3: [5, 6], 4: [9, 9] }, [0, 0], true);
-    expect(after(under.events, 'favor')[0]).toEqual({ type: 'favor', team: null, favor: [0, 0] });
   });
 
   test('the fifth favor wins the battle', () => {
@@ -94,7 +83,7 @@ describe('altar', () => {
 
 describe('doomed', () => {
   test('a Rooted unit on a strike line is doomed; one that still has its turn is not', () => {
-    const s0 = stage({ a: [bare('delver')], b: [bare('astromancer')], starter: 1, place: { 1: [0, 5], 2: [4, 5] } });
+    const s0 = stage({ a: [bare('weaver')], b: [bare('astromancer')], starter: 1, place: { 1: [0, 5], 2: [4, 5] } });
     const live = run(s0, ...orders([1], [2])).state;
     expect(doomed(live, unit(live, 1))).toBe(false);
     const pinned = run(live, cast(2, 'frostbolt', 0, 5)).state;

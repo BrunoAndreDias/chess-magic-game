@@ -215,7 +215,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
           const walk = skill === 'puppet' ? puppetMoves(shown, u).get(idx(hover.x, hover.z)) : undefined;
           if (walk) layers.push({ tiles: walk.path, tone: 'path' });
           if (isCall(skill) && skill !== 'recall' && !u.mods.benevolent) {
-            const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && !o.under && area.some(t => same(t, o)));
+            const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && area.some(t => same(t, o)));
             if (hit.length) layers.push({ tiles: hit, tone: 'friendly' });
           }
         }
@@ -239,7 +239,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
         lines.length ? lines.map(l => h('div', { class: l.tone }, l.text)) : h('div', { class: 'm' }, sk.text));
       return;
     }
-    const u = unitAt(shown, t.x, t.z) ?? shown.units.find(o => o.under && o.life.kind !== 'dead' && same(o, t));
+    const u = unitAt(shown, t.x, t.z);
     if (u) showTip(unitTip(shown, u, human(u)), h('div', { style: { 'margin-top': '4px' } }, terrainTip(shown, t.x, t.z)));
     else showTip(terrainTip(shown, t.x, t.z));
   }
@@ -326,7 +326,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       h('b', { style: { color: TEAM_TEXT[u.team] } }, u.name),
       h('div', null, `${C.icon} ${C.name}${human(u) ? '' : ' · 🤖'}`),
       h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`),
-      h('div', { class: 'mv' }, `${u.under ? '⛏ Underground · ' : ''}${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}`} · ${u.acted ? 'action used' : 'action ready'}`));
+      h('div', { class: 'mv' }, `${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}`} · ${u.acted ? 'action used' : 'action ready'}`));
     endBtn.disabled = !mine;
     if (!human(u)) {
       actions.replaceChildren(h('div', { class: 'wait' }, `${TEAM_NAME[u.team]} (AI) is acting…`));
@@ -346,8 +346,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   /** Why a ready skill can't be used right now, for the class mechanics that gate it. */
   function blocked(s: BattleState, u: Unit, id: SkillId): string | null {
-    if (id === 'burrow') return u.under ? 'Already under' : u.moved ? 'Only before moving' : null;
-    if (id === 'upheaval' && !u.under) return 'Only from underground';
     if (id === 'snap' && !callsOf(s, u)) return 'No pending Call';
     if (isCall(id) && !canUse(s, u, id) && callsOf(s, u)) return 'Already holding a Call';
     return null;
@@ -361,7 +359,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (!human(u)) { set(h('b', null, u.name), ` (${TEAM_NAME[u.team]}, AI) is acting…`); return; }
     if (input.kind !== 'turn') { set(); return; }
     if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
-    if (u.under && !u.moved) { set(h('b', null, u.name), ` is underground: blue tiles = tunnel up to ${moveOf(u)}, through walls and units. Any skill surfaces you.`); return; }
     const leash = holders(s, u).flatMap(t => { const w = getUnit(s, t.by); return w && w.team !== u.team ? [`${w.name} (${t.len})`] : []; });
     if (leash.length && !u.moved) { set(h('b', null, u.name), ' is leashed by ', h('b', null, leash.join(', ')), ': blue tiles stay within the Thread’s length. ', h('b', null, 'Space'), ' = end turn.'); return; }
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');

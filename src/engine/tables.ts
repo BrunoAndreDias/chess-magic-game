@@ -56,7 +56,7 @@ const MAP_TABLE = {
       names: { 3: 'The side bridges crumble', 5: 'The back rows crumble', 7: 'The back rows crumble', 9: 'The plateaus crumble' } },
     tagline: 'The edges fall away. Only the island lasts.',
     ruleText: 'Crumble: at the end of round 3 the side bridges fall, then the back rows at the end of rounds 5, 7 and 9. Anyone standing on a falling tile drops and is Downed, clinging to the nearest solid ground; anyone already Downed there is lost.',
-    favors: 'Pullers and the patient: Upheaval, Reel and Gravity Well drop enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
+    favors: 'Pullers and the patient: Reel and Gravity Well drop enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
   storm: { id: 'storm', name: 'Storm Court',
     rows: ['............', '..#......#..', '............', '.~~..^...~~.', '.~~.#..#.~~.', '.....~~....+'],
     rule: { kind: 'storm', dmg: 24, cycle: [
@@ -96,8 +96,10 @@ export function mapTerrain(id: MapId): TerrainChar[] {
   });
 }
 
+/** The figure the board draws for a class; classes may share one in their own colours. */
+export type ModelId = 'guardian' | 'elementalist' | 'rogue';
 export interface ClassDef {
-  id: ClassId; name: string; icon: string; color: string; model: string; hp: number; move: number;
+  id: ClassId; name: string; icon: string; color: string; model: ModelId; hp: number; move: number;
   /** One line: the class mechanic. */
   mechanic: string;
   plays: string; basic: { name: string; range: number; dmg: number }; innate: InnateSkillId;
@@ -105,11 +107,6 @@ export interface ClassDef {
 }
 
 export const CLASSES = {
-  delver: { id: 'delver', name: 'Delver', icon: '⛏️', color: '#c9a06a', model: 'guardian', hp: 190, move: 3, innate: 'burrow',
-    mechanic: 'Underground: sink after acting, move under walls and units, leave tunnels the party can walk.',
-    plays: 'A mole-kin sapper who fights from below and dives the backline.', basic: { name: 'Pick', range: 1, dmg: 16 },
-    skills: ['upheaval', 'undermine', 'satchel', 'dragunder', 'tremor', 'stoneskin', 'warren'], defaults: ['upheaval', 'satchel', 'stoneskin'],
-    tree: ['d_strike', 'd_upheave', 'd_deep', 'd_undertow', 'd_hp', 'd_quick'] },
   astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', model: 'elementalist', hp: 140, move: 3, innate: 'snap',
     mechanic: 'Calls: the big spells land at the start of your next turn.',
     plays: 'The battle mage whose big spells fall from the sky, where the enemy will be.', basic: { name: 'Starbolt', range: 4, dmg: 10 },
@@ -121,29 +118,13 @@ export const CLASSES = {
     skills: ['reel', 'web', 'cocoon', 'venombite', 'puppet', 'sharedpain', 'skitter'], defaults: ['reel', 'web', 'venombite'],
     tree: ['w_hp', 'w_leash', 'w_thread', 'w_fate', 'w_poison', 'w_fang'] },
 } satisfies Record<ClassId, ClassDef>;
-export const CLASS_ORDER: readonly ClassId[] = ['delver', 'astromancer', 'weaver'];
+export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver'];
 
 // ---------- passive trees: 3 paths of 4 (three nodes, then a keystone). A node needs the one before it ----------
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
 export interface BranchDef { name: string; role: Role; color: string; nodes: readonly [NodeDef, NodeDef, NodeDef, NodeDef] }
 
 const TREE_TABLE = {
-  delver: [
-    { name: 'Sapper', role: 'tank', color: '#c9a06a', nodes: [
-      { id: 'd_hp', name: 'Hard Hide', text: '+20 max HP.', mods: { hp: 20 } },
-      { id: 'd_quick', name: 'Quick Sink', text: 'Undermine collapses at once.', mods: { quickSink: 1 } },
-      { id: 'd_satchel', name: 'Black Powder', text: 'Satchel Charge +8 damage.', mods: { satchelDmg: 8 } },
-      { id: 'd_earth', name: 'Earthbreaker', key: true, text: 'Enemies who start their turn next to you are Rooted.', mods: { earthbreaker: 1 } }] },
-    { name: 'Ambusher', role: 'damage', color: '#ff9a4a', nodes: [
-      { id: 'd_strike', name: 'From Below', text: '+15% damage on a turn you surface.', mods: { surfaceDmg: 0.15 } },
-      { id: 'd_upheave', name: 'Rockburst', text: 'Upheaval +6 damage.', mods: { upheavalDmg: 6 } },
-      { id: 'd_deep', name: 'Deep Runner', text: 'Underground move +1.', mods: { underMove: 1 } },
-      { id: 'd_undertow', name: 'Undertow', key: true, text: 'Upheaval cooldown −1, and it doesn’t surface you: strike from below and stay under until the end of your next turn.', mods: { undertow: 1 } }] },
-    { name: 'Tunnelwright', role: 'support', color: '#8fd1a0', nodes: [
-      { id: 'd_mouth', name: 'Shored Tunnels', text: 'Tunnel Mouths last 2 rounds longer.', mods: { mouthTurns: 2 } },
-      { id: 'd_hp2', name: 'Thick Skin', text: '+20 max HP.', mods: { hp: 20 } },
-      { id: 'd_shield', name: 'Safe Passage', text: 'Allies who come out of your tunnels get a 15 shield.', mods: { tunnelShield: 15 } },
-      { id: 'd_city', name: 'Undercity', key: true, text: 'Allies who end their turn on your mouths heal 10, Downed allies there don’t bleed, and enemies can’t cave your mouths in.', mods: { undercity: 1 } }] }],
   astromancer: [
     { name: 'Rime', role: 'tank', color: '#7fd8ff', nodes: [
       { id: 'a_frost', name: 'Hoarfrost', text: 'Frost +20% damage.', mods: { frostDmg: 0.2 } },
@@ -191,10 +172,7 @@ export const KEYSTONE_TIER = 3;
 // ---------- party resonances: every pair of classes in the party, and every class taken twice ----------
 export interface PairDef { id: PairId; a: ClassId; b: ClassId; name: string; text: string }
 const PAIR_TABLE = [
-  { id: 'deepimpact', a: 'delver', b: 'astromancer', name: 'Deep Impact', text: 'A Call whose area holds one of your Tunnel Mouths also lands on every other mouth of that tunnel, at half power.' },
-  { id: 'silktunnels', a: 'delver', b: 'weaver', name: 'Silk Tunnels', text: 'Allies a Weaver holds walk between joined Tunnel Mouths for free.' },
   { id: 'startether', a: 'astromancer', b: 'weaver', name: 'Star-Tether', text: 'An enemy held by your Weaver when your Call hits it is Exposed for 2 turns.' },
-  { id: 'warren', a: 'delver', b: 'delver', name: 'Shared Warren', text: 'Every Tunnel Mouth of your party is joined into one network.' },
   { id: 'conjunction', a: 'astromancer', b: 'astromancer', name: 'Conjunction', text: 'A Call that lands in a round where another of your Calls already landed deals +25%.' },
   { id: 'greatweb', a: 'weaver', b: 'weaver', name: 'Great Web', text: '+1 Thread each, and your webs last 1 round longer.' },
 ] satisfies readonly PairDef[];
@@ -222,8 +200,6 @@ export interface SkillDef {
   sets?: readonly string[]; pays?: readonly string[]; map?: true; empty?: true; noSelf?: true; free?: true; generic?: true; basic?: true;
   /** Marks its area now and lands at the start of the caster's next activation. */
   call?: true;
-  /** Hits underground units: forces them up and Stuns them. */
-  quake?: true;
   innate?: true;
   cls?: ClassId; text: string;
 }
@@ -235,27 +211,10 @@ function basicSkill(cls: ClassId): SkillDef {
 }
 
 const SKILL_TABLE = {
-  burrow: { name: 'Burrow', icon: '🕳️', target: 'self', cd: 2, free: true, innate: true, cls: 'delver', color: '#c9a06a',
-    text: 'Free. Only if you haven’t moved; uses your move. Go Underground until the end of your next turn and leave a Tunnel Mouth.' },
-  upheaval: { name: 'Upheaval', icon: '🌋', target: 'enemy', range: 1, cd: 2, cls: 'delver', color: '#ff9a4a', sets: ['Slam → Stun', 'Abyss → Downed'],
-    text: 'Only from underground. Burst up next to an enemy: 18 damage and push it 1. Into a wall, unit or edge: SLAM. Into a chasm: ABYSS.' },
-  undermine: { name: 'Undermine', icon: '🕳️', target: 'tile', range: 2, cd: 3, empty: true, map: true, cls: 'delver',
-    text: 'An empty tile collapses into a pit at the end of the round, for 3 rounds. Anyone there falls and is Downed at its edge; the Downed are lost.' },
-  satchel: { name: 'Satchel Charge', icon: '💣', target: 'tile', range: 1, cd: 3, empty: true, map: true, cls: 'delver', color: '#ff6a2b',
-    text: 'Plant a charge. It blows when an enemy ends a move next to it, or when you surface: 20 to every unit within 1, pushed 1 outward.' },
-  dragunder: { name: 'Drag Under', icon: '🫳', target: 'friend', range: 1, cd: 3, noSelf: true, cls: 'delver',
-    text: 'An ally within 1, standing or Downed, comes out next to your newest Tunnel Mouth. A Downed ally skips its next bleed.' },
-  tremor: { name: 'Tremor', icon: '〰️', target: 'self', cd: 3, aoe: 2, quake: true, cls: 'delver', sets: ['Rooted'],
-    text: 'Enemies within 2 are Rooted. Quake: an underground enemy in range is forced up and Stunned.' },
-  stoneskin: { name: 'Stoneskin', icon: '🪨', target: 'self', cd: 3, cls: 'delver',
-    text: 'A 30 shield. On a Tunnel Mouth, each ally within 1 also gets 15.' },
-  warren: { name: 'Warren', icon: '🚪', target: 'tile', range: 4, los: true, cd: 2, empty: true, map: true, cls: 'delver',
-    text: 'Open a Tunnel Mouth on an empty tile you can see.' },
-
   snap: { name: 'Snap', icon: '✨', target: 'self', cd: 3, free: true, innate: true, cls: 'astromancer', color: '#9a8cff',
     text: 'Free. Your oldest pending Call lands right now, at half power.' },
-  meteor: { name: 'Meteor', icon: '☄️', target: 'tile', range: 6, cd: 3, aoe: 1, call: true, quake: true, map: true, cls: 'astromancer', color: '#ff6a2b', sets: ['Burning'],
-    text: 'Call. 30 at the center, 15 around, and Burning. Ignites grass, bursts braziers, burns webs. Quake.' },
+  meteor: { name: 'Meteor', icon: '☄️', target: 'tile', range: 6, cd: 3, aoe: 1, call: true, map: true, cls: 'astromancer', color: '#ff6a2b', sets: ['Burning'],
+    text: 'Call. 30 at the center, 15 around, and Burning. Ignites grass, bursts braziers, burns webs.' },
   thunderhead: { name: 'Thunderhead', icon: '⛈️', target: 'tile', range: 5, cd: 2, aoe: 1, call: true, cls: 'astromancer', color: '#c9a7ff', pays: ['Wet → CONDUCT ×1.5'],
     text: 'Call. 20 shock to everyone in a 3×3 area. Wet: CONDUCT, ×1.5.' },
   gravitywell: { name: 'Gravity Well', icon: '🌀', target: 'tile', range: 5, cd: 3, aoe: 2, call: true, map: true, cls: 'astromancer', color: '#7a6aff', sets: ['Slam → Stun', 'Abyss → Downed'],
@@ -289,7 +248,6 @@ const SKILL_TABLE = {
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
     text: 'Pull a Downed ally next to you back up at 30% HP.' },
 
-  basic_delver: basicSkill('delver'),
   basic_astromancer: basicSkill('astromancer'),
   basic_weaver: basicSkill('weaver'),
 } satisfies Record<SkillId, SkillDef>;

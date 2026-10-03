@@ -53,10 +53,9 @@ export function revealLayers(s: BattleState): Highlight[] {
   }
 }
 
-/** The tiles that hurt at the end of the shown round, the map's and the undermined ones; the battle draws it under every other layer. */
+/** The tiles the map hurts at the end of the shown round; the battle draws it under every other layer. */
 export function hazardLayer(s: BattleState): Highlight {
-  const sinks = s.fx.flatMap((f, k) => (f?.sink ? [k] : []));
-  return { tiles: [...threat(s), ...sinks].map(pos), tone: 'hazard' };
+  return { tiles: threat(s).map(pos), tone: 'hazard' };
 }
 
 export function altarTiles(s: BattleState): Pos[] {

@@ -25,7 +25,7 @@ function crumbleRounds(map: MapId, r: RuleOf<'crumble'>): number[] {
 }
 
 /** A map event hits everyone at once: if it fells both parties' last characters, that is a draw, not a win for whoever it reached second. */
-export function atOnce(s: BattleState, f: () => void): void {
+function atOnce(s: BattleState, f: () => void): void {
   const before = s.phase;
   f();
   if (before.kind !== 'over' && s.phase.kind === 'over') { s.phase = before; checkWinner(s); }
@@ -43,11 +43,10 @@ const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
         s.terr[k] = 'o'; s.fx[k] = undefined; fell.add(k);
       });
       if (!fell.size) return;
-      s.mouths = s.mouths.filter(m => !fell.has(idx(m.x, m.z)));
       ev.push({ type: 'crumble', tiles: [...fell].map(pos) });
       atOnce(s, () => {
         for (const u of s.units) {
-          if (!isAlive(u) || u.under || !fell.has(idx(u.x, u.z))) continue;
+          if (!isAlive(u) || !fell.has(idx(u.x, u.z))) continue;
           if (standing(u)) { fall(s, u, u.x, u.z, ev, null); continue; }
           u.life = { kind: 'dead' };
           ev.push({ type: 'death', id: u.id, team: u.team, cause: 'fell' });
@@ -80,7 +79,7 @@ const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
     toll: () => 0,
     end(s, r, ev) {
       const n = [0, 0];
-      for (const u of s.units) if (standing(u) && !u.under && s.terr[idx(u.x, u.z)] === 'A') n[u.team] = (n[u.team] ?? 0) + 1;
+      for (const u of s.units) if (standing(u) && s.terr[idx(u.x, u.z)] === 'A') n[u.team] = (n[u.team] ?? 0) + 1;
       const [a = 0, b = 0] = n, team = a > b ? 0 : b > a ? 1 : null;
       if (team !== null) s.favor[team]++;
       ev.push({ type: 'favor', team, favor: [s.favor[0], s.favor[1]] });
@@ -117,7 +116,7 @@ export function toll(s: BattleState, u: Unit): number {
 
 /** On a tile that hurts this round and unable to leave it before the round ends. */
 export function doomed(s: BattleState, u: Unit): boolean {
-  if (!isAlive(u) || u.under || !threatened(s, u.x, u.z)) return false;
+  if (!isAlive(u) || !threatened(s, u.x, u.z)) return false;
   if (!standing(u) || u.st.root || u.st.stun) return true;
   const ph = s.phase;
   if (ph.kind !== 'act') return false;

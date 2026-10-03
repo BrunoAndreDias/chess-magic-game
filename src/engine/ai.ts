@@ -14,11 +14,11 @@ function depthOf(team: Team, z: number): number { return team === 0 ? z : N - 1 
 /** `ignoreMap` plays as if the map had no rule, so the sim can measure what playing around it is worth. */
 export interface AiOpts { ignoreMap?: boolean }
 
-const DEPLOY_FIRST: Record<ClassId, number> = { delver: 0, weaver: 1, astromancer: 2 };
+const DEPLOY_FIRST: Record<ClassId, number> = { weaver: 1, astromancer: 2 };
 
 export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBuild[], rng: Rng, opts: AiOpts = {}): Pos[] {
   const pos: (Pos | null)[] = members.map(() => null), mid = (N - 1) / 2;
-  const order = members.map((_m, i) => i).sort((a, b) => DEPLOY_FIRST[members[a]?.cls ?? 'delver'] - DEPLOY_FIRST[members[b]?.cls ?? 'delver']);
+  const order = members.map((_m, i) => i).sort((a, b) => DEPLOY_FIRST[members[a]?.cls ?? 'weaver'] - DEPLOY_FIRST[members[b]?.cls ?? 'weaver']);
   for (const i of order) {
     const cls = members[i]?.cls;
     let best: Pos | null = null, bs = -1e9;
@@ -26,8 +26,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
       if (!canDeploy(s, team, x, z) || pos.some(p => p && p.x === x && p.z === z)) continue;
       const d = depthOf(team, z), t = s.terr[idx(x, z)];
       let sc = rng() * 1.2 - Math.abs(x - mid) * 0.15;
-      if (cls === 'delver') sc += d * 1.2;
-      else if (cls === 'weaver') sc += d * 0.8;
+      if (cls === 'weaver') sc += d * 0.8;
       else sc += (t === '^' ? 4 : 0) + (d === 1 ? 1 : 0);
       if (t === '~') sc -= 3;
       if (!opts.ignoreMap && threatened(s, x, z, 1)) sc -= 6;
@@ -44,7 +43,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
   return pos.map(p => { if (!p) throw new Error(`team ${team}: no deploy tile left`); return p; });
 }
 
-const ROLE_BAND: Record<ClassId, readonly [number, number]> = { delver: [1, 1], weaver: [1, 2], astromancer: [3, 5] };
+const ROLE_BAND: Record<ClassId, readonly [number, number]> = { weaver: [1, 2], astromancer: [3, 5] };
 /** What standing in a pending Call's area is likely to cost, in evalDelta's HP-like units. */
 const CALL_DANGER: Record<CallSkill, number> = { meteor: 22, thunderhead: 16, gravitywell: 6, recall: 0 };
 
@@ -54,7 +53,7 @@ function altarUrgency(s: BattleState): number {
   return r.kind === 'altar' ? Math.max(s.favor[0], s.favor[1]) / r.goal : 0;
 }
 
-function onAltar(s: BattleState, u: Unit): boolean { return standing(u) && !u.under && s.terr[idx(u.x, u.z)] === 'A'; }
+function onAltar(s: BattleState, u: Unit): boolean { return standing(u) && s.terr[idx(u.x, u.z)] === 'A'; }
 
 /** What the map rule will cost `u` at the end of this round, in evalDelta's HP-like units. */
 function hazardCost(s: BattleState, u: Unit): number {
@@ -83,24 +82,20 @@ function inCall(c: Call, x: number, z: number): boolean {
   return cheb(c.x, c.z, x, z) <= r;
 }
 
-/** `hidden`: score it as if `u` had just burrowed there. */
-export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: AiOpts = {}, hidden = u.under >= 2): number {
+export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: AiOpts = {}): number {
   const en = s.units.filter(o => o.team !== u.team && standing(o));
   if (!en.length) return 0;
   let sc = 0, dmin = 99;
   const band = ROLE_BAND[u.cls], hpR = u.hp / u.maxHp, t = terrAt(s, x, z), f = s.fx[idx(x, z)];
   for (const e of en) dmin = Math.min(dmin, cheb(x, z, e.x, e.z));
-  if (hpR < 0.3 && u.cls !== 'delver') sc += Math.min(dmin, 7) * 1.2;
+  if (hpR < 0.3) sc += Math.min(dmin, 7) * 1.2;
   else { if (dmin > band[1]) sc -= (dmin - band[1]) * 3; if (dmin < band[0]) sc -= (band[0] - dmin) * 2.5; }
-  if (!hidden) {
-    let threats = 0;
-    for (const e of en) if (!e.under && cheb(x, z, e.x, e.z) <= 5 && los(s, e.x, e.z, x, z)) threats++;
-    sc -= threats * (u.cls === 'delver' ? 0.4 : 0.9) * (hpR < 0.5 ? 1.6 : 1);
-  }
+  let threats = 0;
+  for (const e of en) if (cheb(x, z, e.x, e.z) <= 5 && los(s, e.x, e.z, x, z)) threats++;
+  sc -= threats * 0.9 * (hpR < 0.5 ? 1.6 : 1);
   for (const c of s.calls) {
     const caster = getUnit(s, c.by);
     if (!caster || (caster.team === u.team && caster.mods.benevolent)) continue;
-    if (hidden && c.skill !== 'meteor') continue;
     if (inCall(c, x, z)) sc -= CALL_DANGER[c.skill] * (caster.team === u.team ? 0.8 : 1);
   }
   if (f?.fire) sc -= 14;
@@ -108,7 +103,6 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
   if (t === '~' && s.units.some(e => e.team !== u.team && standing(e) && e.cls === 'astromancer')) sc -= 3;
   if (t === '^' && u.cls === 'astromancer') sc += 3;
   if (t === '+' && hpR < 0.8) sc += 3;
-  if (hpR < 0.8 && s.mouths.some(m => m.team === u.team && m.x === x && m.z === z && getUnit(s, m.net)?.mods.undercity)) sc += 3;
   if (!opts.ignoreMap) sc += mapTileScore(s, u, x, z);
   for (const [dx, dz] of DIR8) {
     const nx = x + dx, nz = z + dz;
@@ -167,17 +161,14 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
     }
   }
   v += threadDelta(s0, s1, team);
-  const en = s1.units.filter(o => o.team !== team && standing(o) && !o.under);
+  const en = s1.units.filter(o => o.team !== team && standing(o));
   const near = (x: number, z: number, r: number) => en.some(e => cheb(e.x, e.z, x, z) <= r);
   let webs = 0;
   s1.fx.forEach((f, k) => {
     if (!f) return;
     const f0 = s0.fx[k], x = k % N, z = (k / N) | 0;
     if (f.web && !f0?.web && webs < 6 && near(x, z, 1)) { v += 1; webs++; }
-    if ((f.sink && !f0?.sink) || (f.pit && !f0?.pit)) v += near(x, z, 1) ? 2 : -0.5;
-    if (f.charge !== undefined && f0?.charge === undefined) v += near(x, z, 2) ? 4 : -0.5;
   });
-  if (s1.mouths.length > s0.mouths.length) v += 0.5;
   if (!foresee) return v;
   for (const call of s1.calls) {
     if (s0.calls.some(k => sameCall(k, call))) continue;
@@ -219,13 +210,12 @@ function mapDelta(s0: BattleState, s1: BattleState, team: Team): number {
 
 /** Prune ground-targeted skills to tiles that can matter. */
 function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
-  const near = (team: Team, r: number) => s.units.some(o => standing(o) && !o.under && o.team === team && cheb(o.x, o.z, t.x, t.z) <= r);
+  const near = (team: Team, r: number) => s.units.some(o => standing(o) && o.team === team && cheb(o.x, o.z, t.x, t.z) <= r);
   const foe: Team = u.team === 0 ? 1 : 0;
   switch (id) {
     case 'puppet': return true;
     case 'meteor': return near(foe, 1) || terrAt(s, t.x, t.z) === 'B';
-    case 'gravitywell': case 'web': case 'satchel': return near(foe, 2);
-    case 'warren': return near(u.team, 2) && near(foe, 5);
+    case 'gravitywell': case 'web': return near(foe, 2);
     default: return near(foe, 1);
   }
 }
@@ -243,12 +233,10 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
     if (p.moved) { sm = cloneState(s); if (!performMove(sm, p.x, p.z)) continue; }
     const cu = current(sm);
     if (!cu || !standing(cu)) continue;
-    let base = tileScore(sm, cu, p.x, p.z, opts) + (p.moved ? evalDelta(s, sm, u.team, opts) : 0) + rng() * 0.3;
-    // staying put keeps Burrow open for after the cast
-    if (!p.moved && canUse(sm, cu, 'burrow') && exposed(sm, cu)) base += Math.max(0, tileScore(sm, cu, p.x, p.z, opts, true) - tileScore(sm, cu, p.x, p.z, opts));
+    const base = tileScore(sm, cu, p.x, p.z, opts) + (p.moved ? evalDelta(s, sm, u.team, opts) : 0) + rng() * 0.3;
     let bc: Plan['cast'] = null, bcs = 0;
     for (const id of actionsOf(cu)) {
-      if (id === 'burrow' || !canUse(sm, cu, id)) continue;
+      if (!canUse(sm, cu, id)) continue;
       const sk = SKILLS[id];
       castTargets(sm, cu, id).forEach((t: Target) => {
         if (sk.target === 'tile' && !aiTileWorth(sm, cu, id, t)) return;
@@ -256,7 +244,7 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
         if (!performCast(c, id, t.x, t.z)) return;
         const cc = getUnit(c, cu.id);
         let v = evalDelta(sm, c, u.team, opts);
-        if (cc && standing(cc) && (cc.x !== cu.x || cc.z !== cu.z || cc.under !== cu.under)) v += tileScore(c, cc, cc.x, cc.z, opts) - tileScore(sm, cu, cu.x, cu.z, opts);
+        if (cc && standing(cc) && (cc.x !== cu.x || cc.z !== cu.z)) v += tileScore(c, cc, cc.x, cc.z, opts) - tileScore(sm, cu, cu.x, cu.z, opts);
         if (sk.free) v -= 3;
         if (v > bcs) { bcs = v; bc = { skill: id, x: t.x, z: t.z }; }
       });
@@ -281,12 +269,6 @@ function aiRetreat(s: BattleState, opts: AiOpts): Pos | null {
   return best;
 }
 
-/** Worth hiding: an enemy within 5 can see it, or it is below 60% HP. */
-function exposed(s: BattleState, u: Unit): boolean {
-  if (u.hp < u.maxHp * 0.6) return true;
-  return s.units.some(e => e.team !== u.team && standing(e) && !e.under && cheb(e.x, e.z, u.x, u.z) <= 5 && los(s, e.x, e.z, u.x, u.z));
-}
-
 /** The commands for the current unit's whole activation, found by playing it out on a copy. */
 export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command[] {
   const s = cloneState(state), cmds: Command[] = [], u = current(s);
@@ -294,7 +276,7 @@ export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command
   const over = () => s.phase.kind === 'over';
   for (let step = 0; step < 4 && current(s) === u && !over() && standing(u); step++) {
     const plan = aiPlan(s, rng, opts);
-    // once it has acted, only a free skill is worth another plan; positioning is left to Burrow or the retreat
+    // once it has acted, only a free skill is worth another plan; positioning is left to the retreat
     if (!plan || (u.acted && !plan.cast)) break;
     if (plan.move && performMove(s, plan.move.x, plan.move.z)) cmds.push({ kind: 'move', unit: u.id, to: plan.move });
     if (!plan.cast || over() || !standing(u)) break;
@@ -303,12 +285,8 @@ export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command
     cmds.push({ kind: 'cast', unit: u.id, skill, at: { x, z } });
   }
   if (current(s) === u && !over() && standing(u) && !u.moved) {
-    if (canUse(s, u, 'burrow') && exposed(s, u)) {
-      if (performCast(s, 'burrow', u.x, u.z)) cmds.push({ kind: 'cast', unit: u.id, skill: 'burrow', at: { x: u.x, z: u.z } });
-    } else {
-      const r = aiRetreat(s, opts);
-      if (r && performMove(s, r.x, r.z)) cmds.push({ kind: 'move', unit: u.id, to: r });
-    }
+    const r = aiRetreat(s, opts);
+    if (r && performMove(s, r.x, r.z)) cmds.push({ kind: 'move', unit: u.id, to: r });
   }
   if (current(s) === u && !over()) { endActivation(s); cmds.push({ kind: 'endTurn', unit: u.id }); }
   return cmds;
@@ -322,7 +300,7 @@ export function aiOrder(s: BattleState, team: Team, rng: Rng): UnitId[] {
     let dmin = 99;
     for (const e of s.units) if (e.team !== team && standing(e)) dmin = Math.min(dmin, cheb(u.x, u.z, e.x, e.z));
     const reach = C.move + (C.basic.range > 1 ? C.basic.range + 1 : 1);
-    let v = (dmin <= reach ? 6 : 0) - dmin * 0.3 + (u.cls === 'delver' ? 2 : 0) + rng() * 0.5;
+    let v = (dmin <= reach ? 6 : 0) - dmin * 0.3 + rng() * 0.5;
     if (s.calls.some(c => c.by === u.id)) v += 8;
     if (u.st.stun || u.st.encased) v -= 50;
     return { id: u.id, v };

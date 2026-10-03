@@ -6,7 +6,7 @@ import type { Seats } from './match';
 
 const setup: BattleSetup = {
   map: 'span', starter: 0,
-  teams: [[newMember('delver', 'De'), newMember('astromancer', 'As'), newMember('weaver', 'We')], [newMember('weaver', 'We'), newMember('delver', 'De'), newMember('astromancer', 'As')]],
+  teams: [[newMember('weaver', 'Wi'), newMember('astromancer', 'As'), newMember('weaver', 'We')], [newMember('weaver', 'We'), newMember('weaver', 'Wi'), newMember('astromancer', 'As')]],
 };
 const ai: Seats = [[{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }], [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }]];
 const id = (n: number) => n as UnitId;
@@ -17,7 +17,7 @@ describe('Match', () => {
     const m = new Match(setup, seats, 1);
     m.start();
     expect(m.state.phase.kind === 'order' && m.state.phase.orders[0]).toBe(null);
-    expect(m.state.phase.kind === 'order' && m.state.phase.orders[1]).toEqual([6, 5, 4]);
+    expect(m.state.phase.kind === 'order' && m.state.phase.orders[1]).toEqual([6, 4, 5]);
 
     expect(m.submit('bob', { kind: 'order', team: 0, order: [id(1), id(2), id(3)] })).toEqual({ ok: false, error: 'bob holds no seat on team 0' });
     expect(m.submit('ana', { kind: 'order', team: 1, order: [id(4), id(5), id(6)] })).toEqual({ ok: false, error: 'ana holds no seat on team 1' });
@@ -47,7 +47,7 @@ describe('Match', () => {
     };
     const a = play(42), b = play(42), c = play(43);
     expect(a.state.phase).toEqual({ kind: 'over', winner: 0, reason: 'wipe' });
-    expect(a.state.round).toBe(8);
+    expect(a.state.round).toBe(7);
     expect(b).toEqual(a);
     expect(c.state).not.toEqual(a.state);
   });

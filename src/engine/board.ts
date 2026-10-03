@@ -1,5 +1,5 @@
 import { CLASSES, DEPLOY_ROWS, DIR4, DIR8, N, SKILLS, STATUS, TERRAIN, isCall } from './tables';
-import type { BasicSkillId, BattleState, Mouth, Phase, Pos, SkillId, StatusKey, Statuses, Team, TerrainChar, Thread, Unit, UnitId } from './types';
+import type { BasicSkillId, BattleState, Phase, Pos, SkillId, StatusKey, Statuses, Team, TerrainChar, Thread, Unit, UnitId } from './types';
 
 export interface Target extends Pos { id?: UnitId }
 
@@ -12,27 +12,23 @@ export function inDeploy(team: Team, x: number, z: number): boolean { return tea
 export function standing(u: Unit): boolean { return u.life.kind === 'up'; }
 export function isDowned(u: Unit): boolean { return u.life.kind === 'downed'; }
 export function isAlive(u: Unit): boolean { return u.life.kind !== 'dead'; }
-/** Alive and on the surface: the units the board can touch. */
-export function present(u: Unit): boolean { return u.life.kind !== 'dead' && u.under === 0; }
 
 export function getUnit(s: BattleState, id: UnitId | null | undefined): Unit | null {
   for (const u of s.units) if (u.id === id) return u;
   return null;
 }
-/** The surface unit on a tile. Underground units don't occupy it. */
 export function unitAt(s: BattleState, x: number, z: number): Unit | null {
-  for (const u of s.units) if (present(u) && u.x === x && u.z === z) return u;
+  for (const u of s.units) if (isAlive(u) && u.x === x && u.z === z) return u;
   return null;
 }
 export function current(s: BattleState): Unit | null {
   return s.phase.kind === 'act' ? getUnit(s, s.phase.queue[s.phase.qi]) : null;
 }
 
-/** Effective terrain: overlays first (pit, ice), then the base tile. Off the board reads as wall. */
+/** Effective terrain: ice over water, then the base tile. Off the board reads as wall. */
 export function terrAt(s: BattleState, x: number, z: number): TerrainChar {
   if (!inb(x, z)) return '#';
-  const f = s.fx[idx(x, z)];
-  if (f) { if (f.pit) return 'o'; if (f.ice) return 'I'; }
+  if (s.fx[idx(x, z)]?.ice) return 'I';
   return s.terr[idx(x, z)] ?? '#';
 }
 export function isSolid(s: BattleState, x: number, z: number): boolean { return !!TERRAIN[terrAt(s, x, z)].solid; }
@@ -56,14 +52,14 @@ export function onHigh(s: BattleState, u: Unit): boolean { return terrAt(s, u.x,
 export function concealed(s: BattleState, src: Unit, o: Unit, px: number, pz: number): boolean {
   if (terrAt(s, o.x, o.z) !== 'G' || isDowned(o)) return false;
   if (cheb(px, pz, o.x, o.z) <= 2) return false;
-  for (const a of s.units) if (a.team === src.team && standing(a) && a.under === 0 && a !== src && cheb(a.x, a.z, o.x, o.z) <= 1) return false;
+  for (const a of s.units) if (a.team === src.team && standing(a) && a !== src && cheb(a.x, a.z, o.x, o.z) <= 1) return false;
   return true;
 }
 
 function isStatusKey(k: string): k is StatusKey { return k in STATUS; }
 export const BAD_KEYS: readonly StatusKey[] = Object.keys(STATUS).filter(isStatusKey).filter(k => STATUS[k].bad);
 
-// ---------- threads and tunnels ----------
+// ---------- threads ----------
 /** The Threads holding `o`, by Weavers of `team` when given. */
 export function holders(s: BattleState, o: Unit, team?: Team): Thread[] {
   return s.threads.filter(t => t.to === o.id && (team === undefined || getUnit(s, t.by)?.team === team));
@@ -71,14 +67,10 @@ export function holders(s: BattleState, o: Unit, team?: Team): Thread[] {
 export function threadCap(s: BattleState, w: Unit): number {
   return 3 + (w.mods.threads || 0) + (s.party[w.team].has('greatweb') ? 1 : 0);
 }
-function joined(s: BattleState, a: Mouth, b: Mouth): boolean {
-  return a !== b && a.team === b.team && (a.net === b.net || s.party[a.team].has('warren'));
-}
 
 // ---------- movement ----------
-const UNDER_MOVE = 4;
 export function moveOf(u: Unit): number {
-  return u.under ? UNDER_MOVE + (u.mods.underMove || 0) : CLASSES[u.cls].move;
+  return CLASSES[u.cls].move;
 }
 
 function pathTo(prev: Map<number, number>, k: number): Pos[] {
@@ -87,28 +79,10 @@ function pathTo(prev: Map<number, number>, k: number): Pos[] {
   return path.reverse();
 }
 
-/** Underground: 4 directions through walls, water and units, never through a chasm or pit. */
-function underPaths(s: BattleState, u: Unit, range: number): Map<number, number> {
-  const start = idx(u.x, u.z), prev = new Map<number, number>([[start, -1]]);
-  let frontier = [start];
-  for (let d = 0; d < range && frontier.length; d++) {
-    const next: number[] = [];
-    for (const k of frontier) for (const [dx, dz] of DIR4) {
-      const nx = (k % N) + dx, nz = ((k / N) | 0) + dz, nk = idx(nx, nz);
-      if (!inb(nx, nz) || prev.has(nk) || terrAt(s, nx, nz) === 'o') continue;
-      prev.set(nk, k); next.push(nk);
-    }
-    frontier = next;
-  }
-  return prev;
-}
-
-/** Surface Dijkstra: terrain costs, enemies block, webs stop non-Weavers, joined mouths connect when `tunnels`. */
-function surfacePaths(s: BattleState, u: Unit, range: number, tunnels: boolean): Map<number, number> {
+/** Dijkstra: terrain costs, enemies block, webs stop non-Weavers. */
+function walkPaths(s: BattleState, u: Unit, range: number): Map<number, number> {
   const start = idx(u.x, u.z), weaver = u.cls === 'weaver';
   const dist = new Map<number, number>([[start, 0]]), prev = new Map<number, number>([[start, -1]]);
-  const mouths = tunnels ? s.mouths.filter(m => m.team === u.team) : [];
-  const jump = s.party[u.team].has('silktunnels') && holders(s, u, u.team).length ? 0 : 1;
   const open: number[] = [start];
   const relax = (from: number, nk: number, nd: number, stop: boolean) => {
     if (nd > range) return;
@@ -131,13 +105,6 @@ function surfacePaths(s: BattleState, u: Unit, range: number, tunnels: boolean):
       const cost = web && weaver ? 0 : TERRAIN[terrAt(s, nx, nz)].cost || 1;
       relax(c, idx(nx, nz), d + cost, web && !weaver);
     }
-    if (!mouths.length) continue;
-    const here = mouths.find(m => m.x === cx && m.z === cz);
-    if (!here) continue;
-    for (const m of mouths) {
-      if (!joined(s, here, m) || isSolid(s, m.x, m.z) || unitAt(s, m.x, m.z)) continue;
-      relax(c, idx(m.x, m.z), d + jump, false);
-    }
   }
   return prev;
 }
@@ -149,10 +116,10 @@ export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
   return paths(s, u, moveOf(u), true);
 }
 
-/** Every tile `u` could walk to within `range`, ignoring Root; on its `own` move, tunnels carry it and enemy Weavers' Threads leash it. */
+/** Every tile `u` could walk to within `range`, ignoring Root; on its `own` move, enemy Weavers' Threads leash it. */
 export function paths(s: BattleState, u: Unit, range: number, own: boolean): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>(), start = idx(u.x, u.z);
-  const prev = u.under ? underPaths(s, u, range) : surfacePaths(s, u, range, own);
+  const prev = walkPaths(s, u, range);
   const leashes: [Unit, number][] = [];
   if (own) for (const t of s.threads) {
     if (t.to !== u.id) continue;
@@ -163,7 +130,6 @@ export function paths(s: BattleState, u: Unit, range: number, own: boolean): Map
     if (k === start) return;
     const x = k % N, z = (k / N) | 0;
     if (unitAt(s, x, z) || isSolid(s, x, z)) return;
-    if (u.under && s.units.some(o => o !== u && isAlive(o) && o.x === x && o.z === z)) return;
     for (const [w, len] of leashes) if (cheb(x, z, w.x, w.z) > len) return;
     res.set(k, pathTo(prev, k));
   });
@@ -179,7 +145,6 @@ export function cdOf(u: Unit, id: SkillId): number {
   let c = SKILLS[id].cd;
   if (id === 'prison') c -= u.mods.prisonCd || 0;
   if (id === 'cocoon') c -= u.mods.cocoonCd || 0;
-  if (id === 'upheaval' && u.mods.undertow) c -= 1;
   return c;
 }
 function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number): number {
@@ -199,8 +164,6 @@ export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
   if (!actionsOf(u).includes(id) || u.st.encased) return false;
   if ((u.cd[id] || 0) > 0) return false;
   if (u.acted && !SKILLS[id].free) return false;
-  if (id === 'burrow') return !u.moved && u.under === 0;
-  if (id === 'upheaval') return u.under > 0;
   if (id === 'snap') return callsOf(s, u) > 0;
   if (isCall(id)) return callsOf(s, u) < 1 + (u.mods.twinStars || 0);
   return true;
@@ -222,20 +185,13 @@ export function nearestFree(s: BattleState, x: number, z: number, except: Unit |
   return null;
 }
 
-/** Where Drag Under brings an ally: the free tile nearest the Delver's newest mouth. */
-export function dragLanding(s: BattleState, u: Unit): Pos | null {
-  let m: Mouth | null = null;
-  for (const mo of s.mouths) if (mo.net === u.id) m = mo;
-  return m ? nearestFree(s, m.x, m.z) : null;
-}
-
 /** Puppet Strings: tile index → the first held enemy (in Thread order) that can walk there in 2 steps, and its path. */
 export function puppetMoves(s: BattleState, u: Unit): Map<number, { id: UnitId; path: Pos[] }> {
   const out = new Map<number, { id: UnitId; path: Pos[] }>();
   for (const t of s.threads) {
     if (t.by !== u.id) continue;
     const o = getUnit(s, t.to);
-    if (!o || o.team === u.team || !standing(o) || o.under || o.st.encased) continue;
+    if (!o || o.team === u.team || !standing(o) || o.st.encased) continue;
     paths(s, o, 2, false).forEach((path, k) => { if (!out.has(k)) out.set(k, { id: o.id, path }); });
   }
   return out;
@@ -243,12 +199,10 @@ export function puppetMoves(s: BattleState, u: Unit): Map<number, { id: UnitId; 
 
 function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: number, r: number): boolean {
   const sk = SKILLS[id], ox = o === u ? px : o.x, oz = o === u ? pz : o.z, d = cheb(px, pz, ox, oz);
-  if (o !== u && o.under) return false;
   const held = () => s.threads.some(t => t.by === u.id && t.to === o.id);
   switch (sk.target) {
     case 'enemy':
       if (o.team === u.team || concealed(s, u, o, px, pz)) return false;
-      if (id === 'upheaval' && !standing(o)) return false;
       break;
     case 'ally': if (o.team !== u.team || !standing(o) || (sk.noSelf && o === u)) return false; break;
     case 'downed': if (o.team !== u.team || !isDowned(o)) return false; break;
@@ -263,19 +217,14 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
   if (id === 'cocoon') return d <= r || held();
   if (d > r) return false;
   if (id === 'skitter') return held() && !!landingNear(s, u, o, px, pz);
-  if (id === 'dragunder') return !o.st.encased && !!dragLanding(s, u);
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
   return true;
 }
 
-/** Legal targets for `id` if `u` stood at (px, pz); underground, from where casting would surface it, except for Upheaval. */
+/** Legal targets for `id` if `u` stood at (px, pz). */
 export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz = u.z): Target[] {
   const sk = SKILLS[id], out: Target[] = [];
   if (sk.target === 'self') return [{ x: px, z: pz }];
-  if (u.under && id !== 'upheaval') {
-    const up = nearestFree(s, px, pz);
-    if (up) { px = up.x; pz = up.z; }
-  }
   if (id === 'puppet') {
     puppetMoves(s, u).forEach((_m, k) => out.push({ x: k % N, z: (k / N) | 0 }));
     return out;
@@ -375,7 +324,6 @@ export function cloneState(s: BattleState): BattleState {
       dmg: [s.stats.dmg[0], s.stats.dmg[1]], heal: [s.stats.heal[0], s.stats.heal[1]],
       downs: [s.stats.downs[0], s.stats.downs[1]], revives: [s.stats.revives[0], s.stats.revives[1]],
     },
-    mouths: s.mouths.map(m => ({ ...m })),
     calls: s.calls.map(c => ({ ...c, recall: c.recall ? { ...c.recall } : null })),
     threads: s.threads.map(t => ({ ...t })),
     callRound: [s.callRound[0], s.callRound[1]],

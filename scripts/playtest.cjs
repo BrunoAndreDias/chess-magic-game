@@ -138,7 +138,7 @@ async function serve() {
     const strip = await p.textContent('#su-mapinfo');
     if (!strip.includes(mapName)) throw new Error(`setup strip does not name ${mapName}: ${strip}`);
     await p.click('.ccard[data-cls="weaver"]');
-    await p.click('.ccard[data-cls="delver"]');
+    await p.click('.ccard[data-cls="astromancer"]');
     await p.click('#su-teams .pslot[data-team="0"][data-slot="1"]');
     await wait(600);
     // The lineup walks members to their spots at the frame rate, so wait for the plate under slot 0 to stop moving.
@@ -180,7 +180,7 @@ async function serve() {
   }
 
   // How often each class mechanic showed up in the battle log, so a run proves the classes were actually played.
-  const MECHANICS = { burrows: /burrows underground/, tunnels: /surfaces\./, calls: /is called: it lands/, lands: /lands( at half power)?!/, threads: /ties a Thread/, webs: /Webs cover/, encased: /is Encased/ };
+  const MECHANICS = { calls: /is called: it lands/, lands: /lands( at half power)?!/, threads: /ties a Thread/, webs: /Webs cover/, encased: /is Encased/ };
   const mechanics = () => p.evaluate(m => {
     const lines = window.__logLines ?? [];
     return Object.entries(m).map(([k, re]) => `${k} ${lines.filter(l => new RegExp(re).test(l)).length}`).join(', ');

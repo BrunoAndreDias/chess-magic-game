@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { CLASSES } from '../../engine/index';
-import type { ClassId, Life, StatusKey, Team, Unit, UnitId } from '../../engine/index';
+import type { ClassId, Life, ModelId, StatusKey, Team, Unit, UnitId } from '../../engine/index';
 import { GOLD, TEAM_HEX, basic, decal, glow, hex, keep, mat, mesh, seeded } from './art';
 
 /** What the unit's label and aura show right now: `before` at the start of a play, nudged by each event, `after` at its end. */
-export interface Shown { name: string; hp: number; maxHp: number; shield: number; life: Life; st: Set<StatusKey>; under: boolean; ice: boolean }
+export interface Shown { name: string; hp: number; maxHp: number; shield: number; life: Life; st: Set<StatusKey>; ice: boolean }
 
 export interface UnitView {
   id: UnitId;
@@ -19,8 +19,6 @@ export interface UnitView {
   blood: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   aura: THREE.Sprite;
   disc: THREE.Mesh;
-  /** The dirt mound shown on the tile while the unit is underground. */
-  mound: THREE.Group;
   /** Glacial Prison's block and the Weaver's cocoon; `shown` picks which. */
   ice: THREE.Mesh;
   cocoon: THREE.Group;
@@ -29,8 +27,6 @@ export interface UnitView {
   shown: Shown;
   /** 0 standing, 1 lying down. */
   pose: number;
-  /** 0 on the surface, 1 fully underground: the body sinks below the floor and the mound grows. */
-  dig: number;
   bob: number;
 }
 
@@ -68,8 +64,8 @@ export function starGeometry(outer: number, inner = outer * 0.45, depth = outer 
   return g;
 }
 
-const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit, look: number) => Model>> = {
-  delver: (body, k, look) => {
+const MODELS: Readonly<Record<ModelId, (body: THREE.Group, k: Kit, look: number) => Model>> = {
+  guardian: (body, k, look) => {
     const fur = furs[look % furs.length]!;
     const torso = mesh(new THREE.SphereGeometry(0.4, 10, 8), k.main, 0, 0.46, -0.02);
     torso.scale.set(1.08, 0.9, 1);
@@ -107,7 +103,7 @@ const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit, look: number)
     body.add(pick);
     return { height: 1.05, weapon: pick, spin: null };
   },
-  astromancer: (body, k) => {
+  elementalist: (body, k) => {
     body.add(
       mesh(new THREE.ConeGeometry(0.34, 0.95, 12), k.main, 0, 0.475, 0),
       mesh(new THREE.CylinderGeometry(0.2, 0.27, 0.08, 12), k.accent, 0, 0.55, 0),
@@ -136,7 +132,7 @@ const MODELS: Readonly<Record<ClassId, (body: THREE.Group, k: Kit, look: number)
     body.add(hat, staff);
     return { height: 1.75, weapon: staff, spin: orbit };
   },
-  weaver: (body, k, look) => {
+  rogue: (body, k, look) => {
     const shell = chitins[look % chitins.length]!;
     const abdomen = mesh(new THREE.SphereGeometry(0.34, 12, 10), k.main, 0, 0.44, -0.32);
     abdomen.scale.set(1, 0.85, 1.15);
@@ -183,36 +179,13 @@ export function buildModel(cls: ClassId, team: Team, look: number): { body: THRE
     accent: mat(hex(C.color), { roughness: 0.6 }),
     accentHex: hex(C.color),
   };
-  const model = MODELS[cls](body, k, look);
+  const model = MODELS[C.model](body, k, look);
   body.traverse(o => { if (o instanceof THREE.Mesh) o.castShadow = true; });
   return { body, main: k.main, ...model };
 }
 
-const dirt = keep(mat(0x5e4430));
-const clod = keep(mat(0x4a3424));
 const iceMat = keep(new THREE.MeshStandardMaterial({ color: 0xbfeaff, emissive: 0x3a9ad0, emissiveIntensity: 0.45, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.55, flatShading: true }));
 const silkMat = keep(new THREE.MeshStandardMaterial({ color: 0xf6f0fa, emissive: 0x6a5a7a, emissiveIntensity: 0.25, roughness: 0.9, transparent: true, opacity: 0.88 }));
-
-/** A heap of turned earth with a team-coloured rim, for a unit that is underground. */
-function buildMound(team: Team): THREE.Group {
-  const g = new THREE.Group(), rnd = seeded(7 + team);
-  const heap = mesh(new THREE.SphereGeometry(0.4, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(new THREE.Color(0x8a6442).lerp(new THREE.Color(TEAM_HEX[team]), 0.15).getHex()));
-  heap.scale.y = 1.15;
-  // Opaque and raised above the Call decals (y 0.06) so neither a tint nor a top-down view flattens it.
-  const rim = mesh(new THREE.TorusGeometry(0.44, 0.06, 6, 28), basic(TEAM_HEX[team]), 0, 0.09, 0), skirt = mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.08, 28), dirt, 0, 0.04, 0);
-  rim.rotation.x = Math.PI / 2;
-  const crown = mesh(new THREE.SphereGeometry(0.17, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xb08a5e), 0, 0.4, 0);
-  g.add(rim, skirt, crown, heap);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2 + rnd(), r = 0.32 + rnd() * 0.12;
-    const c = mesh(new THREE.DodecahedronGeometry(0.06 + rnd() * 0.04, 0), i % 2 ? dirt : clod, Math.cos(a) * r, 0.04, Math.sin(a) * r);
-    c.rotation.set(rnd() * 3, rnd() * 3, 0);
-    g.add(c);
-  }
-  g.traverse(o => { if (o instanceof THREE.Mesh) o.castShadow = o.receiveShadow = true; });
-  g.visible = false;
-  return g;
-}
 
 function buildCocoon(height: number): THREE.Group {
   const g = new THREE.Group(), shell = mesh(new THREE.SphereGeometry(0.42, 14, 10), silkMat, 0, height * 0.5, 0);
@@ -229,10 +202,10 @@ function buildCocoon(height: number): THREE.Group {
 
 export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   const group = new THREE.Group(), { body, main, height, weapon, spin } = buildModel(u.cls, u.team, u.slot + u.team);
-  const ice = mesh(new THREE.BoxGeometry(0.86, height + 0.25, 0.86), iceMat, 0, (height + 0.25) / 2, 0), cocoon = buildCocoon(height), mound = buildMound(u.team);
+  const ice = mesh(new THREE.BoxGeometry(0.86, height + 0.25, 0.86), iceMat, 0, (height + 0.25) / 2, 0), cocoon = buildCocoon(height);
   ice.visible = false;
   body.add(ice, cocoon);
-  group.add(body, mound);
+  group.add(body);
 
   const disc = decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[u.team], 0.35), 0.02);
   const ring = decal(new THREE.RingGeometry(0.47, 0.58, 32), basic(GOLD, 0.95), 0.03) as UnitView['ring'];
@@ -253,15 +226,15 @@ export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   labels.appendChild(label);
 
   return {
-    id: u.id, team: u.team, group, body, weapon, height, main, disc, mound, ice, cocoon, spin,
-    ring, bubble, blood, aura, label, shown: shownOf(u), pose: 0, dig: u.under ? 1 : 0, bob: Math.random() * 6,
+    id: u.id, team: u.team, group, body, weapon, height, main, disc, ice, cocoon, spin,
+    ring, bubble, blood, aura, label, shown: shownOf(u), pose: 0, bob: Math.random() * 6,
   };
 }
 
 export function shownOf(u: Unit): Shown {
   return {
     name: u.name, hp: u.hp, maxHp: u.maxHp, shield: u.shield, life: u.life, st: new Set(Object.keys(u.st) as StatusKey[]),
-    under: u.under > 0, ice: !!u.st.encased?.ice,
+    ice: !!u.st.encased?.ice,
   };
 }
 
@@ -278,17 +251,13 @@ const AURA: readonly (readonly [StatusKey, number])[] = [
 ];
 
 export function animateUnit(v: UnitView, time: number): void {
-  const s = v.shown, up = s.life.kind === 'up', sunk = v.dig >= 1;
-  if (v.pose === 0) v.body.position.y = Math.sin(time * 2 + v.bob) * 0.025 * (1 - v.dig) - v.dig * (v.height + 0.3);
-  v.body.visible = !sunk;
-  v.disc.visible = !sunk;
-  v.mound.visible = v.dig > 0;
-  v.mound.scale.set(0.4 + 0.6 * v.dig, v.dig, 0.4 + 0.6 * v.dig);
+  const s = v.shown, up = s.life.kind === 'up';
+  if (v.pose === 0) v.body.position.y = Math.sin(time * 2 + v.bob) * 0.025;
   const encased = s.st.has('encased');
   v.ice.visible = encased && s.ice;
   v.cocoon.visible = encased && !s.ice;
   if (v.spin) v.spin.rotation.y = time * 1.6;
-  v.bubble.visible = up && s.shield > 0 && !sunk;
+  v.bubble.visible = up && s.shield > 0;
   if (v.blood.visible) v.blood.material.opacity = 0.45 + 0.25 * Math.sin(time * 4);
   const aura = up ? AURA.find(([key]) => s.st.has(key)) : undefined;
   const am = v.aura.material;

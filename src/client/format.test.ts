@@ -6,10 +6,10 @@ import { callLines, comboCredit, describe, openingLines, previewLines } from './
 const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tree });
 const s = createBattle({
   map: 'storm', starter: 0,
-  teams: [[newMember('delver', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
+  teams: [[newMember('weaver', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
     [pathed(newMember('weaver', 'Morvath'), ['w_poison', 'w_fang', 'w_bite', 'w_feast']),
       pathed(newMember('astromancer', 'Ysolde'), ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']),
-      pathed(newMember('delver', 'Grix'), ['d_hp', 'd_quick', 'd_satchel', 'd_earth'])]],
+      pathed(newMember('weaver', 'Grix'), ['w_hp', 'w_leash', 'w_thread', 'w_fate'])]],
   deploy: [[{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 2, z: 0 }], [{ x: 0, z: 11 }, { x: 1, z: 11 }, { x: 2, z: 11 }]],
 }, mulberry32(1));
 const id = (n: number) => n as UnitId;
@@ -63,12 +63,6 @@ suite('describe', () => {
     expect(line({ type: 'shared', id: id(5), by: id(4) })).toEqual({ tone: 't1', text: 'Morvath takes half the blow for Ysolde.' });
     expect(line({ type: 'damage', id: id(4), amount: 6, absorbed: 0, kind: 'share' })).toEqual({ tone: 't1', text: 'Morvath takes 6 through Shared Pain.' });
   });
-  test('the underground reads as burrow, surface and cave-in; a new mouth is left to the board', () => {
-    expect(line({ type: 'burrow', id: id(1), x: 0, z: 0 })).toEqual({ tone: 't0', text: 'Aldric burrows underground.' });
-    expect(line({ type: 'surface', id: id(1), x: 3, z: 0 })).toEqual({ tone: 't0', text: 'Aldric surfaces.' });
-    expect(line({ type: 'mouth', team: 0, x: 3, z: 0 })).toBe(null);
-    expect(line({ type: 'cavein', x: 3, z: 0 })).toEqual({ tone: 'sys', text: 'A Tunnel Mouth caves in.' });
-  });
   test('a Call says when it lands, then lands or fizzles', () => {
     expect(line({ type: 'call', id: id(2), team: 0, skill: 'meteor', tiles: [] })).toEqual({ tone: 't0', text: "Meteor is called: it lands at the start of Seren's next turn." });
     expect(line({ type: 'land', id: id(2), skill: 'meteor', x: 5, z: 5, tiles: [], power: 1 })).toEqual({ tone: 't0', text: "Seren's Meteor lands!" });
@@ -79,12 +73,8 @@ suite('describe', () => {
     expect(line({ type: 'thread', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: 'Morvath ties a Thread to Aldric.' });
     expect(line({ type: 'snap', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: "Morvath's Thread to Aldric breaks." });
   });
-  test('webs, sinks, pits, charges and casings each get a line', () => {
+  test('webs and casings each get a line', () => {
     expect(line({ type: 'terrain', tiles: [], kind: 'web' })).toEqual({ tone: 'sys', text: 'Webs cover the ground.' });
-    expect(line({ type: 'terrain', tiles: [], kind: 'sink' })).toEqual({ tone: 'sys', text: 'The ground is undermined: it collapses at the end of the round.' });
-    expect(line({ type: 'terrain', tiles: [], kind: 'pit' })).toEqual({ tone: 'sys', text: 'The ground collapses into a pit.' });
-    expect(line({ type: 'charge', x: 1, z: 1 })).toEqual({ tone: 'sys', text: 'A Satchel Charge is planted.' });
-    expect(line({ type: 'blast', x: 1, z: 1 })).toEqual({ tone: 'sys', text: 'A Satchel Charge blows!' });
     expect(line({ type: 'encased', id: id(4) })).toEqual({ tone: 't1', text: 'Morvath is Encased.' });
   });
   test('pushes say how far', () => {
@@ -117,30 +107,29 @@ suite('openingLines', () => {
   test('name the map and each party bonus', () => {
     expect(openingLines(s).map(l => l.text)).toEqual([
       'Storm Court. Order rule: the starting party acts first and last.',
-      'Blue party bonuses: Deep Impact, Conjunction',
-      'Red party bonuses: Deep Impact, Silk Tunnels, Star-Tether, Role Coverage',
+      'Blue party bonuses: Star-Tether, Conjunction',
+      'Red party bonuses: Star-Tether, Great Web, Role Coverage',
     ]);
   });
 });
 
 suite('callLines', () => {
-  const at = (moves: Record<number, [number, number, number?]>, benevolent = false): BattleState => ({
+  const at = (moves: Record<number, [number, number]>, benevolent = false): BattleState => ({
     ...s,
     units: s.units.map(u => {
       const m = moves[u.id];
-      const v = m ? { ...u, x: m[0], z: m[1], under: m[2] ?? 0 } : u;
+      const v = m ? { ...u, x: m[0], z: m[1] } : u;
       return v.id === 2 && benevolent ? { ...v, mods: { ...v.mods, benevolent: 1 } } : v;
     }),
   });
   const seren = (st: BattleState) => st.units.find(u => u.id === 2)!;
 
-  test('a Meteor warns of friendly fire and of the Quake under an enemy', () => {
-    const st = at({ 1: [5, 5], 4: [6, 6], 6: [4, 4, 1], 5: [9, 9] });
+  test('a Meteor warns of friendly fire and names the enemies in its area', () => {
+    const st = at({ 1: [5, 5], 4: [6, 6], 5: [9, 9] });
     expect(callLines(st, seren(st), 'meteor', 5, 5).map(l => l.text)).toEqual([
       "Lands at the start of Seren's next turn.",
       '⚠ Aldric: ally in the area, friendly fire',
       'Morvath: in the area now',
-      'Grix: underground, forced up and Stunned (Quake)',
     ]);
   });
   test('Benevolent Heavens heals the allies in the area, and an empty area says so', () => {

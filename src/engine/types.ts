@@ -5,15 +5,14 @@ export interface Pos { x: number; z: number }
 
 export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 'A';
 export type MapId = 'span' | 'storm' | 'altar';
-export type ClassId = 'delver' | 'astromancer' | 'weaver';
+export type ClassId = 'astromancer' | 'weaver';
 export type Role = 'tank' | 'damage' | 'support';
 
 export type ClassSkillId =
-  | 'upheaval' | 'undermine' | 'satchel' | 'dragunder' | 'tremor' | 'stoneskin' | 'warren'
   | 'meteor' | 'thunderhead' | 'gravitywell' | 'frostbolt' | 'firebolt' | 'prison' | 'recall'
   | 'reel' | 'web' | 'cocoon' | 'venombite' | 'puppet' | 'sharedpain' | 'skitter';
 /** Every build has its class's innate: the class mechanic, always on. */
-export type InnateSkillId = 'burrow' | 'snap' | 'tether';
+export type InnateSkillId = 'snap' | 'tether';
 export type BasicSkillId = `basic_${ClassId}`;
 export type SkillId = ClassSkillId | InnateSkillId | BasicSkillId | 'helpup';
 /** Skills that mark an area now and land at the start of the caster's next activation. */
@@ -22,9 +21,6 @@ export type CallSkill = 'meteor' | 'thunderhead' | 'gravitywell' | 'recall';
 export type SkillTarget = 'enemy' | 'ally' | 'downed' | 'friend' | 'any' | 'tile' | 'self';
 
 export type NodeId =
-  | 'd_hp' | 'd_quick' | 'd_satchel' | 'd_earth'
-  | 'd_strike' | 'd_upheave' | 'd_deep' | 'd_undertow'
-  | 'd_mouth' | 'd_hp2' | 'd_shield' | 'd_city'
   | 'a_frost' | 'a_prison' | 'a_wet' | 'a_zero'
   | 'a_fire' | 'a_range' | 'a_burn' | 'a_twin'
   | 'a_recall' | 'a_hp' | 'a_cleanse' | 'a_benev'
@@ -34,8 +30,7 @@ export type NodeId =
 
 /** Summed numeric effects of a character's passive-tree picks. */
 export type Mods = Partial<Record<
-  | 'hp' | 'surfaceDmg' | 'upheavalDmg' | 'underMove' | 'undertow' | 'quickSink' | 'satchelDmg' | 'earthbreaker'
-  | 'mouthTurns' | 'tunnelShield' | 'undercity'
+  | 'hp'
   | 'fireDmg' | 'callRange' | 'burnDmg' | 'twinStars' | 'frostDmg' | 'prisonCd' | 'callWet' | 'absZero'
   | 'recallRange' | 'recallCleanse' | 'benevolent'
   | 'leashDmg' | 'threads' | 'webOfFate' | 'poisonDmg' | 'basicDmg' | 'biteHeal' | 'feast'
@@ -43,7 +38,7 @@ export type Mods = Partial<Record<
   number>>;
 
 /** A pair of classes in a party; `a === b` means that class twice. */
-export type PairId = 'deepimpact' | 'silktunnels' | 'startether' | 'warren' | 'conjunction' | 'greatweb';
+export type PairId = 'startether' | 'conjunction' | 'greatweb';
 export type PartyBonusId = PairId | 'coverage';
 export type PartyBonuses = ReadonlySet<PartyBonusId>;
 
@@ -89,10 +84,6 @@ export interface Unit {
   cd: Partial<Record<SkillId, number>>;
   moved: boolean;
   acted: boolean;
-  /** 0 on the surface, otherwise the turns left underground, ticked at the end of its own activation. */
-  under: number;
-  /** Surfaced during this activation (Ambusher). */
-  surfaced: boolean;
   /** Fate Weaver already saved it once. */
   spared: boolean;
 }
@@ -103,17 +94,9 @@ export interface TileFx {
   smoke?: number;
   ice?: number;
   web?: number;
-  /** Undermined: collapses into a pit at the end of the round. */
-  sink?: number;
-  /** Reads as chasm while it lasts. */
-  pit?: number;
-  /** A Satchel Charge, by the Delver who planted it. */
-  charge?: UnitId;
   spent?: true;
 }
 
-/** A Tunnel Mouth. `net` is the Delver who dug it: all of one Delver's mouths are joined. `t` is rounds left. */
-export interface Mouth { team: Team; net: UnitId; x: number; z: number; t: number }
 /** A pending Call. `recall` is Recall's snapshot of the ally, taken at cast. */
 export interface Call {
   by: UnitId; team: Team; skill: CallSkill; x: number; z: number;
@@ -150,7 +133,6 @@ export interface BattleState {
   /** Sun Altar points; [0, 0] on every other map. */
   favor: [number, number];
   stats: BattleStats;
-  mouths: Mouth[];
   /** Oldest first. */
   calls: Call[];
   /** Oldest first: a Weaver past its cap drops its oldest. */
@@ -182,13 +164,12 @@ export type Command =
   | { kind: 'endTurn'; unit: UnitId };
 
 export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'poison' | 'burn' | 'dark' | 'slam' | 'share' | 'storm';
-export type TerrainChange = 'ice' | 'smoke' | 'web' | 'sink' | 'pit';
+export type TerrainChange = 'ice' | 'smoke' | 'web';
 
 export type BattleEvent =
   | { type: 'round'; round: number; starter: Team; queue: UnitId[] }
   | { type: 'activate'; id: UnitId; team: Team; qi: number }
-  /** `under`: an underground move. Consecutive steps that aren't adjacent are a tunnel jump. */
-  | { type: 'move'; id: UnitId; path: Pos[]; slide?: true; under?: true }
+  | { type: 'move'; id: UnitId; path: Pos[]; slide?: true }
   | { type: 'teleport'; id: UnitId; x: number; z: number }
   | { type: 'fall'; id: UnitId; x: number; z: number }
   | { type: 'cast'; id: UnitId; team: Team; skill: SkillId; tx: number; tz: number; fx: number; fz: number; target: UnitId | null }
@@ -213,18 +194,12 @@ export type BattleEvent =
   | { type: 'storm'; line: string; tiles: Pos[] }
   | { type: 'crumble'; tiles: Pos[] }
   | { type: 'favor'; team: Team | null; favor: [number, number] }
-  | { type: 'burrow'; id: UnitId; x: number; z: number }
-  | { type: 'surface'; id: UnitId; x: number; z: number }
-  | { type: 'mouth'; team: Team; x: number; z: number }
-  | { type: 'cavein'; x: number; z: number }
   | { type: 'call'; id: UnitId; team: Team; skill: CallSkill; tiles: Pos[] }
   | { type: 'land'; id: UnitId; skill: CallSkill; x: number; z: number; tiles: Pos[]; power: number }
   | { type: 'fizzle'; id: UnitId }
   | { type: 'thread'; by: UnitId; to: UnitId }
   /** A Thread broke. */
   | { type: 'snap'; by: UnitId; to: UnitId }
-  | { type: 'charge'; x: number; z: number }
-  | { type: 'blast'; x: number; z: number }
   | { type: 'encased'; id: UnitId }
   | { type: 'roundEnd'; round: number; burnt: number[] }
   | { type: 'over'; winner: Team | 'draw'; reason: OverReason };

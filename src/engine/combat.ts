@@ -1,21 +1,21 @@
 import {
-  BAD_KEYS, canUse, castTargets, cdOf, cheb, current, dragLanding, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, los,
+  BAD_KEYS, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, los,
   nearestFree, onHigh, puppetMoves, reachable, sign, square, standing, terrAt, threadCap, unitAt, unitsIn,
 } from './board';
-import { BLEED, CLASSES, DARK_ROUND, DIR8, N, SKILLS, isCall } from './tables';
+import { BLEED, CLASSES, DARK_ROUND, DIR8, SKILLS, isCall } from './tables';
 import type { SkillDef } from './tables';
 import type {
-  BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, SkillId, Statuses, StatusKey, Team,
+  BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, SkillId, Statuses, StatusKey,
   TileFx, Unit, UnitId,
 } from './types';
 
 type CastEvent = Extract<BattleEvent, { type: 'cast' }>;
 type SkillKey = Exclude<ClassSkillId | InnateSkillId, CallSkill> | 'basic' | 'helpup';
-type Fx = Exclude<keyof TileFx, 'spent' | 'charge'>;
+type Fx = Exclude<keyof TileFx, 'spent'>;
 /** `full`: SLAM into obstacles, ABYSS into chasms. `soft`: stop short. */
 type Physics = 'full' | 'soft';
 
-/** Whoever is acting: a caster, a Call landing (`power` 0.5 for Snap and Deep Impact echoes), a Satchel's owner. */
+/** Whoever is acting: a caster, or a Call landing (`power` 0.5 for Snap). */
 interface Ctx { s: BattleState; u: Unit; ev: BattleEvent[]; power: number }
 interface CastCtx extends Ctx { skill: SkillDef; tx: number; tz: number; target: Unit | null; cast: CastEvent }
 interface LandCtx extends Ctx { call: Call; x: number; z: number; tiles: Pos[]; victims: Unit[] }
@@ -26,7 +26,7 @@ function setFx(s: BattleState, x: number, z: number, key: Fx, val: number): void
   const f = s.fx[k] ?? (s.fx[k] = {});
   f[key] = val;
 }
-function clearFx(s: BattleState, x: number, z: number, key: Fx | 'charge'): void {
+function clearFx(s: BattleState, x: number, z: number, key: Fx): void {
   const k = idx(x, z), f = s.fx[k];
   if (!f) return;
   delete f[key];
@@ -55,7 +55,6 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
   let v = 1;
   if (kind === 'fire') v *= 1 + (m.fireDmg || 0);
   if (kind === 'frost') v *= 1 + (m.frostDmg || 0);
-  if (u.surfaced) v *= 1 + (m.surfaceDmg || 0);
   if (onHigh(s, u) && terrAt(s, tgt.x, tgt.z) !== '^' && cheb(u.x, u.z, tgt.x, tgt.z) > 1) v *= 1.15;
   for (const t of s.threads) {
     if (t.to !== u.id || t.by === tgt.id) continue;
@@ -86,9 +85,9 @@ function fateWeaver(s: BattleState, o: Unit): Unit | null {
   return null;
 }
 
-/** Raw damage to one unit (no attacker scaling): underground and Encased immunity, Shared Pain, shields, Fate Weaver, downing, finishing. */
+/** Raw damage to one unit (no attacker scaling): Encased immunity, Shared Pain, shields, Fate Weaver, downing, finishing. */
 export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], kind: DamageKind, src: Unit | null): number {
-  if (!isAlive(o) || amt <= 0 || o.under || o.st.encased) return 0;
+  if (!isAlive(o) || amt <= 0 || o.st.encased) return 0;
   if (isDowned(o)) {
     o.life = { kind: 'dead' };
     ev.push({ type: 'death', id: o.id, team: o.team, cause: 'finished' });
@@ -116,7 +115,7 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (o.hp <= 0) down(s, o, ev, src);
   return d;
 }
-/** A standing unit drops into the chasm or pit at (x, z) and clings to the edge: Downed on the nearest free tile of solid ground. */
+/** A standing unit drops into the chasm at (x, z) and clings to the edge: Downed on the nearest free tile of solid ground. */
 export function fall(s: BattleState, o: Unit, x: number, z: number, ev: BattleEvent[], src: Unit | null): void {
   const at = nearestFree(s, x, z, o);
   if (at) { o.x = at.x; o.z = at.z; }
@@ -125,7 +124,7 @@ export function fall(s: BattleState, o: Unit, x: number, z: number, ev: BattleEv
 }
 export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | null): void {
   o.life = { kind: 'downed', bleed: BLEED };
-  o.shield = 0; o.st = {}; o.hp = 0; o.under = 0;
+  o.shield = 0; o.st = {}; o.hp = 0;
   if (src) s.stats.downs[src.team]++;
   ev.push({ type: 'downed', id: o.id, team: o.team });
   if (s.calls.some(c => c.by === o.id)) {
@@ -138,14 +137,14 @@ export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | nul
 /** An attack: attacker scaling × Exposed × combo × the context's power. Downed targets are finished. */
 function hit(c: Ctx, o: Unit | null, base: number, kind: DamageKind, combo?: Combo | null): number {
   const s = c.s, u = c.u;
-  if (!o || !isAlive(o) || o.under) return 0;
+  if (!o || !isAlive(o)) return 0;
   if (isDowned(o)) { damage(s, o, 1, c.ev, kind, u); return 0; }
   let mult = srcMult(s, u, o, kind) * (o.st.expose ? 1.25 : 1) * c.power;
   if (combo) { mult *= combo.mult; emitCombo(s, c.ev, combo.name, u, o.id, combo.setup); }
   return damage(s, o, base * mult, c.ev, kind, u);
 }
 export function addStatus<K extends StatusKey>(o: Unit, key: K, val: NonNullable<Statuses[K]>, ev: BattleEvent[]): void {
-  if (!standing(o) || o.under) return;
+  if (!standing(o)) return;
   if (key === 'burn' && o.st.wet) { ev.push({ type: 'steam', id: o.id }); return; }
   o.st[key] = val;
   if (key === 'wet' && o.st.burn) delete o.st.burn;
@@ -153,7 +152,7 @@ export function addStatus<K extends StatusKey>(o: Unit, key: K, val: NonNullable
 }
 /** Encased: skips its turns, takes no damage, can't be moved. The only status a Downed unit can take (Cocoon, Fate Weaver). */
 function encase(o: Unit, t: number, by: UnitId, ice: boolean, ev: BattleEvent[]): void {
-  if (!isAlive(o) || o.under) return;
+  if (!isAlive(o)) return;
   o.st.encased = { t, by, ice };
   ev.push({ type: 'encased', id: o.id });
 }
@@ -191,7 +190,7 @@ function physicsOf(c: Ctx, o: Unit): Physics { return o.team === c.u.team ? 'sof
  */
 function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number, kind: Physics, dir: 1 | -1): void {
   const s = c.s;
-  if (!standing(o) || o.under || o.st.encased || dist <= 0) return;
+  if (!standing(o) || o.st.encased || dist <= 0) return;
   const path: Pos[] = [{ x: o.x, z: o.z }];
   const slide = () => { if (path.length > 1) c.ev.push({ type: 'move', id: o.id, path, slide: true }); };
   for (let k = 0; k < dist; k++) {
@@ -244,57 +243,13 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   const o = unitAt(s, x, z);
   if (o && !isDowned(o) && !(o.team === c.u.team && c.u.mods.benevolent)) addStatus(o, 'burn', { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }, c.ev);
 }
-/** Ending any move on a tile: water wets, fire burns, a web Roots a non-Weaver, and an enemy's Satchel next to it blows. */
+/** Ending any move on a tile: water wets, fire burns, a web Roots a non-Weaver. */
 export function arrive(s: BattleState, o: Unit, ev: BattleEvent[]): void {
-  if (!standing(o) || o.under) return;
+  if (!standing(o)) return;
   const t = terrAt(s, o.x, o.z), f = s.fx[idx(o.x, o.z)];
   if (t === '~') addStatus(o, 'wet', { t: 2, by: null }, ev);
   else if (f?.fire && !o.st.burn) addStatus(o, 'burn', { t: 2, dmg: 6, by: null }, ev);
   if (f?.web && o.cls !== 'weaver') root(s, o, null, ev);
-  for (const p of square(o.x, o.z, 1)) {
-    const by = s.fx[idx(p.x, p.z)]?.charge;
-    if (by === undefined) continue;
-    const d = getUnit(s, by);
-    if (d && d.team !== o.team) blow(s, p.x, p.z, ev);
-  }
-}
-/** A Satchel Charge goes off: 20 (+Black Powder) to every unit within 1, each pushed 1 straight away from it. */
-function blow(s: BattleState, x: number, z: number, ev: BattleEvent[]): void {
-  const owner = getUnit(s, s.fx[idx(x, z)]?.charge);
-  clearFx(s, x, z, 'charge');
-  if (!owner) return;
-  ev.push({ type: 'blast', x, z });
-  const c: Ctx = { s, u: owner, ev, power: 1 }, caught = unitsIn(s, square(x, z, 1));
-  for (const o of caught) hit(c, o, 20 + (owner.mods.satchelDmg || 0), 'phys');
-  for (const o of caught) pull(c, o, x, z, 1, physicsOf(c, o), -1);
-}
-function chargeOf(s: BattleState, u: Unit): Pos | null {
-  for (let k = 0; k < s.fx.length; k++) if (s.fx[k]?.charge === u.id) return { x: k % N, z: (k / N) | 0 };
-  return null;
-}
-
-// ---------- underground ----------
-function addMouth(s: BattleState, u: Unit, x: number, z: number, ev: BattleEvent[]): void {
-  s.mouths = s.mouths.filter(m => m.x !== x || m.z !== z);
-  s.mouths.push({ team: u.team, net: u.id, x, z, t: 3 + (u.mods.mouthTurns || 0) });
-  ev.push({ type: 'mouth', team: u.team, x, z });
-}
-/** Up on its tile, or the nearest free one: a new mouth, and its Satchel blows. */
-export function surface(s: BattleState, u: Unit, ev: BattleEvent[]): void {
-  const at = nearestFree(s, u.x, u.z, u);
-  u.under = 0; u.surfaced = true;
-  if (at) { u.x = at.x; u.z = at.z; }
-  ev.push({ type: 'surface', id: u.id, x: u.x, z: u.z });
-  addMouth(s, u, u.x, u.z, ev);
-  const ch = chargeOf(s, u);
-  if (ch) blow(s, ch.x, ch.z, ev);
-  arrive(s, u, ev);
-}
-/** A Quake under an enemy: forced up and Stunned. */
-function quake(c: Ctx, o: Unit): void {
-  if (!o.under || o.team === c.u.team || !standing(o)) return;
-  surface(c.s, o, c.ev);
-  addStatus(o, 'stun', { t: 1, by: c.u.id }, c.ev);
 }
 
 // ---------- threads ----------
@@ -309,12 +264,12 @@ function tie(s: BattleState, w: Unit, o: Unit, ev: BattleEvent[]): void {
   }
   ev.push({ type: 'thread', by: w.id, to: o.id });
 }
-/** A Thread breaks once its ends lose sight of each other, or either is underground, Downed or Burning. */
+/** A Thread breaks once its ends lose sight of each other, or either is Downed or Burning. */
 export function breakThreads(s: BattleState, ev: BattleEvent[]): void {
   if (!s.threads.length) return;
   s.threads = s.threads.filter(t => {
     const a = getUnit(s, t.by), b = getUnit(s, t.to);
-    const ok = !!a && !!b && standing(a) && standing(b) && !a.under && !b.under && !a.st.burn && !b.st.burn && los(s, a.x, a.z, b.x, b.z);
+    const ok = !!a && !!b && standing(a) && standing(b) && !a.st.burn && !b.st.burn && los(s, a.x, a.z, b.x, b.z);
     if (!ok) ev.push({ type: 'snap', by: t.by, to: t.to });
     return ok;
   });
@@ -348,57 +303,6 @@ function teleport(c: Ctx, o: Unit, at: Pos): void {
 const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   basic(c) { hit(c, tgt(c), CLASSES[c.u.cls].basic.dmg + (c.u.mods.basicDmg || 0), 'phys'); },
   helpup(c) { revive(c.s, tgt(c), 0.3, c.ev, c.u); },
-
-  burrow(c) {
-    const u = c.u;
-    u.under = 2; u.moved = true;
-    c.ev.push({ type: 'burrow', id: u.id, x: u.x, z: u.z });
-    addMouth(c.s, u, u.x, u.z, c.ev);
-  },
-  upheaval(c) {
-    const o = tgt(c), u = c.u;
-    hit(c, o, 18 + (u.mods.upheavalDmg || 0), 'phys');
-    pull(c, o, u.x, u.z, 1, 'full', -1);
-    if (u.mods.undertow) u.under = 2;
-  },
-  undermine(c) {
-    if (c.u.mods.quickSink) { openPit(c.s, c.tx, c.tz, c.ev); return; }
-    setFx(c.s, c.tx, c.tz, 'sink', 1);
-    c.ev.push({ type: 'terrain', tiles: [{ x: c.tx, z: c.tz }], kind: 'sink' });
-  },
-  satchel(c) {
-    const old = chargeOf(c.s, c.u);
-    if (old) clearFx(c.s, old.x, old.z, 'charge');
-    const k = idx(c.tx, c.tz);
-    (c.s.fx[k] ?? (c.s.fx[k] = {})).charge = c.u.id;
-    c.ev.push({ type: 'charge', x: c.tx, z: c.tz });
-  },
-  dragunder(c) {
-    const o = tgt(c), at = dragLanding(c.s, c.u);
-    if (!at) return;
-    if (o.life.kind === 'downed') {
-      o.life = { kind: 'downed', bleed: o.life.bleed + 1 };
-      c.ev.push({ type: 'teleport', id: o.id, x: at.x, z: at.z });
-      o.x = at.x; o.z = at.z;
-      return;
-    }
-    teleport(c, o, at);
-  },
-  tremor(c) {
-    const s = c.s, u = c.u;
-    for (const o of s.units) {
-      if (o.team === u.team || !standing(o) || cheb(o.x, o.z, u.x, u.z) > 2) continue;
-      if (o.under) quake(c, o);
-      else root(s, o, u.id, c.ev);
-    }
-  },
-  stoneskin(c) {
-    const s = c.s, u = c.u;
-    shield(u, 30, c.ev);
-    if (!s.mouths.some(m => m.team === u.team && m.x === u.x && m.z === u.z)) return;
-    for (const a of s.units) if (a !== u && a.team === u.team && standing(a) && !a.under && cheb(a.x, a.z, u.x, u.z) <= 1) shield(a, 15, c.ev);
-  },
-  warren(c) { addMouth(c.s, c.u, c.tx, c.tz, c.ev); },
 
   snap(c) {
     const call = c.s.calls.find(k => k.by === c.u.id);
@@ -515,7 +419,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
   },
   recall(c) {
     const r = c.call.recall, o = r && getUnit(c.s, r.id);
-    if (!r || !o || !standing(o) || o.under) return;
+    if (!r || !o || !standing(o)) return;
     const there = unitAt(c.s, r.x, r.z);
     if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z) && !o.st.encased) teleport(c, o, r);
     const back = r.hp - o.hp;
@@ -531,13 +435,12 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
   },
 };
 
-/** One landing of `call` centered on (x, z): Quakes surface enemies first, then the skill, then Absolute Zero, Sleet and Star-Tether on everyone it hit. */
+/** One landing of `call` centered on (x, z): the skill, then Absolute Zero, Sleet and Star-Tether on everyone it hit. */
 function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power: number, ev: BattleEvent[]): void {
   const tiles = callTiles(call.skill, x, z);
   ev.push({ type: 'land', id: u.id, skill: call.skill, x, z, tiles, power });
   const c: LandCtx = { s, u, ev, power, call, x, z, tiles, victims: [] };
   if (call.skill === 'recall') { LAND.recall(c); return; }
-  if (SKILLS[call.skill].quake) for (const o of s.units) if (o.under && tiles.some(t => t.x === o.x && t.z === o.z)) quake(c, o);
   c.victims = unitsIn(s, tiles);
   const hurt = c.victims.filter(o => !(o.team === u.team && u.mods.benevolent));
   const held = new Set(hurt.filter(o => o.st.root || o.st.encased));
@@ -552,20 +455,12 @@ function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power
   }
 }
 
-/** A Call lands: Conjunction, then Deep Impact's echoes on the other mouths of a tunnel in its area. */
+/** A Call lands, +25% with Conjunction when another of the party's Calls already landed this round. */
 export function landCall(s: BattleState, u: Unit, call: Call, power: number, ev: BattleEvent[]): void {
-  const team: Team = call.team;
+  const team = call.team;
   if (s.party[team].has('conjunction') && s.callRound[team] === s.round) power *= 1.25;
   s.callRound[team] = s.round;
-  const tiles = callTiles(call.skill, call.x, call.z);
-  const inArea = (x: number, z: number) => tiles.some(t => t.x === x && t.z === z);
-  const hole = call.skill !== 'recall' && s.party[team].has('deepimpact') ? s.mouths.find(m => m.team === team && inArea(m.x, m.z)) : undefined;
-  const echoes = hole ? s.mouths.filter(m => m.net === hole.net && !inArea(m.x, m.z)).map(m => ({ x: m.x, z: m.z })) : [];
   landAt(s, u, call, call.x, call.z, power, ev);
-  for (const e of echoes) {
-    if (s.phase.kind === 'over' || !standing(u)) return;
-    landAt(s, u, call, e.x, e.z, power * 0.5, ev);
-  }
 }
 
 /** At the very start of a unit's activation, its pending Calls land, oldest first. */
@@ -577,22 +472,6 @@ export function landCalls(s: BattleState, u: Unit, ev: BattleEvent[]): void {
     if (s.phase.kind === 'over' || !standing(u)) return;
     landCall(s, u, call, 1, ev);
   }
-}
-
-// ---------- the board after a round ----------
-/** A pit opens: whoever stands there falls (the Downed are lost); mouths and charges there are gone. */
-export function openPit(s: BattleState, x: number, z: number, ev: BattleEvent[]): void {
-  const k = idx(x, z), f = s.fx[k] ?? (s.fx[k] = {});
-  delete f.sink; delete f.charge; delete f.web;
-  f.pit = 3;
-  s.mouths = s.mouths.filter(m => m.x !== x || m.z !== z);
-  ev.push({ type: 'terrain', tiles: [{ x, z }], kind: 'pit' });
-  const o = unitAt(s, x, z);
-  if (!o) return;
-  if (standing(o)) { fall(s, o, x, z, ev, null); return; }
-  o.life = { kind: 'dead' };
-  ev.push({ type: 'death', id: o.id, team: o.team, cause: 'fell' });
-  checkWinner(s);
 }
 
 // ---------- commands ----------
@@ -607,7 +486,6 @@ export function performCast(s: BattleState, id: SkillId, tx: number, tz: number)
   const target = sk.target === 'tile' || sk.target === 'self' ? null : unitAt(s, tx, tz);
   const cast: CastEvent = { type: 'cast', id: u.id, team: u.team, skill: id, tx, tz, fx: u.x, fz: u.z, target: target ? target.id : null };
   const ev: BattleEvent[] = [cast];
-  if (u.under && !(id === 'upheaval' && u.mods.undertow)) surface(s, u, ev);
   if (standing(u)) {
     if (isCall(id)) {
       s.calls.push({ by: u.id, team: u.team, skill: id, x: tx, z: tz, recall: id === 'recall' && target ? { id: target.id, x: target.x, z: target.z, hp: target.hp } : null });
@@ -630,19 +508,10 @@ export function performMove(s: BattleState, x: number, z: number): BattleEvent[]
   if (!u || u.moved) return null;
   const p = reachable(s, u).get(idx(x, z));
   if (!p) return null;
-  const ev: BattleEvent[] = [u.under ? { type: 'move', id: u.id, path: p, under: true } : { type: 'move', id: u.id, path: p }];
+  const ev: BattleEvent[] = [{ type: 'move', id: u.id, path: p }];
   u.x = x; u.z = z; u.moved = true;
-  if (!u.under) {
-    for (let i = 1; i < p.length; i++) {
-      const a = p[i - 1], b = p[i];
-      if (!a || !b) continue;
-      if (s.fx[idx(b.x, b.z)]?.fire && !u.st.burn && !u.st.wet) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
-      if (cheb(a.x, a.z, b.x, b.z) <= 1) continue;
-      const m = s.mouths.find(mo => mo.x === b.x && mo.z === b.z && mo.team === u.team), net = m && getUnit(s, m.net);
-      if (net?.mods.tunnelShield) shield(u, net.mods.tunnelShield, ev);
-    }
-    arrive(s, u, ev);
-  }
+  for (const b of p.slice(1)) if (s.fx[idx(b.x, b.z)]?.fire && !u.st.burn && !u.st.wet) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
+  arrive(s, u, ev);
   breakThreads(s, ev);
   checkWinner(s);
   return ev;

@@ -39,7 +39,6 @@ export function skillInfo(id: SkillId): Child[] {
     h('div', { class: 'tt' }, `${sk.icon} ${sk.name}`), sk.text,
     sk.innate ? h('div', { class: 'innate' }, 'Innate: every build has it, always on.') : null,
     sk.call ? h('div', { class: 'call' }, 'Call: marks its area now and lands at the start of your next turn. Hits allies too.') : null,
-    sk.quake ? h('div', { class: 'quake' }, 'Quake: forces an underground enemy up and Stuns it.') : null,
     sk.free ? h('div', { class: 'free' }, 'Free: doesn’t use your action.') : null,
     sk.sets ? h('div', { class: 'sets' }, 'Sets up: ', h('b', null, sk.sets.join(', '))) : null,
     sk.pays ? h('div', { class: 'pays' }, 'Pays off: ', h('b', null, sk.pays.join(', '))) : null,
@@ -52,7 +51,7 @@ export function skillInfo(id: SkillId): Child[] {
 function badges(id: SkillId): HTMLElement {
   const sk = SKILLS[id];
   return h('span', { class: 'bdg' },
-    sk.call ? h('i', { class: 'call' }, 'CALL') : null, sk.quake ? h('i', { class: 'quake' }, 'QUAKE') : null, sk.free ? h('i', { class: 'free' }, 'FREE') : null,
+    sk.call ? h('i', { class: 'call' }, 'CALL') : null, sk.free ? h('i', { class: 'free' }, 'FREE') : null,
     sk.sets ? h('i', { class: 'sets' }, 'SET') : null, sk.pays ? h('i', { class: 'pays' }, 'PAY') : null, sk.map ? h('i', { class: 'mapc' }, 'MAP') : null);
 }
 
