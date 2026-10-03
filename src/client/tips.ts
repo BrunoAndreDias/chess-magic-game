@@ -3,7 +3,7 @@ import type { BattleState, StatusKey, Unit } from '../engine/index';
 import { h } from './dom';
 import type { Child } from './dom';
 import { doomTip, hazardTip } from './rules';
-import { TEAM_NAME, TEAM_TEXT } from './theme';
+import { TEAM_TEXT } from './theme';
 
 function statusKeys(u: Unit): StatusKey[] { return (Object.keys(u.st) as StatusKey[]).filter(k => u.st[k]); }
 
@@ -22,7 +22,6 @@ export function statusChips(u: Unit): HTMLElement[] {
   });
 }
 
-const turns = (n: number) => `${n} turn${n === 1 ? '' : 's'}`;
 const rounds = (n: number) => `${n} round${n === 1 ? '' : 's'}`;
 
 /** The class-mechanic lines for a unit: Threads on and from it, pending Calls, held Souls, its place in the round. */
