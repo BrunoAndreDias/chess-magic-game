@@ -1,6 +1,6 @@
-// Plays one battle through the real UI in headless Chromium: setup → scout → order → every Blue turn by clicks and hotkeys → result → Rematch.
+// Plays one battle through the real UI in headless Chromium: map reveal → setup → scout → order → every Blue turn by clicks and hotkeys → result → Rematch.
 // Blue's moves are chosen by the engine AI (aiTurn) and performed through the HUD. Exits non-zero on any page error or if no result is reached.
-// ALL_AI=1 instead spectates an all-AI battle (?ai&quick) to the result screen.
+// ALL_AI=1 instead spectates an all-AI battle (?ai&quick) to the result screen, then draws a New battlefield.
 // Env: PLAYWRIGHT_CORE (module path), CHROME (browser binary), SHOTS (screenshot dir), MAP, SEED, PORT.
 const fs = require('node:fs');
 const os = require('node:os');
@@ -90,20 +90,50 @@ async function serve() {
     return false;
   };
 
+  // The board flashes each round-end rule event for well under a second, so a watcher shoots the moment its log line appears.
+  const RULE_LINE = /Lightning strikes|The ground gives way|holds the altar/;
+  let watching = true;
+  const ruleShots = [];
+  const watchRuleEvents = async () => {
+    while (watching && ruleShots.length < 2) {
+      const n = await p.evaluate(re => [...document.querySelectorAll('#log div')].filter(d => new RegExp(re).test(d.textContent)).length, RULE_LINE.source).catch(() => 0);
+      if (n > ruleShots.length) {
+        await wait(120);
+        ruleShots.push(await shot(`09-round-end-${ruleShots.length}`));
+      }
+      await wait(60);
+    }
+  };
+
   async function spectate() {
     await p.goto(`http://localhost:${PORT}/?ai&quick&map=${MAP}&seed=${SEED}`);
+    const watcher = watchRuleEvents();
     if (!(await until(async () => (await phase()) === 'result', 15 * 60000))) throw new Error(`no result screen (phase ${await phase()})`);
+    watching = false;
+    await watcher;
     await wait(500);
     await shot('ai-result');
-    const fin = await p.evaluate(() => ({ round: window.__party.state().round, title: document.querySelector('#res-title')?.textContent }));
-    return `all-AI battle "${fin.title}" after round ${fin.round}`;
+    const fin = await p.evaluate(() => ({ round: window.__party.state().round, title: document.querySelector('#res-title')?.textContent, why: document.querySelector('#res-why')?.textContent, map: window.__party.state().map }));
+    await p.click('#res-map');
+    if (!(await until(async () => (await phase()) === 'map'))) throw new Error('New battlefield did not open the map screen');
+    await wait(800);
+    await shot('ai-new-map');
+    const next = await p.textContent('#mp-name');
+    return `all-AI battle on ${fin.map} "${fin.title}" after round ${fin.round} (${fin.why}); rule shots ${ruleShots.length}; New battlefield drew ${next}`;
   }
 
   async function setupAndScout() {
     await p.goto(`http://localhost:${PORT}/?map=${MAP}&seed=${SEED}`);
-    await until(async () => (await phase()) === 'setup');
+    if (!(await until(async () => (await phase()) === 'map'))) throw new Error('no map screen');
+    await wait(1200);
+    await shot('00-map');
+    mapName = await p.textContent('#mp-name');
+    await p.click('#mp-go');
+    if (!(await until(async () => (await phase()) === 'setup'))) throw new Error('Form your parties did not open setup');
     await wait(800);
     await shot('01-setup');
+    const strip = await p.textContent('#su-mapinfo');
+    if (!strip.includes(mapName)) throw new Error(`setup strip does not name ${mapName}: ${strip}`);
     await p.click('.ccard[data-cls="rogue"]');
     await p.click('.ccard[data-cls="warden"]');
     await p.click('#su-teams .pslot[data-team="0"][data-slot="1"]');
@@ -132,9 +162,11 @@ async function serve() {
     await p.click('#sc-ready');
   }
 
+  let mapName = '';
   async function playBlue() {
     await setupAndScout();
-    let orderShot = false, battleShot = false, midShot = false, k = 0;
+    const watcher = watchRuleEvents();
+    let orderShot = false, battleShot = false, midShot = false, hazardShot = false, k = 0;
     const turns = new Set();
     for (let iter = 0; iter < 4000; iter++) {
       const ph = await phase();
@@ -156,6 +188,7 @@ async function serve() {
       }, ++k);
       if (!plan) { await wait(150); continue; }
       if (!battleShot) { await shot('05-battle'); battleShot = true; }
+      if (!hazardShot && (await p.$('#ib-hazard'))) { await shot('05-hazard'); hazardShot = true; }
       if (!midShot && plan.round >= 4) { await shot('07-battle-mid'); midShot = true; }
       turns.add(`${plan.round}:${plan.unit}`);
       const { cmd } = plan;
@@ -176,13 +209,15 @@ async function serve() {
       await wait(250);
     }
     if (!(await until(async () => (await phase()) === 'result', 30000))) throw new Error(`no result screen (phase ${await phase()})`);
+    watching = false;
+    await watcher;
     await wait(500);
     await shot('08-result');
     const fin = await p.evaluate(() => { const s = window.__party.state(); return { phase: s.phase, round: s.round, combos: s.combos, title: document.querySelector('#res-title')?.textContent }; });
     await p.click('#res-again');
     if (!(await until(async () => (await phase()) === 'scout'))) errors.push('Rematch did not reopen scouting');
-    return `"${fin.title}" after round ${fin.round}, winner ${fin.phase.winner} (${fin.phase.reason}), combos ${fin.combos.join('/')}; `
-      + `blue turns ${turns.size}, moves ${stats.moves}, casts ${stats.casts}, camera orbits ${stats.orbits}, misses ${stats.misses}`;
+    return `${mapName}: "${fin.title}" after round ${fin.round}, winner ${fin.phase.winner} (${fin.phase.reason}), combos ${fin.combos.join('/')}; `
+      + `blue turns ${turns.size}, moves ${stats.moves}, casts ${stats.casts}, camera orbits ${stats.orbits}, misses ${stats.misses}; hazard chip ${hazardShot ? 'seen' : 'never'}, rule shots ${ruleShots.length}`;
   }
 
   let summary, failed = false;
