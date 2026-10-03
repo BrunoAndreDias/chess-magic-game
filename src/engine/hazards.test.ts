@@ -74,9 +74,9 @@ describe('altar', () => {
     expect(after(tie.events, 'favor')[0]).toEqual({ type: 'favor', team: null, favor: [2, 1] });
   });
 
-  test('the fourth favor wins the battle', () => {
-    const r = hold({ 1: [2, 2], 2: [3, 2], 3: [5, 6], 4: [9, 9] }, [3, 3]);
-    expect(after(r.events, 'favor')).toEqual([{ type: 'favor', team: 1, favor: [3, 4] }, { type: 'over', winner: 1, reason: 'altar' }]);
+  test('the fifth favor wins the battle', () => {
+    const r = hold({ 1: [2, 2], 2: [3, 2], 3: [5, 6], 4: [9, 9] }, [3, 4]);
+    expect(after(r.events, 'favor')).toEqual([{ type: 'favor', team: 1, favor: [3, 5] }, { type: 'over', winner: 1, reason: 'altar' }]);
     expect(r.state.phase).toEqual({ kind: 'over', winner: 1, reason: 'altar' });
   });
 });

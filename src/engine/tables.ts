@@ -25,7 +25,7 @@ const TERRAIN_TABLE = {
   'B': { name: 'Brazier', solid: true, text: 'Solid. Hit it with fire, or push someone into it, and it bursts: fire on the 8 tiles around.' },
   '+': { name: 'Shrine', text: 'End your turn here to heal 12.' },
   'I': { name: 'Ice', text: 'Frozen water: walk on it freely, no Wet.' },
-  'A': { name: 'Sun Altar', text: 'At the end of each round, the party with more characters standing here gains 1 favor. 4 favor wins the battle.' },
+  'A': { name: 'Sun Altar', text: 'At the end of each round, the party with more characters standing here gains 1 favor. 5 favor wins the battle.' },
 } satisfies Record<TerrainChar, TerrainDef>;
 export const TERRAIN: Readonly<Record<TerrainChar, TerrainDef>> = TERRAIN_TABLE;
 
@@ -69,9 +69,9 @@ const MAP_TABLE = {
     favors: 'Control: Root, Stun or push an enemy into the next strike after it has moved. Wet targets take half again. Plan your turn order so nobody is caught.' },
   altar: { id: 'altar', name: 'Sun Altar',
     rows: ['............', '.GG......GG.', '....#..#....', '.G........G.', '.GG.B^..^GG.', '#....AA....#'],
-    rule: { kind: 'altar', goal: 4 },
-    tagline: 'Hold the altar. Four rounds of favor wins.',
-    ruleText: 'Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to 4 favor wins at once.',
+    rule: { kind: 'altar', goal: 5 },
+    tagline: 'Hold the altar. Five rounds of favor wins.',
+    ruleText: 'Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to 5 favor wins at once.',
     favors: 'Tanks and area control: a Warden holds the altar, braziers beside it burn holders off, and grass on the flanks hides the ambush.' },
 } satisfies Record<MapId, MapDef>;
 export const MAPS: Readonly<Record<MapId, MapDef>> = MAP_TABLE;
