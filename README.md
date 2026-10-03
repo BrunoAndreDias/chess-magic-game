@@ -28,4 +28,4 @@ MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI i
 - `src/engine` holds the rules. They are pure and deterministic: every random choice takes a seeded `Rng`, and every change goes through `apply(state, command)`.
 - `src/host/match.ts` is the authority that holds the real game state. It decides which player may send each command and plays the AI seats. It has no DOM, so it can move to a server unchanged.
 - `src/client` is the browser game. `board/` draws the 3D scene from states and events, and `screens/` holds the menus and HUD. The client only sends commands to the Match.
-- `prototypes*/` are the earlier throwaway prototypes, kept as reference.
+- `prototypes-party/` is the throwaway single-file prototype the game was ported from, kept as reference. It predates the current maps.
