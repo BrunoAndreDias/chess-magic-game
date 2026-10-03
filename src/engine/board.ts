@@ -157,7 +157,7 @@ export function paths(s: BattleState, u: Unit, range: number, leash: boolean): M
   if (leash) for (const t of s.threads) {
     if (t.to !== u.id) continue;
     const w = getUnit(s, t.by);
-    if (w && w.team !== u.team) leashes.push([w, t.len]);
+    if (w && w.team !== u.team && standing(w)) leashes.push([w, t.len]);
   }
   prev.forEach((_p, k) => {
     if (k === start) return;

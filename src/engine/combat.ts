@@ -60,7 +60,7 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
   for (const t of s.threads) {
     if (t.to !== u.id || t.by === tgt.id) continue;
     const w = getUnit(s, t.by);
-    if (w && w.team !== u.team && w.mods.leashDmg) { v *= 1 - w.mods.leashDmg; break; }
+    if (w && w.team !== u.team && standing(w) && w.mods.leashDmg) { v *= 1 - w.mods.leashDmg; break; }
   }
   return v;
 }

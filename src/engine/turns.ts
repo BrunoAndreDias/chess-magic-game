@@ -32,7 +32,6 @@ export function setOrders(s: BattleState, ord0: readonly UnitId[], ord1: readonl
   s.phase = { kind: 'act', queue, qi: 0 };
   const ev: BattleEvent[] = [{ type: 'round', round: s.round, starter: s.starter, queue: queue.slice() }];
   beginActivation(s, ev);
-  breakThreads(s, ev);
   return ev;
 }
 
@@ -61,6 +60,7 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
       continue;
     }
     if (standing(u)) startOfTurn(s, u, ev);
+    breakThreads(s, ev);
     if (!standing(u) || over(s)) {
       if (over(s)) return;
       if (advance(s, ev)) return;
@@ -191,6 +191,7 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
   });
   atOnce(s, () => { for (const k of sinks) openPit(s, k % N, (k / N) | 0, ev); });
   if (over(s)) return;
+  breakThreads(s, ev);
   for (const m of s.mouths) m.t--;
   s.mouths = s.mouths.filter(m => m.t > 0);
   ev.push({ type: 'roundEnd', round: s.round, burnt });

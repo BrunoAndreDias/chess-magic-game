@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply, createBattle } from './battle';
 import { partyBonuses, roleOf } from './builds';
-import { threadCap } from './index';
+import { idx, reachable, threadCap } from './index';
 import { mulberry32 } from './rng';
 import { bare, cast, end, move, orders, run, stage, uid, unit } from './testkit';
 import type { BattleEvent, MemberBuild } from './types';
@@ -203,6 +203,24 @@ describe('threads', () => {
     const r = run(run(s0, ...orders([1], [2]), cast(1, 'tether', 4, 2), end(1)).state, move(2, 2, 2));
     expect(r.events).toEqual([{ type: 'move', id: 2, path: [{ x: 4, z: 2 }, { x: 3, z: 2 }, { x: 2, z: 2 }] }, { type: 'snap', by: 1, to: 2 }]);
     expect(r.state.threads).toEqual([]);
+  });
+
+  test('a Thread breaks at the start of an activation when a Call sets its Weaver Burning, and the leash goes with it', () => {
+    const s0 = stage({ a: [bare('astromancer')], b: [bare('weaver')], place: { 1: [3, 2], 2: [3, 5] } });
+    const called = run(s0, ...orders([1], [2]), cast(1, 'meteor', 3, 5), end(1), end(2), ...orders([1], [2]), cast(2, 'tether', 3, 2));
+    expect(called.state.threads).toEqual([{ by: 2, to: 1, len: 3 }]);
+    const r = run(called.state, end(2));
+    expect(r.events.slice(-2)).toEqual([{ type: 'status', id: 2, key: 'burn' }, { type: 'snap', by: 2, to: 1 }]);
+    expect(r.state.threads).toEqual([]);
+    expect(apply(r.state, move(1, 3, 0)).ok).toBe(true);
+  });
+
+  test('a Thread held by a Weaver who is not standing leashes nothing', () => {
+    const s = stage({ a: [bare('weaver')], b: [bare('delver')], place: { 1: [5, 1], 2: [5, 3] }, life: { 1: { kind: 'downed', bleed: 2 } } });
+    s.threads = [{ by: uid(1), to: uid(2), len: 1 }];
+    expect(reachable(s, unit(s, 2)).has(idx(8, 3))).toBe(true);
+    s.units[0]!.life = { kind: 'up' };
+    expect(reachable(s, unit(s, 2)).has(idx(8, 3))).toBe(false);
   });
 
   test('Reel pulls a held enemy 2 toward the Weaver; into a unit it SLAMs', () => {
