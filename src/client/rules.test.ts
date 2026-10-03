@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { createBattle, mulberry32 } from '../engine/index';
 import type { MapId } from '../engine/index';
-import { endChip, roundHazard, ruleLine, timeline } from './rules';
+import { endChip, hazardLayer, roundHazard, ruleLine, timeline } from './rules';
 
 const empty = (map: MapId) => createBattle({ map, starter: 0, teams: [[], []] }, mulberry32(1));
 
@@ -39,4 +39,10 @@ test('the round banner names the coming hazard, and crumble rounds without falls
 
 test('the setup strip takes the first sentence of the rule', () => {
   expect(ruleLine('altar')).toBe('Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor.');
+});
+
+test('an undermined tile is striped as a hazard alongside the map rule', () => {
+  const s = empty('altar');
+  s.fx[3 * 12 + 4] = { sink: 1 };
+  expect(hazardLayer(s)).toEqual({ tiles: [{ x: 4, z: 3 }], tone: 'hazard' });
 });

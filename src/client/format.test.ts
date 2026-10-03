@@ -1,12 +1,16 @@
 import { describe as suite, expect, test } from 'vitest';
 import { createBattle, mulberry32, newMember } from '../engine/index';
-import type { BattleEvent, UnitId } from '../engine/index';
-import { comboCredit, describe, openingLines, previewLines } from './format';
+import type { BattleEvent, BattleState, NodeId, UnitId } from '../engine/index';
+import { callLines, comboCredit, describe, openingLines, previewLines } from './format';
 
+const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tree });
 const s = createBattle({
   map: 'storm', starter: 0,
-  teams: [[newMember('warden', 'Aldric'), newMember('wizard', 'Seren'), newMember('cleric', 'Kip')],
-    [newMember('rogue', 'Morvath'), newMember('ranger', 'Ysolde'), newMember('cleric', 'Grix')]],
+  teams: [[newMember('delver', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
+    [pathed(newMember('weaver', 'Morvath'), ['w_poison', 'w_fang', 'w_bite', 'w_feast']),
+      pathed(newMember('astromancer', 'Ysolde'), ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']),
+      pathed(newMember('delver', 'Grix'), ['d_hp', 'd_quick', 'd_satchel', 'd_earth'])]],
+  deploy: [[{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 2, z: 0 }], [{ x: 0, z: 11 }, { x: 1, z: 11 }, { x: 2, z: 11 }]],
 }, mulberry32(1));
 const id = (n: number) => n as UnitId;
 const line = (e: BattleEvent) => describe(e, s);
@@ -17,10 +21,10 @@ suite('describe', () => {
       .toEqual({ tone: 'sys', text: 'Round 2: Morvath → Aldric → Ysolde → Seren → Kip → Grix' });
   });
   test('casts name the skill and the target, coloured by the caster', () => {
-    expect(line({ type: 'cast', id: id(2), team: 0, skill: 'frostbolt', tx: 1, tz: 9, fx: 1, fz: 2, target: id(4), empowered: true }))
-      .toEqual({ tone: 't0', text: 'Seren uses Frostbolt on Morvath, empowered.' });
-    expect(line({ type: 'cast', id: id(4), team: 1, skill: 'smokebomb', tx: 1, tz: 9, fx: 1, fz: 9, target: null, empowered: false }))
-      .toEqual({ tone: 't1', text: 'Morvath uses Smoke Bomb.' });
+    expect(line({ type: 'cast', id: id(2), team: 0, skill: 'frostbolt', tx: 1, tz: 9, fx: 1, fz: 2, target: id(4) }))
+      .toEqual({ tone: 't0', text: 'Seren uses Frostbolt on Morvath.' });
+    expect(line({ type: 'cast', id: id(4), team: 1, skill: 'web', tx: 1, tz: 9, fx: 1, fz: 9, target: null }))
+      .toEqual({ tone: 't1', text: 'Morvath uses Web.' });
   });
   test('damage reads its kind and what the shield took', () => {
     expect(line({ type: 'damage', id: id(4), amount: 18, absorbed: 6, kind: 'fire' })).toEqual({ tone: 't1', text: 'Morvath takes 18 fire damage (6 blocked).' });
@@ -55,6 +59,34 @@ suite('describe', () => {
     expect(line({ type: 'move', id: id(1), path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toBe(null);
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }], slide: true })).toBe(null);
   });
+  test('Shared Pain names who took the blow', () => {
+    expect(line({ type: 'shared', id: id(5), by: id(4) })).toEqual({ tone: 't1', text: 'Morvath takes half the blow for Ysolde.' });
+    expect(line({ type: 'damage', id: id(4), amount: 6, absorbed: 0, kind: 'share' })).toEqual({ tone: 't1', text: 'Morvath takes 6 through Shared Pain.' });
+  });
+  test('the underground reads as burrow, surface and cave-in; a new mouth is left to the board', () => {
+    expect(line({ type: 'burrow', id: id(1), x: 0, z: 0 })).toEqual({ tone: 't0', text: 'Aldric burrows underground.' });
+    expect(line({ type: 'surface', id: id(1), x: 3, z: 0 })).toEqual({ tone: 't0', text: 'Aldric surfaces.' });
+    expect(line({ type: 'mouth', team: 0, x: 3, z: 0 })).toBe(null);
+    expect(line({ type: 'cavein', x: 3, z: 0 })).toEqual({ tone: 'sys', text: 'A Tunnel Mouth caves in.' });
+  });
+  test('a Call says when it lands, then lands or fizzles', () => {
+    expect(line({ type: 'call', id: id(2), team: 0, skill: 'meteor', tiles: [] })).toEqual({ tone: 't0', text: "Meteor is called: it lands at the start of Seren's next turn." });
+    expect(line({ type: 'land', id: id(2), skill: 'meteor', x: 5, z: 5, tiles: [], power: 1 })).toEqual({ tone: 't0', text: "Seren's Meteor lands!" });
+    expect(line({ type: 'land', id: id(5), skill: 'gravitywell', x: 5, z: 5, tiles: [], power: 0.5 })).toEqual({ tone: 't1', text: "Ysolde's Gravity Well lands at half power!" });
+    expect(line({ type: 'fizzle', id: id(2) })).toEqual({ tone: 't0', text: "Seren's Call fizzles." });
+  });
+  test('Threads are tied and break, coloured by the Weaver', () => {
+    expect(line({ type: 'thread', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: 'Morvath ties a Thread to Aldric.' });
+    expect(line({ type: 'snap', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: "Morvath's Thread to Aldric breaks." });
+  });
+  test('webs, sinks, pits, charges and casings each get a line', () => {
+    expect(line({ type: 'terrain', tiles: [], kind: 'web' })).toEqual({ tone: 'sys', text: 'Webs cover the ground.' });
+    expect(line({ type: 'terrain', tiles: [], kind: 'sink' })).toEqual({ tone: 'sys', text: 'The ground is undermined: it collapses at the end of the round.' });
+    expect(line({ type: 'terrain', tiles: [], kind: 'pit' })).toEqual({ tone: 'sys', text: 'The ground collapses into a pit.' });
+    expect(line({ type: 'charge', x: 1, z: 1 })).toEqual({ tone: 'sys', text: 'A Satchel Charge is planted.' });
+    expect(line({ type: 'blast', x: 1, z: 1 })).toEqual({ tone: 'sys', text: 'A Satchel Charge blows!' });
+    expect(line({ type: 'encased', id: id(4) })).toEqual({ tone: 't1', text: 'Morvath is Encased.' });
+  });
   test('pushes say how far', () => {
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath is pushed back 2 tiles.' });
   });
@@ -64,7 +96,7 @@ suite('combos', () => {
   test('credit the setup and the payoff', () => {
     expect(comboCredit({ type: 'combo', name: 'SHATTER', id: id(4), by: id(3), team: 0, setup: id(2) }, s)).toBe('Seren set it up → Kip pays off: SHATTER!');
     expect(comboCredit({ type: 'combo', name: 'IGNITE', id: null, by: id(2), team: 0, setup: null }, s)).toBe('Seren pays off: IGNITE!');
-    expect(comboCredit({ type: 'combo', name: 'PINNED', id: id(1), by: id(5), team: 1, setup: id(5) }, s)).toBe('Ysolde sets it up and pays off: PINNED!');
+    expect(comboCredit({ type: 'combo', name: 'SLAM', id: id(1), by: id(5), team: 1, setup: id(5) }, s)).toBe('Ysolde sets it up and pays off: SLAM!');
     expect(line({ type: 'combo', name: 'SHATTER', id: id(4), by: id(3), team: 0, setup: id(2) })).toEqual({ tone: 'combo', text: '⚡ Seren set it up → Kip pays off: SHATTER!' });
   });
 });
@@ -85,8 +117,38 @@ suite('openingLines', () => {
   test('name the map and each party bonus', () => {
     expect(openingLines(s).map(l => l.text)).toEqual([
       'Storm Court. Order rule: the starting party acts first and last.',
-      'Blue party bonuses: Bastion, Hold & Blast, Blessed Elements, Holy Trinity',
-      'Red party bonuses: Guiding Light, Pack Tactics, Shadow Mend',
+      'Blue party bonuses: Deep Impact, Conjunction',
+      'Red party bonuses: Deep Impact, Silk Tunnels, Star-Tether, Role Coverage',
     ]);
+  });
+});
+
+suite('callLines', () => {
+  const at = (moves: Record<number, [number, number, number?]>, benevolent = false): BattleState => ({
+    ...s,
+    units: s.units.map(u => {
+      const m = moves[u.id];
+      const v = m ? { ...u, x: m[0], z: m[1], under: m[2] ?? 0 } : u;
+      return v.id === 2 && benevolent ? { ...v, mods: { ...v.mods, benevolent: 1 } } : v;
+    }),
+  });
+  const seren = (st: BattleState) => st.units.find(u => u.id === 2)!;
+
+  test('a Meteor warns of friendly fire and of the Quake under an enemy', () => {
+    const st = at({ 1: [5, 5], 4: [6, 6], 6: [4, 4, 1], 5: [9, 9] });
+    expect(callLines(st, seren(st), 'meteor', 5, 5).map(l => l.text)).toEqual([
+      "Lands at the start of Seren's next turn.",
+      '⚠ Aldric: ally in the area, friendly fire',
+      'Morvath: in the area now',
+      'Grix: underground, forced up and Stunned (Quake)',
+    ]);
+  });
+  test('Benevolent Heavens heals the allies in the area, and an empty area says so', () => {
+    const st = at({ 1: [5, 5] }, true);
+    expect(callLines(st, seren(st), 'thunderhead', 5, 5)[1]).toEqual({ tone: 't0', text: 'Aldric: ally, healed instead (Benevolent Heavens)' });
+    expect(callLines(st, seren(st), 'thunderhead', 8, 5).map(l => l.text)).toEqual(["Lands at the start of Seren's next turn.", 'Nobody stands there yet.']);
+  });
+  test('Recall names the ally it will bring back', () => {
+    expect(callLines(s, seren(s), 'recall', 0, 0)[1]).toEqual({ tone: 't0', text: 'Aldric snaps back to this tile and regains the HP it lost.' });
   });
 });

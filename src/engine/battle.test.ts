@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply, createBattle } from './battle';
 import { partyBonuses, roleOf } from './builds';
+import { threadCap } from './index';
 import { mulberry32 } from './rng';
 import { bare, cast, end, move, orders, run, stage, uid, unit } from './testkit';
 import type { BattleEvent, MemberBuild } from './types';
@@ -213,6 +214,11 @@ describe('threads', () => {
       { type: 'damage', id: 3, amount: 6, absorbed: 0, kind: 'slam' },
       { type: 'status', id: 3, key: 'stun' },
     ]);
+  });
+
+  test('a Weaver holds 3 Threads, one more with Many Hands and one more in a Great Web party', () => {
+    const s = stage({ a: [bare('weaver'), bare('weaver', undefined, ['w_hp', 'w_leash', 'w_thread'])], b: [bare('weaver')] });
+    expect([threadCap(s, unit(s, 1)), threadCap(s, unit(s, 2)), threadCap(s, unit(s, 3))]).toEqual([4, 5, 3]);
   });
 
   test('a web stops a walker and Roots it through its next turn; nobody but a Weaver paths through', () => {

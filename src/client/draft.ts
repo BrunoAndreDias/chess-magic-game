@@ -1,4 +1,4 @@
-import { CLASSES, CLASS_ORDER, MAP_ORDER, POINTS, TREES, canTake, newMember } from '../engine/index';
+import { CLASSES, CLASS_ORDER, MAP_ORDER, POINTS, TREES, newMember } from '../engine/index';
 import type { BattleSetup, ClassId, ClassSkillId, MapId, MemberBuild, NodeId, Pos, Team } from '../engine/index';
 import type { Seats } from '../host/match';
 
@@ -16,7 +16,7 @@ export interface Draft {
 }
 
 const NAMES: readonly [readonly string[], readonly string[]] = [['Aldric', 'Seren', 'Kip'], ['Morvath', 'Ysolde', 'Grix']];
-const CLASSES_BY_TEAM: readonly [readonly ClassId[], readonly ClassId[]] = [['warden', 'wizard', 'cleric'], ['rogue', 'ranger', 'cleric']];
+const CLASSES_BY_TEAM: readonly [readonly ClassId[], readonly ClassId[]] = [['delver', 'astromancer', 'weaver'], ['weaver', 'astromancer', 'delver']];
 
 export function defaultDraft(opts: { allAi: boolean; map: MapId }): Draft {
   const team = (t: Team): Member[] => CLASSES_BY_TEAM[t].map((c, i) => ({ ...newMember(c, NAMES[t][i] ?? 'Hero'), human: t === 0 && !opts.allAi }));
@@ -41,15 +41,12 @@ export function toggleSkill(m: Member, id: ClassSkillId): Member {
   return { ...m, skills: [...keep, id] };
 }
 
+/** A random class, 3 of its skills, a keystone path and the other 2 points in a second path. */
 export function randomMember(m: Member, rnd: () => number): Member {
-  const cls = CLASS_ORDER[Math.floor(rnd() * CLASS_ORDER.length)] ?? 'warden', C = CLASSES[cls];
+  const cls = CLASS_ORDER[Math.floor(rnd() * CLASS_ORDER.length)] ?? 'delver', C = CLASSES[cls];
   const skills = C.skills.slice().sort(() => rnd() - 0.5).slice(0, 3);
-  const tree: NodeId[] = [];
-  for (let k = 0; k < 40 && tree.length < POINTS; k++) {
-    const branch = TREES[cls][Math.floor(rnd() * 3)];
-    const n = branch?.nodes.find(nd => canTake(cls, tree, nd.id));
-    if (n) tree.push(n.id);
-  }
+  const paths = TREES[cls], key = Math.floor(rnd() * paths.length), dip = (key + 1 + Math.floor(rnd() * (paths.length - 1))) % paths.length;
+  const tree: NodeId[] = [...(paths[key]?.nodes ?? []), ...(paths[dip]?.nodes ?? [])].map(n => n.id).slice(0, POINTS);
   return { ...m, cls, skills, tree };
 }
 
