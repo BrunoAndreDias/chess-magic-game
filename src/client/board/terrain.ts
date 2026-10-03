@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { DIR4, N, idx, inb } from '../../engine/index';
-import type { BattleState, Pos, TerrainChar, TileFx } from '../../engine/index';
+import { getUnit } from '../../engine/index';
+import type { BattleState, Pos, Team, TerrainChar, TileFx } from '../../engine/index';
 import type { Highlight, HighlightTone } from '../board';
 import { BIOMES } from '../biome';
 import type { Biome } from '../biome';
-import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
+import { OFF, TEAM_HEX, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
 
-export type FxKey = Exclude<keyof TileFx, 'spent' | 'whp'>;
-const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'flood', 'wall'];
+export type FxKey = Exclude<keyof TileFx, 'spent'>;
+export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'web', 'sink', 'pit', 'charge'];
 
 interface Brazier { flame: THREE.Sprite; core: THREE.Sprite; light: THREE.PointLight; ph: number }
 
@@ -39,6 +40,7 @@ const TONE: Readonly<Record<HighlightTone, { color: number; opacity: number }>> 
   deploy: { color: 0xe8b65a, opacity: 0.4 },
   selected: { color: 0xffe9b0, opacity: 0.8 },
   hazard: { color: 0xd65cff, opacity: 0.85 },
+  friendly: { color: 0xffe14a, opacity: 0.95 },
   altar: { color: 0xffd36b, opacity: 0.6 },
 };
 
@@ -69,13 +71,70 @@ const HZ_TEX = (() => {
 })();
 const HL_Y = 0.045;
 
+function canvasTex(draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  draw(c.getContext('2d')!);
+  return new THREE.CanvasTexture(c);
+}
+/** Eight spokes and a spiral of silk, white on clear. */
+function drawWeb(g: CanvasRenderingContext2D): void {
+  g.translate(64, 64);
+  const fill = g.createRadialGradient(0, 0, 0, 0, 0, 64);
+  fill.addColorStop(0, 'rgba(255,255,255,0.22)');
+  fill.addColorStop(1, 'rgba(255,255,255,0.04)');
+  g.fillStyle = fill;
+  g.fillRect(-64, -64, 128, 128);
+  g.strokeStyle = 'rgba(250,245,255,0.95)';
+  g.lineWidth = 3;
+  const spokes = 8;
+  for (let i = 0; i < spokes; i++) {
+    const a = (i / spokes) * Math.PI * 2;
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 64, Math.sin(a) * 64); g.stroke();
+  }
+  g.lineWidth = 2.2;
+  for (let r = 10; r < 62; r += 9) {
+    g.beginPath();
+    for (let i = 0; i <= spokes; i++) {
+      const a = (i / spokes) * Math.PI * 2, rr = r + (i % 2) * 2;
+      // Each strand sags toward the centre between spokes.
+      if (i === 0) g.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      else { const m = a - Math.PI / spokes; g.quadraticCurveTo(Math.cos(m) * rr * 0.86, Math.sin(m) * rr * 0.86, Math.cos(a) * rr, Math.sin(a) * rr); }
+    }
+    g.stroke();
+  }
+}
+/** Dark branching cracks from the centre over a dusty stain. */
+function drawCracks(g: CanvasRenderingContext2D): void {
+  const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(20,10,4,0.75)');
+  gr.addColorStop(0.6, 'rgba(70,45,20,0.35)');
+  gr.addColorStop(1, 'rgba(70,45,20,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 128);
+  const rnd = seeded(3);
+  g.strokeStyle = 'rgba(10,5,2,0.95)';
+  g.lineCap = 'round';
+  const crack = (x: number, y: number, a: number, len: number, w: number): void => {
+    if (len < 6 || w < 0.6) return;
+    const nx = x + Math.cos(a) * len, ny = y + Math.sin(a) * len;
+    g.lineWidth = w;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(nx, ny); g.stroke();
+    crack(nx, ny, a + (rnd() - 0.5) * 0.9, len * 0.7, w * 0.75);
+    if (rnd() < 0.5) crack(nx, ny, a + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.5), len * 0.55, w * 0.6);
+  };
+  for (let i = 0; i < 6; i++) crack(64, 64, (i / 6) * Math.PI * 2 + rnd() * 0.5, 20 + rnd() * 8, 4);
+}
+
 const pickMat = keep(new THREE.MeshBasicMaterial({ visible: false }));
 const shared = {
   rim: mat(0x2a2430), void: basic(0x0c0618),
   bowl: mat(0x6a4a2a, { metalness: 0.4 }), leg: mat(0x3a2a1a), plank: mat(0x8a6a44), band: mat(0x5a4a34),
   ice: new THREE.MeshStandardMaterial({ color: 0xcff4ff, emissive: 0x5ab6e0, emissiveIntensity: 0.35, roughness: 0.1, transparent: true, opacity: 0.9 }),
-  flood: new THREE.MeshStandardMaterial({ color: 0x2a6aa0, transparent: true, opacity: 0.7, roughness: 0.1, emissive: 0x0a2a44 }),
   fireBase: basic(0xff5a1a, 0.35),
+  web: new THREE.MeshBasicMaterial({ map: canvasTex(drawWeb), transparent: true, depthWrite: false }),
+  sink: new THREE.MeshBasicMaterial({ map: canvasTex(drawCracks), transparent: true, depthWrite: false }),
+  pitFloor: basic(0x08040e), satchel: mat(0x6b4a2b), fuse: mat(0x2a2220), spark: basic(0xffd27a),
 };
 for (const m of Object.values(shared)) keep(m);
 
@@ -165,7 +224,8 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
   },
 };
 
-const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
+/** `team` colours a Satchel Charge's strap; the other overlays ignore it. */
+const FX_BUILD: Readonly<Record<FxKey, (team: Team | null) => THREE.Object3D>> = {
   fire: () => {
     const g = new THREE.Group();
     g.add(decal(new THREE.PlaneGeometry(0.9, 0.9), shared.fireBase, 0.03));
@@ -188,12 +248,46 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
     return g;
   },
   ice: () => mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), shared.ice, 0, -0.02, 0),
-  flood: () => decal(new THREE.PlaneGeometry(1, 1), shared.flood, 0.04),
-  wall: () => {
-    const g = new THREE.Group(), b = mesh(new THREE.BoxGeometry(0.95, 1.1, 0.95), shared.plank, 0, 0.55, 0);
-    b.castShadow = true;
-    g.add(b);
-    for (let r = 0; r < 3; r++) g.add(mesh(new THREE.BoxGeometry(1, 0.08, 1), shared.band, 0, 0.2 + r * 0.35, 0));
+  web: () => {
+    const w = decal(new THREE.PlaneGeometry(1.02, 1.02), shared.web, 0.07);
+    w.rotation.z = Math.random() * Math.PI;
+    // Above the hazard stripes: a web changes how the tile plays, so it must read through them.
+    w.renderOrder = 5;
+    return w;
+  },
+  sink: () => {
+    const g = new THREE.Group(), c = decal(new THREE.PlaneGeometry(0.98, 0.98), shared.sink, 0.04);
+    c.renderOrder = 2;
+    g.add(c);
+    for (let i = 0; i < 4; i++) {
+      const d = glow(0x8a6a44, 0.5, 0.0, false);
+      d.position.set((Math.random() - 0.5) * 0.6, 0.12, (Math.random() - 0.5) * 0.6);
+      d.userData.dust = Math.random() * 9;
+      g.add(d);
+    }
+    return g;
+  },
+  pit: () => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1, 0.1, 1), shared.void, 0, -1.5, 0));
+    const gl = glow(0x7a3aff, 1.7, 0.55);
+    gl.position.y = -1.1;
+    g.add(gl);
+    for (const [dx, dz] of DIR4) g.add(mesh(new THREE.BoxGeometry(dx ? 0.1 : 1, 1.45, dz ? 0.1 : 1), shared.rim, dx * 0.45, -0.72, dz * 0.45));
+    return g;
+  },
+  charge: team => {
+    const g = new THREE.Group(), bag = mesh(new THREE.BoxGeometry(0.26, 0.17, 0.2), shared.satchel, 0, 0.09, 0);
+    bag.rotation.y = 0.4;
+    const strap = mesh(new THREE.BoxGeometry(0.28, 0.04, 0.05), mat(team === null ? 0xc9a06a : TEAM_HEX[team]), 0, 0.12, 0);
+    strap.rotation.y = 0.4;
+    const fuse = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.2, 5), shared.fuse, 0.06, 0.24, 0.02);
+    fuse.rotation.z = -0.5;
+    const spark = glow(0xffb04a, 0.35, 1);
+    spark.position.set(0.11, 0.33, 0.02);
+    spark.userData.spark = Math.random() * 9;
+    bag.castShadow = true;
+    g.add(bag, strap, fuse, mesh(new THREE.SphereGeometry(0.02, 6, 4), shared.spark, 0.11, 0.33, 0.02), spark);
     return g;
   },
 };
@@ -257,7 +351,7 @@ export class Terrain {
   standY(x: number, z: number, resting = true): number {
     const t = this.tile(x, z);
     if (!t) return 0;
-    if (t.base === 'o') return resting ? CHASM_Y : 0;
+    if (t.base === 'o' || t.fx.pit) return resting ? CHASM_Y : 0;
     if (t.fx.ice) return 0.02;
     return TOP[t.base] ?? 0;
   }
@@ -265,17 +359,20 @@ export class Terrain {
     return new THREE.Vector3(x - OFF, this.standY(x, z, resting) + y, z - OFF);
   }
 
-  setFx(x: number, z: number, key: FxKey, on: boolean): void {
+  setFx(x: number, z: number, key: FxKey, on: boolean, team: Team | null = null): void {
     const t = this.tile(x, z);
     if (!t || !!t.fx[key] === on) return;
     if (on) {
-      const o = FX_BUILD[key]();
+      const o = FX_BUILD[key](team);
+      o.position.y += Math.max(0, TOP[t.base] ?? 0);
       t.fx[key] = o;
       t.group.add(o);
     } else {
       disposeTree(t.fx[key]!);
       delete t.fx[key];
     }
+    // A pit swallows the tile: its slab and props hide while it lasts.
+    if (key === 'pit') for (const c of t.group.children) if (c !== t.pick && !Object.values(t.fx).includes(c)) c.visible = !on;
   }
   setSpent(x: number, z: number, spent: boolean): void {
     const t = this.tile(x, z);
@@ -292,7 +389,7 @@ export class Terrain {
     this.rebase(s, this.#tiles.filter(t => (s.terr[idx(t.x, t.z)] ?? '.') !== t.base));
     for (const t of this.#tiles) {
       const f = s.fx[idx(t.x, t.z)];
-      for (const key of FX_KEYS) this.setFx(t.x, t.z, key, !!f?.[key]);
+      for (const key of FX_KEYS) this.setFx(t.x, t.z, key, f?.[key] !== undefined, f?.charge !== undefined ? getUnit(s, f.charge)?.team ?? null : null);
       this.setSpent(t.x, t.z, !!f?.spent);
     }
   }
@@ -319,7 +416,7 @@ export class Terrain {
       for (const p of layer.tiles) {
         const t = this.tile(p.x, p.z);
         if (!t) continue;
-        const q = layer.tone === 'hazard' ? t.hz : t.hl;
+        const q = layer.tone === 'hazard' || layer.tone === 'friendly' ? t.hz : t.hl;
         q.visible = true;
         q.material.color.setHex(tone.color);
         q.material.opacity = layer.opacity ?? tone.opacity;
@@ -340,6 +437,17 @@ export class Terrain {
         if (ph === undefined) continue;
         c.scale.setScalar(0.55 + 0.2 * Math.sin(time * 14 + ph));
         c.position.y = 0.3 + 0.08 * Math.sin(time * 9 + ph);
+      }
+      if (t.fx.charge) for (const c of t.fx.charge.children) {
+        const ph = c.userData.spark as number | undefined;
+        if (ph !== undefined) c.scale.setScalar(0.25 + 0.15 * Math.abs(Math.sin(time * 17 + ph)));
+      }
+      if (t.fx.sink) for (const c of t.fx.sink.children) {
+        const ph = c.userData.dust as number | undefined;
+        if (ph === undefined) continue;
+        const k = (time * 0.7 + ph) % 1;
+        c.position.y = 0.08 + k * 0.4;
+        (c as THREE.Sprite).material.opacity = 0.5 * Math.sin(k * Math.PI);
       }
       if (t.fx.smoke) for (const c of t.fx.smoke.children) {
         const ph = c.userData.drift as number;

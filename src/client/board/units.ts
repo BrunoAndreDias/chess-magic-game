@@ -196,7 +196,7 @@ const silkMat = keep(new THREE.MeshStandardMaterial({ color: 0xf6f0fa, emissive:
 /** A heap of turned earth with a team-coloured rim, for a unit that is underground. */
 function buildMound(team: Team): THREE.Group {
   const g = new THREE.Group(), rnd = seeded(7 + team);
-  const heap = mesh(new THREE.SphereGeometry(0.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mat(new THREE.Color(0x5e4430).lerp(new THREE.Color(TEAM_HEX[team]), 0.28).getHex()));
+  const heap = mesh(new THREE.SphereGeometry(0.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mat(new THREE.Color(0x6a4a30).lerp(new THREE.Color(TEAM_HEX[team]), 0.18).getHex()));
   heap.scale.y = 0.55;
   g.add(heap, decal(new THREE.RingGeometry(0.4, 0.5, 28), basic(TEAM_HEX[team], 0.85), 0.03));
   for (let i = 0; i < 6; i++) {

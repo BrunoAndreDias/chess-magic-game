@@ -6,18 +6,20 @@ import { OFF, disposeTree } from './art';
 import { playEvent } from './events';
 import type { PlayCtx } from './events';
 import { Fx } from './fx';
+import { Marks } from './marks';
 import { Picker } from './input';
 import { Overlay } from './overlay';
 import { Stage } from './stage';
-import { Terrain } from './terrain';
-import type { FxKey } from './terrain';
+import { FX_KEYS, Terrain } from './terrain';
 import { Tweens } from './tween';
 import { animateUnit, buildUnit, setPose, shownOf } from './units';
 import type { UnitView } from './units';
 
 /** What the scene currently shows, read back from the meshes for the browser playtest. */
 export interface BoardDebug {
-  units(): { id: UnitId; x: number; z: number; visible: boolean; down: boolean; hp: number; shield: number }[];
+  units(): { id: UnitId; x: number; z: number; visible: boolean; down: boolean; under: boolean; hp: number; shield: number }[];
+  /** How many Tunnel Mouths, pending Calls and Threads are drawn. */
+  marks(): { mouths: number; calls: number; threads: number };
   /** Per tile `x,z` the base terrain char and overlay keys, e.g. `3,4:.:fire+smoke`. */
   tiles(): string[];
   busy(): boolean;
@@ -25,14 +27,13 @@ export interface BoardDebug {
   clock(): number;
 }
 
-const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'flood', 'wall'];
-
 class BoardView implements Board {
   readonly #stage: Stage;
   readonly #terrain: Terrain;
   readonly #tweens = new Tweens();
   readonly #fx: Fx;
   readonly #overlay: Overlay;
+  readonly #marks: Marks;
   readonly #picker: Picker;
   readonly #views = new Map<UnitId, UnitView>();
   readonly #unitRoot = new THREE.Group();
@@ -54,6 +55,7 @@ class BoardView implements Board {
     this.#terrain = new Terrain(this.#stage.world);
     this.#fx = new Fx(this.#stage.world, this.#tweens);
     this.#overlay = new Overlay(labels, this.#stage.camera, canvas);
+    this.#marks = new Marks(this.#stage.world, labels, this.#terrain, this.#overlay, this.#tweens, this.#views);
     this.#picker = new Picker(canvas, this.#stage.camera, () => ({
       tiles: this.#terrain.picks,
       units: [...this.#views.values()].filter(v => v.group.visible).map(v => v.group),
@@ -69,8 +71,9 @@ class BoardView implements Board {
   get debug(): BoardDebug {
     return {
       units: () => [...this.#views.values()].map(v => ({
-        id: v.id, ...tileOf(v), visible: v.group.visible, down: v.pose === 1, hp: v.shown.hp, shield: v.shown.shield,
+        id: v.id, ...tileOf(v), visible: v.group.visible, down: v.pose === 1, under: v.dig >= 1, hp: v.shown.hp, shield: v.shown.shield,
       })),
+      marks: () => this.#marks.counts,
       tiles: () => {
         const out: string[] = [];
         for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
@@ -119,7 +122,7 @@ class BoardView implements Board {
 
   #ctx(before: BattleState, after: BattleState): PlayCtx {
     return {
-      before, after, views: this.#views, terrain: this.#terrain, fx: this.#fx, tweens: this.#tweens, overlay: this.#overlay, stage: this.#stage,
+      before, after, views: this.#views, terrain: this.#terrain, marks: this.#marks, fx: this.#fx, tweens: this.#tweens, overlay: this.#overlay, stage: this.#stage,
       follow: () => this.#follow,
       setActive: id => this.#setActive(id),
       active: () => this.#active,
@@ -141,6 +144,7 @@ class BoardView implements Board {
       this.#place(v, u);
     }
     for (const [id, v] of this.#views) if (!seen.has(id)) { disposeTree(v.group); v.label.remove(); this.#views.delete(id); }
+    this.#marks.sync(s);
     this.#setActive(s.phase.kind === 'act' ? current(s)?.id ?? null : null);
   }
 
@@ -150,6 +154,7 @@ class BoardView implements Board {
     v.group.rotation.z = 0;
     v.group.visible = u.life.kind !== 'dead';
     v.shown = shownOf(u);
+    v.dig = u.under ? 1 : 0;
     setPose(v, u.life.kind === 'downed' ? 1 : 0);
   }
 
@@ -183,6 +188,7 @@ class BoardView implements Board {
     this.#picker.dispose();
     for (const v of this.#views.values()) { disposeTree(v.group); v.label.remove(); }
     this.#views.clear();
+    this.#marks.dispose();
     this.#terrain.dispose();
     this.#overlay.dispose();
     this.#stage.dispose();
@@ -208,6 +214,7 @@ class BoardView implements Board {
       animateUnit(v, t);
       this.#overlay.label(v);
     }
+    this.#marks.update(dt);
     this.#overlay.update(dt);
     st.render(dt);
   };

@@ -36,6 +36,8 @@ export class Overlay {
 
   /** Canvas pixel offset inside the labels layer and canvas size, read once per frame. */
   measure(): void {
+    // The camera moved this frame but its matrices only refresh at render; without this the labels trail a frame behind.
+    this.camera.updateMatrixWorld();
     const c = this.canvas.getBoundingClientRect(), l = this.el.getBoundingClientRect();
     this.#dx = c.left - l.left;
     this.#dy = c.top - l.top;
@@ -67,7 +69,8 @@ export class Overlay {
 
   label(v: UnitView): void {
     const g = v.group, s = v.shown, el = v.label;
-    const p = this.project(new THREE.Vector3(g.position.x, g.position.y + (v.pose > 0.5 ? 0.8 : v.height + 0.55), g.position.z));
+    const lift = v.pose > 0.5 ? 0.8 : (v.height + 0.4) * (1 - v.dig) + 0.75 * v.dig;
+    const p = this.project(new THREE.Vector3(g.position.x, g.position.y + lift, g.position.z));
     if (!p.ok || !g.visible) { el.style.display = 'none'; return; }
     el.style.display = '';
     el.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
@@ -75,7 +78,7 @@ export class Overlay {
     const name = s.life.kind === 'downed' ? `${s.name} · DOWNED ${s.life.bleed}` : s.name;
     const [st, n, bar] = el.children as unknown as [HTMLElement, HTMLElement, HTMLElement];
     if (n.textContent !== name) n.textContent = name;
-    const icons = [...s.st].map(k => STATUS[k].icon).join('');
+    const icons = (s.under ? '⛏' : '') + [...s.st].map(k => (k === 'encased' && !s.ice ? '🥚' : STATUS[k].icon)).join('');
     if (st.textContent !== icons) st.textContent = icons;
     const hpW = `${Math.round(Math.max(0, s.hp) / s.maxHp * 100)}%`, shW = `${Math.min(100, Math.round(s.shield / s.maxHp * 100))}%`;
     const [i, sh] = bar.children as unknown as [HTMLElement, HTMLElement];
