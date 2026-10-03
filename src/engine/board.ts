@@ -270,6 +270,7 @@ export function cloneState(s: BattleState): BattleState {
     phase: clonePhase(s.phase),
     party: s.party,
     combos: [s.combos[0], s.combos[1]],
+    favor: [s.favor[0], s.favor[1]],
     stats: {
       dmg: [s.stats.dmg[0], s.stats.dmg[1]], heal: [s.stats.heal[0], s.stats.heal[1]],
       downs: [s.stats.downs[0], s.stats.downs[1]], revives: [s.stats.revives[0], s.stats.revives[1]],

@@ -5,7 +5,7 @@ import { Match } from './match';
 import type { Seats } from './match';
 
 const setup: BattleSetup = {
-  map: 'chasm', starter: 0,
+  map: 'span', starter: 0,
   teams: [[newMember('warden', 'Wa'), newMember('cleric', 'Cl'), newMember('rogue', 'Ro')], [newMember('wizard', 'Wi'), newMember('ranger', 'Ra'), newMember('rogue', 'Ro')]],
 };
 const ai: Seats = [[{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }], [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }]];

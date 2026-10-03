@@ -6,7 +6,7 @@ A turn-based 3v3 party tactics game. Each character is one player's build: a cla
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173  (?quick skips setup, ?ai makes all six slots AI, ?map=chasm, ?seed=7)
+npm run dev      # http://localhost:5173  (?quick skips setup, ?ai makes all six slots AI, ?map=storm, ?seed=7)
 ```
 
 ## Check it

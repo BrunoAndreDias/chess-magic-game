@@ -87,6 +87,10 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
     g.position.y = 0.4;
     t.group.add(rune, g);
   },
+  'A': t => {
+    slab(t);
+    t.group.add(decal(new THREE.RingGeometry(0.22, 0.4, 8), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.8, side: THREE.DoubleSide }), 0.02));
+  },
   'G': (t, rnd) => {
     slab(t);
     for (let i = 0; i < 7; i++) {

@@ -1,7 +1,7 @@
 import { apply, createBattle } from './battle';
 import { mulberry32 } from './rng';
-import type { BattleEvent, BattleState, ClassId, Command, Life, MapId, MemberBuild, SkillId, Team, UnitId } from './types';
-import { CLASSES } from './tables';
+import type { BattleEvent, BattleState, ClassId, Command, Life, MapId, MemberBuild, SkillId, Team, TerrainChar, UnitId } from './types';
+import { CLASSES, N } from './tables';
 
 export const uid = (n: number) => n as UnitId;
 
@@ -12,14 +12,15 @@ export function bare(cls: ClassId, skills = CLASSES[cls].defaults): MemberBuild 
 
 /**
  * A battle deployed in each team's back row, ids numbered team 0 first.
- * `place` then moves units anywhere (by id) and `life`/`hp` override their condition, to stage a scene.
+ * `place` then moves units anywhere (by id), `life`/`hp` override their condition, `terr` repaints tiles and `round` skips ahead, to stage a scene.
  */
 export function stage(opts: {
   a: MemberBuild[]; b: MemberBuild[]; map?: MapId; starter?: Team;
   place?: Record<number, [number, number]>; hp?: Record<number, number>; life?: Record<number, Life>;
+  terr?: [number, number, TerrainChar][]; round?: number;
 }): BattleState {
   const s = createBattle({
-    map: opts.map ?? 'crypt', starter: opts.starter ?? 0, teams: [opts.a, opts.b],
+    map: opts.map ?? 'storm', starter: opts.starter ?? 0, teams: [opts.a, opts.b],
     deploy: [opts.a.map((_, i) => ({ x: i, z: 0 })), opts.b.map((_, i) => ({ x: i, z: 11 }))],
   }, mulberry32(1));
   for (const u of s.units) {
@@ -28,6 +29,8 @@ export function stage(opts: {
     if (hp !== undefined) u.hp = hp;
     if (life) { u.life = life; if (life.kind !== 'up') u.hp = 0; }
   }
+  for (const [x, z, t] of opts.terr ?? []) s.terr[z * N + x] = t;
+  if (opts.round) s.round = opts.round;
   return s;
 }
 

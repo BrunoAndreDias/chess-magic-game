@@ -54,7 +54,7 @@ export function randomMember(m: Member, rnd: () => number): Member {
 }
 
 export function resolveMap(d: Draft, rnd: () => number): MapId {
-  return d.map === 'random' ? MAP_ORDER[Math.floor(rnd() * MAP_ORDER.length)] ?? 'crypt' : d.map;
+  return d.map === 'random' ? MAP_ORDER[Math.floor(rnd() * MAP_ORDER.length)] ?? 'span' : d.map;
 }
 
 export function humanTeams(d: Draft): Team[] {

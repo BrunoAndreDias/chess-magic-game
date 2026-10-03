@@ -38,7 +38,7 @@ function track(c: PlayCtx, v: UnitView, team: Team): void {
 
 const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
   phys: '#ff6b5b', fire: '#ff8a4a', burn: '#ff8a4a', poison: '#8fe36b', frost: '#9ad8ff', shock: '#d6b8ff',
-  holy: '#ffe08a', dark: '#c8a0ff', slam: '#ffb08a', guard: '#e0b877',
+  holy: '#ffe08a', dark: '#c8a0ff', slam: '#ffb08a', guard: '#e0b877', storm: '#bfe0ff',
 };
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
   stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', mark: 'Marked!', expose: 'Exposed!',
@@ -107,6 +107,9 @@ async function castPose(c: PlayCtx, v: UnitView): Promise<void> {
 /** One entry per event type: adding an event type to the engine fails compilation here until it has an animation. */
 export const PLAY: Handlers = {
   round: () => {},
+  storm: () => {},
+  crumble: () => {},
+  favor: () => {},
   activate: async (e, c) => {
     c.setActive(e.id);
     const v = c.views.get(e.id);

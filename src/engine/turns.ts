@@ -1,5 +1,6 @@
 import { actionsOf, cheb, current, idx, isAlive, standing, terrAt } from './board';
 import { addStatus, checkWinner, damage, fxEmpty, heal } from './combat';
+import { endOfRound } from './hazards';
 import { DARK_ROUND, MAX_ROUNDS } from './tables';
 import type { BattleEvent, BattleState, Team, Unit, UnitId } from './types';
 
@@ -140,6 +141,8 @@ function advance(s: BattleState, ev: BattleEvent[]): boolean {
 
 const EXPIRING: readonly ('fire' | 'smoke' | 'ice' | 'flood' | 'wall')[] = ['fire', 'smoke', 'ice', 'flood', 'wall'];
 function endRound(s: BattleState, ev: BattleEvent[]): void {
+  endOfRound(s, ev);
+  if (s.phase.kind === 'over') return;
   const burnt: number[] = [];
   s.fx.forEach((f, k) => {
     if (!f) return;

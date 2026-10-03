@@ -20,6 +20,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     phase: { kind: 'order', orders: [null, null] },
     party: [partyBonuses(setup.teams[0]), partyBonuses(setup.teams[1])],
     combos: [0, 0],
+    favor: [0, 0],
     stats: { dmg: [0, 0], heal: [0, 0], downs: [0, 0], revives: [0, 0] },
   };
   let nextId = 1;

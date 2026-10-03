@@ -1,5 +1,5 @@
 import { COMBO_INFO, MAPS, PAIRS, SKILLS, STATUS, TRINITY, getUnit } from '../engine/index';
-import type { BattleEvent, BattleState, DamageKind, Team, UnitId } from '../engine/index';
+import type { BattleEvent, BattleState, DamageKind, OverReason, Team, UnitId } from '../engine/index';
 import { TEAMS, TEAM_NAME } from './theme';
 
 type Tone = 't0' | 't1' | 'sys' | 'combo';
@@ -13,13 +13,14 @@ function teamOf(s: BattleState, id: UnitId): Tone {
 function toneOf(t: Team): Tone { return t === 0 ? 't0' : 't1'; }
 
 const DAMAGE_WORD: Record<DamageKind, string> = {
-  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', holy: ' holy', poison: ' poison', burn: ' burn', dark: '', slam: ' slam', guard: '',
+  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', holy: ' holy', poison: ' poison', burn: ' burn', dark: '', slam: ' slam', guard: '', storm: ' lightning',
 };
 
-export const REASON: Record<'wipe' | 'mutual' | 'rounds', string> = {
+export const REASON: Record<OverReason, string> = {
   wipe: 'The other party has nobody left standing.',
   mutual: 'Both parties fell.',
   rounds: 'Round limit: the healthier party wins.',
+  altar: 'The Sun Altar grants them victory.',
 };
 
 export function winnerTitle(w: Team | 'draw'): string { return w === 'draw' ? 'Draw' : `${TEAM_NAME[w]} wins`; }
@@ -63,17 +64,22 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'combo': return { tone: 'combo', text: `⚡ ${comboCredit(e, s)}` };
     case 'downed': return { tone: 'sys', text: `${name(s, e.id)} is DOWNED! Help them up within 2 of their turns.` };
     case 'revive': return { tone: 'sys', text: `${name(s, e.id)} is back on their feet${e.by !== null && e.by !== e.id ? ` thanks to ${name(s, e.by)}` : ''}!` };
-    case 'death': return { tone: 'sys', text: e.cause === 'bled' ? `${name(s, e.id)} bleeds out.` : `${name(s, e.id)} is finished off.` };
+    case 'death': return { tone: 'sys', text: `${name(s, e.id)} ${DEATH_WORD[e.cause]}.` };
     case 'bleed': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is bleeding out: ${e.left} turn${e.left === 1 ? '' : 's'} left.` };
     case 'skip': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is stunned and loses the turn.` };
     case 'dark': return null;
     case 'burst': return { tone: 'sys', text: 'A brazier bursts into flames!' };
     case 'fire': return null;
     case 'terrain': return { tone: 'sys', text: TERRAIN_LINE[e.kind] };
+    case 'storm': return { tone: 'sys', text: `Lightning strikes ${e.line.toLowerCase()}!` };
+    case 'crumble': return { tone: 'sys', text: `The ground gives way: ${e.tiles.length} tiles fall into the abyss.` };
+    case 'favor': return e.team === null ? null : { tone: toneOf(e.team), text: `${TEAM_NAME[e.team]} holds the altar: favor ${e.favor[0]}–${e.favor[1]}.` };
     case 'roundEnd': return e.burnt.length ? { tone: 'sys', text: `The fire burns away ${e.burnt.length} tile${e.burnt.length === 1 ? '' : 's'} of grass.` } : null;
     case 'over': return { tone: 'sys', text: `${winnerTitle(e.winner)}. ${REASON[e.reason]}` };
   }
 }
+
+const DEATH_WORD = { bled: 'bleeds out', finished: 'is finished off', fell: 'is lost to the abyss' } as const;
 
 const TERRAIN_LINE = {
   wall: 'A barricade rises.',

@@ -39,7 +39,7 @@ export function mountSetup(ctx: Ctx, draft: Draft): Mounted {
   }
 
   function showMap(): void {
-    const id = draft.map === 'random' ? 'crypt' : draft.map;
+    const id = draft.map === 'random' ? 'span' : draft.map;
     if (id === shownMap) return;
     shownMap = id;
     ctx.board.load(createBattle({ map: id, starter: 0, teams: [[], []] }, mulberry32(ctx.seed)));

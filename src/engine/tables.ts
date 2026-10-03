@@ -14,7 +14,7 @@ export const DIR8: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0
 
 export interface TerrainDef { name: string; solid?: true; sight?: true; pit?: true; cost?: number; text?: string }
 
-// '.' floor  '#' wall  'o' chasm  '~' water  'G' tall grass  '^' high ground  'B' brazier  '+' shrine  'I' ice
+// '.' floor  '#' wall  'o' chasm  '~' water  'G' tall grass  '^' high ground  'B' brazier  '+' shrine  'I' ice  'A' altar
 const TERRAIN_TABLE = {
   '.': { name: 'Floor' },
   '#': { name: 'Wall', solid: true, sight: true, text: 'Blocks movement and line of sight.' },
@@ -25,37 +25,75 @@ const TERRAIN_TABLE = {
   'B': { name: 'Brazier', solid: true, text: 'Solid. Hit it with fire, or push someone into it, and it bursts: fire on the 8 tiles around.' },
   '+': { name: 'Shrine', text: 'End your turn here to heal 12.' },
   'I': { name: 'Ice', text: 'Frozen water: walk on it freely, no Wet.' },
+  'A': { name: 'Sun Altar', text: 'At the end of each round, the party with more characters standing here gains 1 favor. 4 favor wins the battle.' },
 } satisfies Record<TerrainChar, TerrainDef>;
 export const TERRAIN: Readonly<Record<TerrainChar, TerrainDef>> = TERRAIN_TABLE;
 
-export interface MapDef { id: MapId; name: string; rows: readonly string[]; favors: string }
+export interface StormLine { name: string; cols?: readonly number[]; rows?: readonly number[] }
+/** What the map does at the end of each round. Fully known in advance: no dice. */
+export type MapRule =
+  /** `rounds` uses the map's own rows layout: a digit is the round at whose end the tile falls, '.' never falls. */
+  | { kind: 'crumble'; rounds: readonly string[]; names: Readonly<Partial<Record<number, string>>> }
+  /** Round r strikes `cycle[(r - 1) % cycle.length]`. */
+  | { kind: 'storm'; dmg: number; cycle: readonly StormLine[] }
+  | { kind: 'altar'; goal: number };
+
+export interface MapDef {
+  id: MapId; name: string; rows: readonly string[]; rule: MapRule;
+  /** One line under the name: what the map does. */
+  tagline: string;
+  /** How the rule works, for the map reveal and the scout panel. */
+  ruleText: string;
+  /** Which builds and plays it rewards. */
+  favors: string;
+}
 
 // maps are 180°-symmetric: rows 6..11 are rows 5..0 reversed
-export const MAPS = {
-  crypt: { id: 'crypt', name: 'Flooded Crypt', rows: ['............', '..#......#..', '............', '.^..~~~~...+', '##..~~~~..##', '...~~##~~...'],
-    favors: 'Wizards and control: everyone in the channel gets Wet, so Lightning Conducts and Frost Freezes. Frost can bridge the water with ice.' },
-  chasm: { id: 'chasm', name: 'Chasm Bridges', rows: ['............', '..#......#..', '............', '.^........B.', '......#.....', 'oo..oooo..oo'],
-    favors: 'Pushers: two narrow bridges over a chasm. A Warden’s Shield Bash can drop anyone into the abyss. Hold the bridges.' },
-  ruins: { id: 'ruins', name: 'Overgrown Ruins', rows: ['............', '.GG......GG.', '............', '..GGG..^..#.', '#.GGG...GG..', '...^..GGG...'],
-    favors: 'Rogues and Rangers: tall grass hides you from range. Fire burns it away; smoke and Marks (Predator) find the hidden.' },
-  library: { id: 'library', name: 'Burning Library', rows: ['............', '.#.#....#.#.', '............', '..B..GG..##.', '##..GGGG....', '....#..B..+.'],
-    favors: 'Fire: braziers burst into flames and the dry stacks (grass) burn. Pyromancers and Combust thrive; Water (Flood) is the counter.' },
+const MAP_TABLE = {
+  span: { id: 'span', name: 'Shattered Span',
+    rows: ['.....oo.....', '.#........#.', '...^....^...', 'o.oo....oo.o', 'o.o.#..B.o.o', 'o.o......o.o'],
+    rule: { kind: 'crumble', rounds: ['555555555555', '777777777777', '999999999999', '.3........3.', '.3........3.', '.3........3.'],
+      names: { 3: 'The side bridges crumble', 5: 'The back rows crumble', 7: 'The back rows crumble', 9: 'The plateaus crumble' } },
+    tagline: 'The edges fall away. Only the island lasts.',
+    ruleText: 'Crumble: at the end of round 3 the side bridges fall, then the back rows at the end of rounds 5, 7 and 9. Anyone standing on a falling tile drops and is Downed; anyone already Downed there is lost.',
+    favors: 'Pushers and the patient: a Warden can bash enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
+  storm: { id: 'storm', name: 'Storm Court',
+    rows: ['............', '..#......#..', '............', '.~~..^...~~.', '.~~.#..#.~~.', '.....~~....+'],
+    rule: { kind: 'storm', dmg: 24, cycle: [
+      { name: 'The edges', cols: [0, 1, 10, 11] },
+      { name: 'The center', cols: [5, 6] },
+      { name: 'The midline', rows: [5, 6] },
+      { name: 'The backlines', rows: [0, 1, 10, 11] }] },
+    tagline: 'Lightning strikes known lines at the end of every round.',
+    ruleText: 'Storm: at the end of each round lightning strikes, in a fixed cycle, the edges (columns 1-2 and 11-12), the center columns, the midline, then the backlines. Anyone standing there takes 24, 36 if Wet, and the Downed are finished.',
+    favors: 'Control: Root, Stun or push an enemy into the next strike after it has moved. Wet targets take half again. Plan your turn order so nobody is caught.' },
+  altar: { id: 'altar', name: 'Sun Altar',
+    rows: ['............', '.GG......GG.', '....#..#....', '.G........G.', '.GG.B^..^GG.', '#....AA....#'],
+    rule: { kind: 'altar', goal: 4 },
+    tagline: 'Hold the altar. Four rounds of favor wins.',
+    ruleText: 'Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to 4 favor wins at once.',
+    favors: 'Tanks and area control: a Warden holds the altar, braziers beside it burn holders off, and grass on the flanks hides the ambush.' },
 } satisfies Record<MapId, MapDef>;
-export const MAP_ORDER: readonly MapId[] = ['crypt', 'chasm', 'ruins', 'library'];
+export const MAPS: Readonly<Record<MapId, MapDef>> = MAP_TABLE;
+export const MAP_ORDER: readonly MapId[] = ['span', 'storm', 'altar'];
 
 const TERRAIN_CHARS = new Set<string>(Object.keys(TERRAIN));
 function isTerrainChar(c: string): c is TerrainChar { return TERRAIN_CHARS.has(c); }
 
+/** The full N×N grid of a half-map layout (rows 0..5), row-major: rows 6..11 are rows 5..0 reversed. */
+export function mirrored(half: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const row of half) out.push(...row);
+  for (let z = half.length - 1; z >= 0; z--) out.push(...(half[z] ?? '').split('').reverse());
+  return out;
+}
+
 /** The full N×N base terrain of a map, row-major. */
 export function mapTerrain(id: MapId): TerrainChar[] {
-  const rows = MAPS[id].rows.slice();
-  for (let z = 5; z >= 0; z--) rows.push((rows[z] ?? '').split('').reverse().join(''));
-  const out: TerrainChar[] = [];
-  for (const row of rows) for (const c of row) {
+  return mirrored(MAPS[id].rows).map(c => {
     if (!isTerrainChar(c)) throw new Error(`map ${id}: unknown terrain '${c}'`);
-    out.push(c);
-  }
-  return out;
+    return c;
+  });
 }
 
 export interface ClassDef {

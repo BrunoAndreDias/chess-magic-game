@@ -36,7 +36,7 @@ describe('turn order', () => {
 
 describe('combos and life', () => {
   test('Shield Bash into a wall slams: 14, then 6 slam damage and a stun that eats the next turn', () => {
-    const s0 = stage({ a: [bare('warden')], b: [bare('wizard')], place: { 1: [2, 3], 2: [2, 2] } });
+    const s0 = stage({ a: [bare('warden')], b: [bare('wizard')], place: { 1: [2, 3], 2: [2, 2] }, terr: [[2, 3, '.']] });
     const r = run(s0, ...orders([1], [2]), cast(1, 'shieldbash', 2, 2));
     expect(r.events.slice(2)).toEqual([
       { type: 'cast', id: 1, team: 0, skill: 'shieldbash', tx: 2, tz: 2, fx: 2, fz: 3, target: 2, empowered: false },
@@ -53,6 +53,7 @@ describe('combos and life', () => {
     expect(next.events).toEqual([
       { type: 'activate', id: 2, team: 1, qi: 1 },
       { type: 'skip', id: 2 },
+      expect.objectContaining({ type: 'storm', line: 'The edges' }),
       { type: 'roundEnd', round: 1, burnt: [] },
     ]);
     expect(unit(next.state, 2).st).toEqual({});

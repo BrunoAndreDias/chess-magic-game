@@ -4,7 +4,7 @@ import type { BattleEvent, UnitId } from '../engine/index';
 import { comboCredit, describe, openingLines, previewLines } from './format';
 
 const s = createBattle({
-  map: 'crypt', starter: 0,
+  map: 'storm', starter: 0,
   teams: [[newMember('warden', 'Aldric'), newMember('wizard', 'Seren'), newMember('cleric', 'Kip')],
     [newMember('rogue', 'Morvath'), newMember('ranger', 'Ysolde'), newMember('cleric', 'Grix')]],
 }, mulberry32(1));
@@ -75,7 +75,7 @@ suite('previewLines', () => {
 suite('openingLines', () => {
   test('name the map and each party bonus', () => {
     expect(openingLines(s).map(l => l.text)).toEqual([
-      'Flooded Crypt. Order rule: the starting party acts first and last.',
+      'Storm Court. Order rule: the starting party acts first and last.',
       'Blue party bonuses: Bastion, Hold & Blast, Blessed Elements, Holy Trinity',
       'Red party bonuses: Guiding Light, Pack Tactics, Shadow Mend',
     ]);

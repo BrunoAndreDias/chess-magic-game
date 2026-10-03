@@ -99,7 +99,7 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (o.hp <= 0) down(s, o, ev, src);
   return d;
 }
-function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | null): void {
+export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | null): void {
   o.life = { kind: 'downed', bleed: BLEED };
   o.shield = 0; o.st = {}; o.hp = 0;
   if (src) s.stats.downs[src.team]++;

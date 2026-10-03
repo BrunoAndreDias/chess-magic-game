@@ -3,8 +3,8 @@ export type UnitId = number & { readonly __brand: 'UnitId' };
 
 export interface Pos { x: number; z: number }
 
-export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I';
-export type MapId = 'crypt' | 'chasm' | 'ruins' | 'library';
+export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 'A';
+export type MapId = 'span' | 'storm' | 'altar';
 export type ClassId = 'warden' | 'wizard' | 'ranger' | 'cleric' | 'rogue';
 export type Role = 'tank' | 'damage' | 'support';
 
@@ -102,7 +102,8 @@ export interface TileFx {
 export type Phase =
   | { kind: 'order'; orders: [UnitId[] | null, UnitId[] | null] }
   | { kind: 'act'; queue: UnitId[]; qi: number }
-  | { kind: 'over'; winner: Team | 'draw'; reason: 'wipe' | 'mutual' | 'rounds' };
+  | { kind: 'over'; winner: Team | 'draw'; reason: OverReason };
+export type OverReason = 'wipe' | 'mutual' | 'rounds' | 'altar';
 
 export interface BattleStats {
   dmg: [number, number];
@@ -123,6 +124,8 @@ export interface BattleState {
   phase: Phase;
   party: [PartyBonuses, PartyBonuses];
   combos: [number, number];
+  /** Sun Altar points; [0, 0] on every other map. */
+  favor: [number, number];
   stats: BattleStats;
 }
 
@@ -148,7 +151,7 @@ export type Command =
   | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos }
   | { kind: 'endTurn'; unit: UnitId };
 
-export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'holy' | 'poison' | 'burn' | 'dark' | 'slam' | 'guard';
+export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'holy' | 'poison' | 'burn' | 'dark' | 'slam' | 'guard' | 'storm';
 export type TerrainChange = 'wall' | 'ice' | 'flood' | 'smoke';
 
 export type BattleEvent =
@@ -169,15 +172,18 @@ export type BattleEvent =
   | { type: 'combo'; name: ComboName; id: UnitId | null; by: UnitId; team: Team; setup: UnitId | null }
   | { type: 'downed'; id: UnitId; team: Team }
   | { type: 'revive'; id: UnitId; by: UnitId | null }
-  | { type: 'death'; id: UnitId; team: Team; cause: 'finished' | 'bled' }
+  | { type: 'death'; id: UnitId; team: Team; cause: 'finished' | 'bled' | 'fell' }
   | { type: 'bleed'; id: UnitId; left: number }
   | { type: 'skip'; id: UnitId }
   | { type: 'dark'; id: UnitId; amount: number }
   | { type: 'burst'; x: number; z: number }
   | { type: 'fire'; x: number; z: number }
   | { type: 'terrain'; tiles: Pos[]; kind: TerrainChange }
+  | { type: 'storm'; line: string; tiles: Pos[] }
+  | { type: 'crumble'; tiles: Pos[] }
+  | { type: 'favor'; team: Team | null; favor: [number, number] }
   | { type: 'roundEnd'; round: number; burnt: number[] }
-  | { type: 'over'; winner: Team | 'draw'; reason: 'wipe' | 'mutual' | 'rounds' };
+  | { type: 'over'; winner: Team | 'draw'; reason: OverReason };
 
 export type ApplyResult =
   | { ok: true; state: BattleState; events: BattleEvent[] }

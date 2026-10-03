@@ -14,7 +14,7 @@ let rounds = 0, ms = 0;
 
 for (let i = 0; i < battles; i++) {
   const r = mulberry32(100 + i);
-  const map = MAP_ORDER[i % MAP_ORDER.length] ?? 'crypt';
+  const map = MAP_ORDER[i % MAP_ORDER.length] ?? 'span';
   const teams: [MemberBuild[], MemberBuild[]] = [party(r), party(r)];
   let s: BattleState = createBattle({ map, starter: 0, teams }, r);
   const t0 = performance.now();
