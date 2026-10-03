@@ -4,6 +4,12 @@ import type { TileInput } from '../board';
 
 const CLICK_SLOP = 6;
 
+/** Three's raycaster ignores visibility, so a hidden casing, mound or sunk body would still catch clicks. */
+function drawn(o: THREE.Object3D): boolean {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+  return true;
+}
+
 /** Pointer to tile: raycasts the tile pick boxes (and unit bodies, which resolve to the tile they stand on). */
 export class Picker {
   readonly #ray = new THREE.Raycaster();
@@ -58,7 +64,7 @@ export class Picker {
     this.#ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     this.#ray.setFromCamera(this.#ndc, this.camera);
     const { tiles, units, tileOfUnit } = this.targets();
-    const hitUnit = this.#ray.intersectObjects(units, true).find(h => h.object instanceof THREE.Mesh && h.object.visible);
+    const hitUnit = this.#ray.intersectObjects(units, true).find(h => h.object instanceof THREE.Mesh && drawn(h.object));
     const hitTile = this.#ray.intersectObjects(tiles, false)[0];
     if (hitUnit && (!hitTile || hitUnit.distance <= hitTile.distance)) {
       const t = tileOfUnit(hitUnit.object);

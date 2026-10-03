@@ -141,7 +141,15 @@ async function serve() {
     await p.click('.ccard[data-cls="delver"]');
     await p.click('#su-teams .pslot[data-team="0"][data-slot="1"]');
     await wait(600);
-    const figure = await p.$eval('#su-teams .pslot[data-slot="0"]', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y - 50 }; });
+    // The lineup walks members to their spots at the frame rate, so wait for the plate under slot 0 to stop moving.
+    const plateAt = () => p.$eval('#su-teams .pslot[data-slot="0"]', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y - 50 }; });
+    let figure = await plateAt();
+    for (let i = 0; i < 40; i++) {
+      await wait(150);
+      const next = await plateAt();
+      if (Math.abs(next.x - figure.x) + Math.abs(next.y - figure.y) < 1) break;
+      figure = next;
+    }
     await p.mouse.click(figure.x, figure.y);
     await wait(600);
     const picked = await p.$eval('#su-teams .pslot.on', e => e.dataset.slot);
