@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { CLASSES, N, SKILLS, STATUS, getUnit } from '../../engine/index';
-import type { BattleEvent, BattleState, DamageKind, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
+import { CLASSES, N, SKILLS, STATUS, getUnit, idx } from '../../engine/index';
+import type { BattleEvent, BattleState, CallSkill, DamageKind, Pos, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
 import { TEAM_CSS, TEAM_HEX, hex } from './art';
 import type { Fx } from './fx';
+import type { Marks } from './marks';
 import type { Overlay } from './overlay';
 import type { Stage } from './stage';
 import type { Terrain } from './terrain';
@@ -17,6 +18,7 @@ export interface PlayCtx {
   after: BattleState;
   views: ReadonlyMap<UnitId, UnitView>;
   terrain: Terrain;
+  marks: Marks;
   fx: Fx;
   tweens: Tweens;
   overlay: Overlay;
@@ -38,43 +40,35 @@ function track(c: PlayCtx, v: UnitView, team: Team): void {
 
 const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
   phys: '#ff6b5b', fire: '#ff8a4a', burn: '#ff8a4a', poison: '#8fe36b', frost: '#9ad8ff', shock: '#d6b8ff',
-  holy: '#ffe08a', dark: '#c8a0ff', slam: '#ffb08a', guard: '#e0b877', storm: '#bfe0ff',
+  dark: '#c8a0ff', slam: '#ffb08a', share: '#f0a0d0', storm: '#bfe0ff',
 };
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
-  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', mark: 'Marked!', expose: 'Exposed!',
-  taunt: 'Taunted!', guard: 'Guarded', empower: 'Empowered!', haste: 'Hasted',
+  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain',
 };
-const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { wall: 0xc8a064, ice: 0xcff4ff, flood: 0x4fb3ff, smoke: 0x9aa0b0 };
+const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa, sink: 0x8a6a44, pit: 0x7a3aff };
+const DUST = 0x9a7a5a;
 
-type CastKind = 'proj' | 'bolt' | 'arrow' | 'lob' | 'beam' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'none';
+type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'none';
+/** How a cast looks from the caster. What it does to the board (a burrow, a Call's marker, a Thread) is its own event. */
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
-  shieldbash: 'melee', guard: 'link', taunt: 'nova', barricade: 'raise', sunder: 'melee',
-  fireball: 'lob', frostbolt: 'proj', lightning: 'bolt', flood: 'lob', combust: 'proj',
-  mark: 'arrow', pinshot: 'arrow', snipe: 'arrow', volley: 'lob', smokearrow: 'lob',
-  heal: 'heal', resurrect: 'heal', bless: 'heal', sanctuary: 'nova', judgment: 'beam',
-  backstab: 'melee', shadowstep: 'none', poison: 'melee', kidney: 'melee', smokebomb: 'nova',
+  burrow: 'none', upheaval: 'raise', undermine: 'raise', satchel: 'lob', dragunder: 'link', tremor: 'nova', stoneskin: 'nova', warren: 'lob',
+  snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
+  tether: 'none', reel: 'nova', web: 'lob', cocoon: 'link', venombite: 'melee', puppet: 'link', sharedpain: 'nova', skitter: 'none',
   helpup: 'heal',
-  basic_warden: 'melee', basic_wizard: 'proj', basic_ranger: 'arrow', basic_cleric: 'proj', basic_rogue: 'melee',
+  basic_delver: 'melee', basic_astromancer: 'proj', basic_weaver: 'melee',
 };
 
 interface Shot { e: Extract<BattleEvent, { type: 'cast' }>; c: PlayCtx; v: UnitView; from: THREE.Vector3; to: THREE.Vector3; color: number; basic: boolean }
 const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
   proj: s => s.c.fx.projectile(s.from, s.to, s.color, s.basic ? 0.2 : 0.32, 0.32, 0.5),
-  arrow: s => s.c.fx.projectile(s.from, s.to, s.color, 0.14, 0.22, 0.12),
   lob: async s => {
     const ground = s.c.terrain.at(s.e.tx, s.e.tz, 0.3);
     await s.c.fx.projectile(s.from, ground, s.color, 0.3, 0.42, 1.4);
     void s.c.fx.ring(s.c.terrain.at(s.e.tx, s.e.tz, 0.08), s.color, 1.8, 0.5);
   },
-  bolt: async s => {
-    const hops = (s.e.chain ?? []).flatMap(id => { const v = s.c.views.get(id); return v ? [above(v, 0.8)] : []; });
-    const pts = [s.from, ...(hops.length ? hops : [s.to])];
-    for (let i = 1; i < pts.length; i++) { s.c.fx.bolt(pts[i - 1]!, pts[i]!, s.color); await s.c.tweens.wait(0.11); }
-  },
-  beam: async s => {
-    s.c.fx.bolt(s.to.clone().add(new THREE.Vector3(0, 2.5, 0)), s.to, s.color, 0.12);
-    void s.c.fx.burst(s.to, s.color, 2.4, 0.4);
-    await s.c.tweens.wait(0.22);
+  call: async s => {
+    await s.c.fx.projectile(s.from, s.from.clone().add(new THREE.Vector3(0, 3.2, 0)), s.color, 0.28, 0.3, 0);
+    void s.c.fx.burst(s.from.clone().add(new THREE.Vector3(0, 3.2, 0)), s.color, 2.4, 0.4);
   },
   heal: s => {
     s.c.fx.sparkles(s.c.terrain.at(s.e.tx, s.e.tz), s.color, 12);
@@ -98,6 +92,57 @@ function skillColor(id: SkillId): number {
   const sk = SKILLS[id];
   return hex(sk.color ?? (sk.cls ? CLASSES[sk.cls].color : '#e8e2d0'));
 }
+
+/** Sinks the figure into its tile (`to` 1) or brings it up (`to` 0), throwing dirt. */
+async function dig(c: PlayCtx, v: UnitView, to: 0 | 1, sec: number): Promise<void> {
+  const from = v.dig, feet = v.group.position.clone().add(new THREE.Vector3(0, 0.2, 0));
+  void c.fx.burst(feet, DUST, to ? 1.6 : 2.4, 0.45);
+  c.fx.sparkles(v.group.position.clone(), DUST, to ? 5 : 9);
+  await c.tweens.run(sec, p => { v.dig = from + (to - from) * easeInOut(p); });
+  v.dig = to;
+}
+
+/** The middle tile of a Call's square area. */
+const centerOf = (tiles: readonly Pos[]): Pos => tiles[Math.floor(tiles.length / 2)] ?? { x: 0, z: 0 };
+
+type Land = Extract<BattleEvent, { type: 'land' }>;
+const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vector3 | null) => Promise<void>>> = {
+  meteor: async (e, c, sigil) => {
+    const at = c.terrain.at(e.x, e.z, 0.3, false), k = e.power;
+    const from = (sigil ?? at.clone().add(new THREE.Vector3(0, 2, 0))).clone().add(new THREE.Vector3(1.6, 6, -1.6));
+    await c.fx.projectile(from, at, 0xff6a2b, 0.75 * k + 0.25, 0.5, 0);
+    void c.fx.burst(at, 0xff6a2b, 7 * k, 0.6);
+    void c.fx.burst(at, 0xffe0a0, 3.5 * k, 0.35);
+    void c.fx.ring(at.clone().setY(at.y - 0.2), 0xff8a3a, 2.4 * k, 0.6);
+    for (const t of e.tiles) c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), 0xff8a3a, 3);
+    c.stage.shake(0.45 * k);
+    await c.tweens.wait(0.3);
+  },
+  thunderhead: async (e, c) => {
+    const at = c.terrain.at(e.x, e.z, 0, false);
+    const sky = at.clone().add(new THREE.Vector3(0, 3.4, 0)), gather = c.fx.cloud(sky, 2.6, 1.2);
+    await c.tweens.wait(0.4);
+    for (const t of e.tiles) {
+      const g = c.terrain.at(t.x, t.z, 0.05, false);
+      c.fx.bolt(sky.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0, (Math.random() - 0.5) * 1.5)), g, 0xe8dcff, 0.45);
+      void c.fx.ring(g, 0xc9a7ff, 0.6, 0.4);
+    }
+    c.stage.shake(0.3);
+    await gather;
+  },
+  gravitywell: async (e, c) => {
+    const at = c.terrain.at(e.x, e.z, 0.1, false);
+    for (let i = 0; i < 3; i++) { void c.fx.implode(at, i % 2 ? 0x9a8cff : 0x7a6aff, 2.8, 0.55); await c.tweens.wait(0.12); }
+    void c.fx.burst(at.clone().add(new THREE.Vector3(0, 0.5, 0)), 0x7a6aff, 2.6, 0.5);
+    await c.tweens.wait(0.35);
+  },
+  recall: async (e, c) => {
+    const at = c.terrain.at(e.x, e.z, 0.1, false);
+    c.fx.sparkles(at, 0xffe08a, 14);
+    void c.fx.implode(at, 0xffe08a, 1.4, 0.5);
+    await c.fx.implode(at, 0xfff3c0, 0.9, 0.5);
+  },
+};
 
 async function castPose(c: PlayCtx, v: UnitView): Promise<void> {
   const w = v.weapon, y0 = w.position.y;
@@ -147,11 +192,19 @@ export const PLAY: Handlers = {
   move: async (e, c) => {
     const v = c.views.get(e.id);
     if (!v) return;
-    const step = e.slide ? 0.09 : 0.14, hop = e.slide ? 0.04 : 0.12;
+    const step = e.slide ? 0.09 : e.under ? 0.12 : 0.14, hop = e.slide ? 0.04 : e.under ? 0 : 0.12;
     for (let i = 1; i < e.path.length; i++) {
       const a = e.path[i - 1]!, b = e.path[i]!;
       const pa = c.terrain.at(a.x, a.z, 0, false), pb = c.terrain.at(b.x, b.z, 0, false);
       if (!e.slide) face(v, pb.x, pb.z);
+      // Steps that aren't neighbours are a tunnel: down one mouth, up the other.
+      if (Math.max(Math.abs(a.x - b.x), Math.abs(a.z - b.z)) > 1) {
+        if (!e.under) await dig(c, v, 1, 0.25);
+        v.group.position.copy(pb);
+        if (!e.under) await dig(c, v, 0, 0.25);
+        continue;
+      }
+      if (e.under) c.fx.sparkles(pa, DUST, 2);
       await c.tweens.run(step, p => { v.group.position.lerpVectors(pa, pb, p); v.group.position.y += Math.sin(p * Math.PI) * hop; });
     }
     if (c.active() === e.id) track(c, v, v.team);
@@ -183,8 +236,7 @@ export const PLAY: Handlers = {
     if (sk.target !== 'self') face(v, to.x, to.z);
     await castPose(c, v);
     const shot: Shot = { e, c, v, from: above(v, v.height * 0.85), to, color: skillColor(e.skill), basic: !!sk.basic };
-    if (e.empowered) void c.fx.burst(above(v, 1), 0xffe08a, 2.2, 0.35);
-    await CAST_FX[CAST_KIND[e.skill]](shot);
+    if (v.dig < 1) await CAST_FX[CAST_KIND[e.skill]](shot);
   },
   damage: async (e, c) => {
     const v = c.views.get(e.id);
@@ -199,9 +251,11 @@ export const PLAY: Handlers = {
     if (e.absorbed > 0) c.overlay.float(`(${e.absorbed} blocked)`, '#e0c477', above(v, 2.1));
     await c.tweens.wait(0.06);
   },
-  guarded: (e, c) => {
-    const v = c.views.get(e.id), g = c.views.get(e.by);
-    if (v && g) c.fx.bolt(above(v, 1), above(g, 1), 0xe0b877, 0.1);
+  shared: (e, c) => {
+    const v = c.views.get(e.id), w = c.views.get(e.by);
+    if (!v || !w) return;
+    c.fx.bolt(above(v, 0.8), above(w, 0.8), 0xf0a0d0, 0.08);
+    c.overlay.float('💞 shared', '#f0a0d0', above(w, 2.2));
   },
   heal: (e, c) => {
     const v = c.views.get(e.id);
@@ -291,8 +345,9 @@ export const PLAY: Handlers = {
   skip: async (e, c) => {
     const v = c.views.get(e.id);
     if (!v) return;
+    const held = v.shown.st.has('encased') && !v.shown.st.has('stun');
     v.shown.st.delete('stun');
-    c.overlay.float('💫 loses the turn', '#ffd36b', above(v, 2.2));
+    c.overlay.float(held ? `${v.shown.ice ? '🧊' : '🥚'} held fast` : '💫 loses the turn', held ? '#b8e8ff' : '#ffd36b', above(v, 2.2));
     await c.tweens.wait(0.5);
   },
   dark: (e, c) => {
@@ -312,12 +367,13 @@ export const PLAY: Handlers = {
   },
   terrain: async (e, c) => {
     for (const t of e.tiles) {
+      if (e.kind === 'pit') { c.terrain.setFx(t.x, t.z, 'sink', false); c.terrain.setFx(t.x, t.z, 'web', false); c.terrain.setFx(t.x, t.z, 'charge', false); void c.marks.caveIn(t); }
       c.terrain.setFx(t.x, t.z, e.kind, true);
-      if (e.kind === 'flood') c.terrain.setFx(t.x, t.z, 'fire', false);
-      void c.fx.burst(c.terrain.at(t.x, t.z, 0.4), TERRAIN_COLOR[e.kind], 1.4, 0.35);
+      void c.fx.burst(c.terrain.at(t.x, t.z, 0.4, false), TERRAIN_COLOR[e.kind], e.kind === 'web' ? 1.1 : 1.6, 0.35);
+      if (e.kind !== 'web') c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), DUST, 4);
     }
-    if (e.kind === 'wall') c.stage.shake(0.2);
-    await c.tweens.wait(0.2);
+    if (e.kind === 'pit') c.stage.shake(0.35);
+    await c.tweens.wait(e.kind === 'pit' ? 0.4 : 0.2);
   },
   roundEnd: async (e, c) => {
     for (const k of e.burnt) {
@@ -327,6 +383,80 @@ export const PLAY: Handlers = {
     }
     c.terrain.sync(c.after);
     if (e.burnt.length) await c.tweens.wait(0.3);
+  },
+  burrow: async (e, c) => {
+    const v = c.views.get(e.id);
+    if (!v) return;
+    v.shown.under = true;
+    c.overlay.float('⛏ underground', '#d8b48a', above(v, 1.6));
+    await dig(c, v, 1, 0.5);
+  },
+  surface: async (e, c) => {
+    const v = c.views.get(e.id);
+    if (!v) return;
+    v.group.position.copy(c.terrain.at(e.x, e.z));
+    v.shown.under = false;
+    c.stage.shake(0.15);
+    void c.fx.ring(c.terrain.at(e.x, e.z, 0.08), DUST, 1.2, 0.4);
+    await dig(c, v, 0, 0.3);
+  },
+  mouth: (e, c) => c.marks.openMouth(e),
+  cavein: async (e, c) => {
+    const p = c.terrain.at(e.x, e.z, 0.2, false);
+    void c.fx.burst(p, DUST, 1.8, 0.5);
+    c.fx.sparkles(p, DUST, 6);
+    await c.marks.caveIn(e);
+  },
+  call: async (e, c) => {
+    const at = centerOf(e.tiles);
+    await c.marks.placeCall({ by: e.id, team: e.team, skill: e.skill, x: at.x, z: at.z, recall: null }, c.after);
+  },
+  land: async (e, c) => {
+    const sigil = c.marks.takeCall(e.id, e);
+    const v = c.views.get(e.id);
+    if (v && c.follow()) c.stage.follow(c.terrain.at(e.x, e.z), v.team);
+    await LAND_FX[e.skill](e, c, sigil);
+  },
+  fizzle: async (e, c) => {
+    for (let at = c.marks.takeCall(e.id, null); at; at = c.marks.takeCall(e.id, null)) {
+      c.fx.sparkles(at, 0x9a8cff, 8);
+      void c.fx.burst(at, 0x6a6a8a, 1.6, 0.5);
+      c.overlay.float('fizzles', '#9a8cff', at);
+    }
+    await c.tweens.wait(0.2);
+  },
+  thread: async (e, c) => {
+    const t = c.after.threads.find(x => x.by === e.by && x.to === e.to) ?? { by: e.by, to: e.to, len: 1 };
+    const v = c.views.get(e.to);
+    if (v) void c.fx.burst(above(v, 0.8), 0xf4eefa, 1.4, 0.35);
+    await c.marks.tie(t, c.after);
+  },
+  snap: (e, c) => c.marks.snap(e),
+  charge: async (e, c) => {
+    const owner = getUnit(c.after, c.after.fx[idx(e.x, e.z)]?.charge) ?? getUnit(c.after, c.active());
+    c.terrain.setFx(e.x, e.z, 'charge', true, owner?.team ?? null);
+    void c.fx.burst(c.terrain.at(e.x, e.z, 0.2), 0xffb04a, 1.2, 0.3);
+    await c.tweens.wait(0.15);
+  },
+  blast: async (e, c) => {
+    c.terrain.setFx(e.x, e.z, 'charge', false);
+    const p = c.terrain.at(e.x, e.z, 0.4);
+    void c.fx.burst(p, 0xff7a2a, 5.5, 0.55);
+    void c.fx.burst(p, 0xffe0a0, 2.6, 0.3);
+    void c.fx.ring(c.terrain.at(e.x, e.z, 0.08), 0xffa040, 1.8, 0.45);
+    c.fx.sparkles(p, 0x6a5a4a, 8);
+    c.stage.shake(0.4);
+    await c.tweens.wait(0.3);
+  },
+  encased: (e, c) => {
+    const v = c.views.get(e.id);
+    if (!v) return;
+    const ice = !!getUnit(c.after, e.id)?.st.encased?.ice;
+    v.shown.st.add('encased');
+    v.shown.ice = ice;
+    void c.fx.burst(above(v, v.height * 0.5), ice ? 0xbfeaff : 0xf4eefa, 2.4, 0.45);
+    c.fx.sparkles(above(v, 0.2), ice ? 0xcff4ff : 0xffffff, 8);
+    c.overlay.float(ice ? '🧊 Encased' : '🥚 Cocooned', ice ? '#b8e8ff' : '#f3e6ff', above(v, 2.1));
   },
   over: () => {},
 };
