@@ -221,6 +221,18 @@ describe('encased', () => {
     expect(next.events.slice(turn, turn + 2)).toEqual([{ type: 'activate', id: 2, team: 0, qi: 2 }, { type: 'skip', id: 2 }]);
   });
 
+  test('Help Up frees a Cocooned ally, and it acts on its next turn', () => {
+    const s0 = stage({
+      a: [bare('weaver', ['cocoon', 'web', 'reel']), bare('delver'), bare('astromancer')], b: [bare('weaver')],
+      place: { 1: [3, 1], 2: [3, 2], 3: [4, 2], 4: [10, 10] }, life: { 2: { kind: 'downed', bleed: 2 } },
+    });
+    const r = run(s0, ...orders([1, 3, 2], [4]), cast(1, 'cocoon', 3, 2), end(1), end(4), cast(3, 'helpup', 3, 2));
+    expect([unit(r.state, 2).life, unit(r.state, 2).st]).toEqual([{ kind: 'up' }, {}]);
+    const next = run(r.state, end(3));
+    expect(next.events).toEqual([{ type: 'activate', id: 2, team: 0, qi: 3 }]);
+    expect(apply(next.state, cast(2, 'stoneskin', 3, 2)).ok).toBe(true);
+  });
+
   test('Absolute Zero on an Encased unit: the skipped turn spends the Encase, and the Stun skips the turn after', () => {
     const rime = bare('astromancer', ['thunderhead', 'prison', 'frostbolt'], ['a_frost', 'a_prison', 'a_wet', 'a_zero']);
     const s0 = stage({

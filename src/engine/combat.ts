@@ -168,6 +168,7 @@ function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
 }
 function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
   o.life = { kind: 'up' };
+  delete o.st.encased;
   o.hp = Math.max(1, Math.round(o.maxHp * frac));
   s.stats.revives[o.team]++;
   ev.push({ type: 'revive', id: o.id, by: src.id });
