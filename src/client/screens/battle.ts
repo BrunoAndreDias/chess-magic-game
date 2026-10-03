@@ -361,7 +361,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (!human(u)) { set(h('b', null, u.name), ` (${TEAM_NAME[u.team]}, AI) is acting…`); return; }
     if (input.kind !== 'turn') { set(); return; }
     if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
-    if (u.under && !u.moved) { set(h('b', null, u.name), ` is underground: blue tiles = tunnel up to ${moveOf(u)} through walls and units. Any skill surfaces you; you come up at the end of the turn anyway.`); return; }
+    if (u.under && !u.moved) { set(h('b', null, u.name), ` is underground: blue tiles = tunnel up to ${moveOf(u)}, through walls and units. Any skill surfaces you.`); return; }
     const leash = holders(s, u).flatMap(t => { const w = getUnit(s, t.by); return w && w.team !== u.team ? [`${w.name} (${t.len})`] : []; });
     if (leash.length && !u.moved) { set(h('b', null, u.name), ' is leashed by ', h('b', null, leash.join(', ')), ': blue tiles stay within the Thread’s length. ', h('b', null, 'Space'), ' = end turn.'); return; }
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
