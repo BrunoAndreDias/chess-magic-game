@@ -36,11 +36,11 @@ The counters form a loose triangle. The Delver dodges Calls underground and dive
 ### Underground
 
 - **Burrow** (innate, free, cooldown 2). Usable only if you haven't moved this turn, and it uses up your move. You can attack first and then sink. You go **Underground** and leave a **Tunnel Mouth** on your tile.
-- **Underground** lasts until the end of your next turn. You can't be targeted, damaged, moved or given statuses, except by **Quake** effects (Meteor, Tremor). Storm strikes, fire, crumbling tiles and the altar count all ignore you. Other units walk over your tile.
-- On your next turn your move is an **underground move**. Up to 4 tiles in any of 4 directions, through walls, water and units, but never through a chasm or off the board.
+- **Underground** lasts until the end of your next turn. You can't be targeted, damaged, moved or given statuses, except by an enemy's **Quake** effects (Meteor, Tremor). Storm strikes, fire, crumbling tiles and the altar count all ignore you. Other units walk over your tile.
+- On your next turn your move is an **underground move**. Up to 4 tiles in any of 4 directions, through walls, water and units, but never through a chasm or pit or off the board, and never ending on another unit.
 - You **Surface** when you cast any skill, or at the end of that turn. You come up on your tile, or the nearest free tile if someone is standing on it. Surfacing leaves another Tunnel Mouth. Upheaval is the one skill that needs you to be underground.
 - **Tunnel Mouths** last 3 rounds. All of one Delver's mouths are joined. For that Delver's party, walking from one joined mouth to another costs 1 move, like an adjacent tile. An enemy who ends its turn on a mouth caves it in.
-- A Quake that hits you underground forces you up and Stuns you.
+- An enemy's Quake that hits you underground forces you up and Stuns you. Your party's Meteor passes over you.
 
 The enemy can see your underground tile as a mound of dirt. Hiding it needs per-player state redaction in the Match first.
 
@@ -82,7 +82,7 @@ The enemy can see your underground tile as a mound of dirt. Hiding it needs per-
 - The party orders its turns every round, and the starter alternates. Act last this round and first next round, and the Call lands after one or two enemy turns. Act first and last, and it lands after five.
 - A Call hits **every unit** in its area, allies included, unless the Orrery keystone says otherwise. Underground units are spared unless the Call is a Quake.
 - You hold **one** Call at a time. If you're Downed before it lands, it fizzles.
-- **Snap** (innate, free, cooldown 3) makes your pending Call land right now at half power.
+- **Snap** (innate, free, cooldown 3) makes your oldest pending Call land right now at half power. A half-power Gravity Well pulls 1 tile.
 - Roots, Stuns, Threads and pits make a Call hard to escape. That's how the other classes feed the Astromancer.
 
 ### Skills (pick 3 of 7)
@@ -159,7 +159,7 @@ Every pair of classes in a party, and every class taken twice, gives a bonus.
 
 | Pair | Name | Effect |
 |---|---|---|
-| Delver + Astromancer | **Deep Impact** | A Call whose area holds one of your Tunnel Mouths also lands on every other mouth of that tunnel, at half power. |
+| Delver + Astromancer | **Deep Impact** | A Call whose area holds one of your Tunnel Mouths also lands on every other mouth of that tunnel, at half power. Recall doesn't echo. |
 | Delver + Weaver | **Silk Tunnels** | Allies a Weaver holds walk between joined Tunnel Mouths for free. |
 | Astromancer + Weaver | **Star-Tether** | An enemy held by your Weaver when your Call hits it is Exposed for 2 turns (+25% damage taken). |
 | Delver × 2 | **Shared Warren** | Every Tunnel Mouth of your party is joined into one network. |
