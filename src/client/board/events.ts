@@ -280,7 +280,7 @@ export const PLAY: Handlers = {
   },
   resist: (e, c) => {
     const v = c.views.get(e.id);
-    if (v) c.overlay.float('Unbreakable', '#e0b877', above(v, 2.1));
+    if (v) c.overlay.float('Resists', '#e0b877', above(v, 2.1));
   },
   steam: (e, c) => {
     const v = c.views.get(e.id);
