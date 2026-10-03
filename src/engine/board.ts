@@ -103,11 +103,11 @@ function underPaths(s: BattleState, u: Unit, range: number): Map<number, number>
   return prev;
 }
 
-/** Surface Dijkstra: terrain costs, enemies block, webs stop non-Weavers, joined mouths connect. */
-function surfacePaths(s: BattleState, u: Unit, range: number): Map<number, number> {
+/** Surface Dijkstra: terrain costs, enemies block, webs stop non-Weavers, joined mouths connect when `tunnels`. */
+function surfacePaths(s: BattleState, u: Unit, range: number, tunnels: boolean): Map<number, number> {
   const start = idx(u.x, u.z), weaver = u.cls === 'weaver';
   const dist = new Map<number, number>([[start, 0]]), prev = new Map<number, number>([[start, -1]]);
-  const mouths = s.mouths.filter(m => m.team === u.team);
+  const mouths = tunnels ? s.mouths.filter(m => m.team === u.team) : [];
   const jump = s.party[u.team].has('silktunnels') && holders(s, u, u.team).length ? 0 : 1;
   const open: number[] = [start];
   const relax = (from: number, nk: number, nd: number, stop: boolean) => {
@@ -149,12 +149,12 @@ export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
   return paths(s, u, moveOf(u), true);
 }
 
-/** Every tile `u` could walk to within `range`, ignoring Root; `leash` keeps it within its enemy Weavers' Threads. */
-export function paths(s: BattleState, u: Unit, range: number, leash: boolean): Map<number, Pos[]> {
+/** Every tile `u` could walk to within `range`, ignoring Root; on its `own` move, tunnels carry it and enemy Weavers' Threads leash it. */
+export function paths(s: BattleState, u: Unit, range: number, own: boolean): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>(), start = idx(u.x, u.z);
-  const prev = u.under ? underPaths(s, u, range) : surfacePaths(s, u, range);
+  const prev = u.under ? underPaths(s, u, range) : surfacePaths(s, u, range, own);
   const leashes: [Unit, number][] = [];
-  if (leash) for (const t of s.threads) {
+  if (own) for (const t of s.threads) {
     if (t.to !== u.id) continue;
     const w = getUnit(s, t.by);
     if (w && w.team !== u.team && standing(w)) leashes.push([w, t.len]);

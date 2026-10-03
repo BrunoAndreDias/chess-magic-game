@@ -287,6 +287,15 @@ describe('threads', () => {
     expect([threadCap(s, unit(s, 1)), threadCap(s, unit(s, 2)), threadCap(s, unit(s, 3))]).toEqual([4, 5, 3]);
   });
 
+  test('Puppet Strings walks a held enemy, never through its Tunnel Mouths', () => {
+    const s0 = stage({ a: [bare('weaver', ['puppet', 'web', 'reel'])], b: [bare('delver')], place: { 1: [3, 2], 2: [3, 5] } });
+    s0.mouths = [{ team: 1, net: uid(2), x: 3, z: 5, t: 3 }, { team: 1, net: uid(2), x: 9, z: 9, t: 3 }];
+    const tied = run(s0, ...orders([1], [2]), cast(1, 'tether', 3, 5)).state;
+    expect(apply(tied, cast(1, 'puppet', 9, 9))).toEqual({ ok: false, error: '(9, 9) is not a target of puppet' });
+    const r = run(tied, cast(1, 'puppet', 3, 7));
+    expect(r.events[1]).toEqual({ type: 'move', id: 2, path: [{ x: 3, z: 5 }, { x: 3, z: 6 }, { x: 3, z: 7 }] });
+  });
+
   test('a web stops a walker and Roots it through its next turn; nobody but a Weaver paths through', () => {
     const s0 = stage({ a: [bare('weaver')], b: [bare('delver')], place: { 1: [5, 0], 2: [8, 3] } });
     const webbed = run(s0, ...orders([1], [2]), cast(1, 'web', 5, 3), end(1));
