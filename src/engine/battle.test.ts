@@ -100,6 +100,20 @@ describe('underground', () => {
     expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).shield]).toEqual([8, 2, 15]);
   });
 
+  test('an Undercity mouth keeps a Downed ally from bleeding only while its Delver lives', () => {
+    const city = bare('delver', undefined, ['d_mouth', 'd_hp2', 'd_shield', 'd_city']);
+    const scene = (life: 'up' | 'dead') => {
+      const s0 = stage({
+        a: [city, bare('weaver')], b: [bare('astromancer')], place: { 1: [8, 0], 2: [3, 3], 3: [6, 9] },
+        life: { 1: life === 'up' ? { kind: 'up' } : { kind: 'dead' }, 2: { kind: 'downed', bleed: 2 } },
+      });
+      s0.mouths = [{ team: 0, net: uid(1), x: 3, z: 3, t: 3 }];
+      return run(s0, ...orders([2, 1], [3])).events.slice(1, 3);
+    };
+    expect(scene('up')).toEqual([{ type: 'activate', id: 2, team: 0, qi: 0 }, { type: 'activate', id: 3, team: 1, qi: 1 }]);
+    expect(scene('dead')).toEqual([{ type: 'activate', id: 2, team: 0, qi: 0 }, { type: 'bleed', id: 2, left: 1 }]);
+  });
+
   test('Upheaval from below pushes the enemy into a wall: SLAM', () => {
     const s0 = stage({ a: [bare('delver')], b: [bare('weaver')], place: { 1: [5, 1], 2: [6, 1] }, terr: [[7, 1, '#']] });
     const live = run(s0, ...orders([1], [2]), cast(1, 'burrow', 5, 1), end(1), end(2), ...orders([1], [2]), end(2)).state;

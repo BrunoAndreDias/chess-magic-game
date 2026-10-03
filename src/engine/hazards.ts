@@ -43,6 +43,7 @@ const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
         s.terr[k] = 'o'; s.fx[k] = undefined; fell.add(k);
       });
       if (!fell.size) return;
+      s.mouths = s.mouths.filter(m => !fell.has(idx(m.x, m.z)));
       ev.push({ type: 'crumble', tiles: [...fell].map(pos) });
       atOnce(s, () => {
         for (const u of s.units) {

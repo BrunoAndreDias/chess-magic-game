@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { doomed, threatName } from './hazards';
-import { bare, cast, end, orders, run, stage, unit } from './testkit';
+import { bare, cast, end, orders, run, stage, uid, unit } from './testkit';
 import type { BattleEvent } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
@@ -48,6 +48,13 @@ describe('crumble', () => {
     ]);
     expect([1, 3, 6, 10].map(x => r.state.terr[4 * 12 + x])).toEqual(['o', '.', '.', 'o']);
     expect([unit(r.state, 2).life, unit(r.state, 2).under]).toEqual([{ kind: 'up' }, 1]);
+  });
+
+  test('Tunnel Mouths on falling tiles are gone', () => {
+    const s0 = stage({ map: 'span', round: 3, a: [bare('delver')], b: [bare('weaver')], place: { 1: [5, 2], 2: [6, 9] } });
+    s0.mouths = [{ team: 0, net: uid(1), x: 1, z: 4, t: 3 }, { team: 0, net: uid(1), x: 3, z: 4, t: 3 }];
+    const r = run(s0, ...orders([1], [2]), end(1), end(2));
+    expect(r.state.mouths).toEqual([{ team: 0, net: 1, x: 3, z: 4, t: 2 }]);
   });
 
   test('a fall that leaves a party nobody standing ends the battle', () => {
