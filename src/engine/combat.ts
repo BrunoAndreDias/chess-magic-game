@@ -231,7 +231,7 @@ function burstBrazier(c: Ctx, x: number, z: number): void {
   emitCombo(s, c.ev, 'IGNITE', c.u, null, null);
   for (const [dx, dz] of DIR8) igniteTile(c, x + dx, z + dz, 3);
 }
-/** Fire on a tile: burns a web away and sets whoever stands there Burning. */
+/** Fire on a tile: burns a web away and sets whoever stands there Burning, except a Benevolent caster's allies. */
 function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   const s = c.s;
   if (!inb(x, z)) return;
@@ -241,7 +241,7 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   setFx(s, x, z, 'fire', turns);
   c.ev.push({ type: 'fire', x, z });
   const o = unitAt(s, x, z);
-  if (o && !isDowned(o)) addStatus(o, 'burn', { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }, c.ev);
+  if (o && !isDowned(o) && !(o.team === c.u.team && c.u.mods.benevolent)) addStatus(o, 'burn', { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }, c.ev);
 }
 /** Ending any move on a tile: water wets, fire burns, a web Roots a non-Weaver, and an enemy's Satchel next to it blows. */
 export function arrive(s: BattleState, o: Unit, ev: BattleEvent[]): void {

@@ -197,6 +197,15 @@ describe('calls', () => {
     expect(r.state.calls).toEqual([]);
   });
 
+  test('with Benevolent Heavens a Meteor heals an ally on burning grass and doesn\'t set it Burning', () => {
+    const orrery = bare('astromancer', undefined, ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']);
+    const s0 = stage({ a: [orrery, bare('weaver')], b: [bare('delver')], place: { 1: [4, 0], 2: [6, 2], 3: [7, 2] }, hp: { 2: 100 }, terr: [[6, 2, 'G'], [7, 2, 'G']] });
+    const r = run(s0, ...orders([1, 2], [3]), cast(1, 'meteor', 6, 2), end(1), end(3), end(2), ...orders([1, 2], [3]), end(3));
+    expect(r.events).toContainEqual({ type: 'heal', id: 2, amount: 15 });
+    expect([unit(r.state, 2).hp, unit(r.state, 2).st]).toEqual([115, {}]);
+    expect(unit(r.state, 3).st.burn).toEqual({ t: 2, dmg: 6, by: 1 });
+  });
+
   test('Snap lands the pending Call at once, at half power', () => {
     const r = run(run(sky(), ...orders([1, 2], [3])).state, cast(1, 'meteor', 6, 2), cast(1, 'snap', 4, 0));
     expect(r.events.slice(3)).toEqual([
