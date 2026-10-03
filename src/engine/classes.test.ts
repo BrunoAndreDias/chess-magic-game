@@ -213,3 +213,27 @@ describe('bellringer skills', () => {
     expect(unit(r.state, 2).st.hush).toEqual({ t: 2, by: 1 });
   });
 });
+
+describe('resonances', () => {
+  test('Death Knell: a Downed enemy of a Gravecaller and Bellringer party loses 2 bleed a turn and is gone after one', () => {
+    const bleedOut = (a: ReturnType<typeof bare>[]) => {
+      const s0 = stage({ a, b: [bare('weaver'), bare('weaver')], place: { 1: [0, 0], 2: [1, 0], 3: [5, 9], 4: [9, 9] }, life: { 3: { kind: 'downed', bleed: 2 } } });
+      return run(run(s0, ...orders([1, 2], [3, 4])).state, end(1)).events.slice(1, 2);
+    };
+    expect(bleedOut([bare('gravecaller'), bare('bellringer')])).toEqual([{ type: 'death', id: 3, team: 1, cause: 'bled' }]);
+    expect(bleedOut([bare('gravecaller'), bare('weaver')])).toEqual([{ type: 'bleed', id: 3, left: 1 }]);
+  });
+
+  test('Clockwork Silk: Toll reaches an enemy the party\'s Weaver holds, however far', () => {
+    const scene = (tether: boolean) => {
+      const s0 = stage({
+        a: [bare('weaver'), bare('bellringer'), bare('astromancer')], b: [bare('astromancer'), bare('astromancer'), bare('astromancer')],
+        place: { 1: [4, 1], 2: [0, 0], 3: [1, 1], 4: [11, 11], 5: [8, 4], 6: [10, 10] },
+      });
+      const live = run(s0, ...orders([1, 2, 3], [4, 5, 6])).state;
+      return run(tether ? run(live, cast(1, 'tether', 8, 4)).state : live, end(1), end(4)).state;
+    };
+    expect(apply(scene(false), cast(2, 'toll', 8, 4))).toEqual({ ok: false, error: '(8, 4) is not a target of toll' });
+    expect(run(scene(true), cast(2, 'toll', 8, 4)).events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 4, 2, 6, 3, 5) });
+  });
+});

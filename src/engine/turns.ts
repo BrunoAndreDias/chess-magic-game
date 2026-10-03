@@ -88,7 +88,7 @@ function bleed(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   const enc = u.st.encased;
   if (enc) { if (--enc.t <= 0) delete u.st.encased; return; }
   if (s.units.some(f => f.team === u.team && f.mods.ferryman && standing(f) && cheb(f.x, f.z, u.x, u.z) <= 2)) return;
-  const left = u.life.bleed - 1;
+  const left = u.life.bleed - (s.party[u.team === 0 ? 1 : 0].has('deathknell') ? 2 : 1);
   if (left <= 0) {
     u.life = { kind: 'dead' };
     ev.push({ type: 'death', id: u.id, team: u.team, cause: 'bled' });

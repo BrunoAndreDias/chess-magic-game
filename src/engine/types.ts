@@ -48,7 +48,9 @@ export type Mods = Partial<Record<
   number>>;
 
 /** A pair of classes in a party; `a === b` means that class twice. */
-export type PairId = 'startether' | 'conjunction' | 'greatweb';
+export type PairId =
+  | 'startether' | 'seconddawn' | 'appointedhour' | 'soulsilk' | 'clockworksilk' | 'deathknell'
+  | 'conjunction' | 'greatweb' | 'charnel' | 'pealofbells';
 export type PartyBonusId = PairId | 'coverage';
 export type PartyBonuses = ReadonlySet<PartyBonusId>;
 

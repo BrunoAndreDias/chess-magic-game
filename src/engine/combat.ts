@@ -1,5 +1,5 @@
 import {
-  BAD_KEYS, actedCount, actedThisRound, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, landingNear, lastToAct, los, nextTurn,
+  BAD_KEYS, actedCount, actedThisRound, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, heldBy, idx, inb, isAlive, isDowned, isSolid, landingNear, lastToAct, los, nextTurn,
   nearestFree, onHigh, puppetMoves, reachable, sign, soulAt, soulCap, soulsInReach, square, standing, terrAt, threadCap, unitAt, unitsIn,
 } from './board';
 import { BLEED, CLASSES, DARK_ROUND, DIR8, SKILLS, SOUL_HIT, SOUL_ROUNDS, isCall } from './tables';
@@ -207,10 +207,10 @@ function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: U
 }
 
 // ---------- souls ----------
-/** A Soul drops on (x, z), unless one already lies there. */
+/** A Soul drops on (x, z), unless one already lies there. It lasts 2 rounds longer while either party is a Charnel House. */
 function dropSoul(s: BattleState, x: number, z: number, ev: BattleEvent[]): void {
   if (soulAt(s, x, z) || isSolid(s, x, z)) return;
-  s.souls.push({ x, z, t: SOUL_ROUNDS });
+  s.souls.push({ x, z, t: SOUL_ROUNDS + (s.party.some(p => p.has('charnel')) ? 2 : 0) });
   ev.push({ type: 'soul', x, z });
 }
 /** A Downed Gravecaller's held Souls fall on its tile and the nearest free ones around it. */
@@ -450,7 +450,9 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   siphon(c) {
     const s = c.s, u = c.u, took = hit(c, tgt(c), 12, 'drain');
     const hurt = (a: Unit) => a.hp / a.maxHp;
-    const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && cheb(a.x, a.z, u.x, u.z) <= 3).sort((a, b) => hurt(a) - hurt(b))[0];
+    const silk = s.party[u.team].has('soulsilk');
+    const reach = (a: Unit) => cheb(a.x, a.z, u.x, u.z) <= 3 || (silk && heldBy(s, a, u.team));
+    const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && reach(a)).sort((a, b) => hurt(a) - hurt(b))[0];
     if (mend && took > 0) heal(s, mend, took, c.ev, u);
   },
   toll(c) {
@@ -468,6 +470,8 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
     if (o.team === u.team && o !== u && u.mods.accel) { addStatus(o, 'haste', { t: 1, by: u.id }, c.ev); shield(o, 15, c.ev); }
     if (o.team !== u.team && u.mods.tollHush) addStatus(o, 'hush', { t: 1, by: u.id }, c.ev);
+    const called = s.calls.some(k => k.team === u.team && k.skill !== 'recall' && callTiles(k.skill, k.x, k.z).some(p => p.x === o.x && p.z === o.z));
+    if (o.team !== u.team && called && s.party[u.team].has('appointedhour')) root(s, o, u.id, c.ev);
   },
   knell(c) {
     const s = c.s, o = tgt(c), late = actedThisRound(s, o.id);
@@ -563,6 +567,13 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
   },
   recall(c) {
     const r = c.call.recall, o = r && getUnit(c.s, r.id);
+    if (r && o && isDowned(o) && r.hp > 0 && c.s.party[c.call.team].has('seconddawn')) {
+      o.life = { kind: 'up' };
+      o.hp = 0;
+      delete o.st.encased;
+      c.s.stats.revives[o.team]++;
+      c.ev.push({ type: 'revive', id: o.id, by: c.u.id });
+    }
     if (!r || !o || !standing(o)) return;
     const there = unitAt(c.s, r.x, r.z);
     if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z) && !o.st.encased) teleport(c, o, r);
@@ -641,7 +652,8 @@ export function performCast(s: BattleState, id: SkillId, tx: number, tz: number)
     }
   }
   if (!sk.free) u.acted = true;
-  if (cdOf(u, id) > 0) u.cd[id] = cdOf(u, id);
+  const cd = cdOf(s, u, id);
+  if (cd > 0) u.cd[id] = cd;
   breakThreads(s, ev);
   checkWinner(s);
   return ev;

@@ -86,6 +86,10 @@ function isStatusKey(k: string): k is StatusKey { return k in STATUS; }
 export const BAD_KEYS: readonly StatusKey[] = Object.keys(STATUS).filter(isStatusKey).filter(k => STATUS[k].bad);
 
 // ---------- threads ----------
+/** A Weaver of `team` holds `o` (Soul Silk, Clockwork Silk). */
+export function heldBy(s: BattleState, o: Unit, team: Team): boolean {
+  return s.threads.some(t => t.to === o.id && getUnit(s, t.by)?.team === team);
+}
 /** The Threads holding `o`, by Weavers of `team` when given. */
 export function holders(s: BattleState, o: Unit, team?: Team): Thread[] {
   return s.threads.filter(t => t.to === o.id && (team === undefined || getUnit(s, t.by)?.team === team));
@@ -96,8 +100,8 @@ export function threadCap(s: BattleState, w: Unit): number {
 
 // ---------- souls ----------
 /** How many Souls `u` can hold: 0 unless its class gathers them. */
-export function soulCap(_s: BattleState, u: Unit): number {
-  return CLASSES[u.cls].innate === 'harvest' ? 3 + (u.mods.soulCap || 0) : 0;
+export function soulCap(s: BattleState, u: Unit): number {
+  return CLASSES[u.cls].innate === 'harvest' ? 3 + (u.mods.soulCap || 0) + (s.party[u.team].has('charnel') ? 1 : 0) : 0;
 }
 export function harvestRange(u: Unit): number { return 3 + (u.mods.harvestRange || 0); }
 /** The ground Souls Harvest would gather if `u` stood at (px, pz), nearest first. */
@@ -185,8 +189,9 @@ export function actionsOf(u: Unit): SkillId[] {
   const basic: BasicSkillId = `basic_${u.cls}`;
   return [basic, CLASSES[u.cls].innate, ...u.skills, 'helpup'];
 }
-export function cdOf(u: Unit, id: SkillId): number {
+export function cdOf(s: BattleState, u: Unit, id: SkillId): number {
   let c = SKILLS[id].cd;
+  if (id === 'toll' && s.party[u.team].has('pealofbells')) c -= 1;
   if (id === 'prison') c -= u.mods.prisonCd || 0;
   if (id === 'cocoon') c -= u.mods.cocoonCd || 0;
   if (id === 'toll') c -= u.mods.tollCd || 0;
@@ -199,7 +204,7 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
   if (id === 'recall') r += u.mods.recallRange || 0;
   if (id === 'tether') r += u.mods.threadRange || 0;
   if (id === 'lastrites') r += u.mods.riteRange || 0;
-  if (id === 'toll') r += u.mods.tollRange || 0;
+  if (id === 'toll') r += (u.mods.tollRange || 0) + (s.party[u.team].has('pealofbells') ? 1 : 0);
   if (r > 1 && terrAt(s, px, pz) === '^') r += 1;
   return r;
 }
@@ -270,6 +275,8 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
     default: return false;
   }
   if (id === 'cocoon') return d <= r || held();
+  const silk = (id === 'lastrites' && s.party[u.team].has('soulsilk')) || (id === 'toll' && s.party[u.team].has('clockworksilk'));
+  if (silk && heldBy(s, o, u.team)) r = Infinity;
   if (id === 'equalize' && !evens(u, o)) return false;
   if (id === 'toll' && (actedThisRound(s, o.id) || nextTurn(s, o.id) < 0 || tolledThisRound(s, o.id))) return false;
   if (id === 'encore' && (!actedThisRound(s, o.id) || nextTurn(s, o.id) >= 0)) return false;

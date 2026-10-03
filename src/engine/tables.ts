@@ -219,8 +219,15 @@ export const KEYSTONE_TIER = 3;
 export interface PairDef { id: PairId; a: ClassId; b: ClassId; name: string; text: string }
 const PAIR_TABLE = [
   { id: 'startether', a: 'astromancer', b: 'weaver', name: 'Star-Tether', text: 'An enemy held by your Weaver when your Call hits it is Exposed for 2 turns.' },
+  { id: 'seconddawn', a: 'astromancer', b: 'gravecaller', name: 'Second Dawn', text: 'A Recall that lands on a Downed ally stands it back up at the HP it had when you cast.' },
+  { id: 'appointedhour', a: 'astromancer', b: 'bellringer', name: 'Appointed Hour', text: 'An enemy Tolled while standing in one of your pending Calls’ areas is Rooted.' },
+  { id: 'soulsilk', a: 'weaver', b: 'gravecaller', name: 'Soul Silk', text: 'Last Rites and Siphon reach any ally your Weaver holds, at any range.' },
+  { id: 'clockworksilk', a: 'weaver', b: 'bellringer', name: 'Clockwork Silk', text: 'Toll reaches any unit your Weaver holds, at any range.' },
+  { id: 'deathknell', a: 'gravecaller', b: 'bellringer', name: 'Death Knell', text: 'Downed enemies lose 2 bleed a turn instead of 1.' },
   { id: 'conjunction', a: 'astromancer', b: 'astromancer', name: 'Conjunction', text: 'A Call that lands in a round where another of your Calls already landed deals +25%.' },
   { id: 'greatweb', a: 'weaver', b: 'weaver', name: 'Great Web', text: '+1 Thread each, and your webs last 1 round longer.' },
+  { id: 'charnel', a: 'gravecaller', b: 'gravecaller', name: 'Charnel House', text: 'Souls last 2 rounds longer, and each Gravecaller holds 1 more.' },
+  { id: 'pealofbells', a: 'bellringer', b: 'bellringer', name: 'Peal of Bells', text: 'Each Bellringer’s Toll gets +1 range and −1 cooldown. A unit still can’t be Tolled twice in a round.' },
 ] satisfies readonly PairDef[];
 export const PAIRS: readonly PairDef[] = PAIR_TABLE;
 export type EveryPairListed = Assert<NoMissing<PairId, (typeof PAIR_TABLE)[number]['id']>>;
