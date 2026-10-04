@@ -30,6 +30,7 @@ export interface PlayCtx {
 }
 
 type Handler<K extends BattleEvent['type']> = (e: Extract<BattleEvent, { type: K }>, c: PlayCtx) => Promise<void> | void;
+
 type Handlers = { [K in BattleEvent['type']]: Handler<K> };
 
 const above = (v: UnitView, y: number): THREE.Vector3 => v.group.position.clone().add(new THREE.Vector3(0, y, 0));
@@ -42,13 +43,17 @@ const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
   phys: '#ff6b5b', fire: '#ff8a4a', burn: '#ff8a4a', poison: '#8fe36b', frost: '#9ad8ff', shock: '#d6b8ff',
   dark: '#c8a0ff', slam: '#ffb08a', share: '#f0a0d0', storm: '#bfe0ff', drain: '#ff8a8a',
 };
+
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
   stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain', wither: 'Withered!', hush: 'Hushed!', guard: 'Bell Guard', haste: 'Quickened',
 };
+
 const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa, bone: 0xe8e2d0 };
+
 const DUST = 0x9a7a5a;
 
 type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'none';
+
 /** How a cast looks from the caster. What it does to the board (a Call's marker, a Thread) is its own event. */
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
   snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
@@ -60,6 +65,7 @@ const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
 };
 
 interface Shot { e: Extract<BattleEvent, { type: 'cast' }>; c: PlayCtx; v: UnitView; from: THREE.Vector3; to: THREE.Vector3; color: number; basic: boolean }
+
 const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
   proj: s => s.c.fx.projectile(s.from, s.to, s.color, s.basic ? 0.2 : 0.32, 0.32, 0.5),
   lob: async s => {
@@ -91,6 +97,7 @@ const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
 
 function skillColor(id: SkillId): number {
   const sk = SKILLS[id];
+
   return hex(sk.color ?? (sk.cls ? CLASSES[sk.cls].color : '#e8e2d0'));
 }
 
@@ -98,6 +105,7 @@ function skillColor(id: SkillId): number {
 const centerOf = (tiles: readonly Pos[]): Pos => tiles[Math.floor(tiles.length / 2)] ?? { x: 0, z: 0 };
 
 type Land = Extract<BattleEvent, { type: 'land' }>;
+
 const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vector3 | null) => Promise<void>>> = {
   meteor: async (e, c, sigil) => {
     const at = c.terrain.at(e.x, e.z, 0.3, false), k = e.power;
@@ -106,6 +114,7 @@ const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vec
     void c.fx.burst(at, 0xff6a2b, 7 * k, 0.6);
     void c.fx.burst(at, 0xffe0a0, 3.5 * k, 0.35);
     void c.fx.ring(at.clone().setY(at.y - 0.2), 0xff8a3a, 2.4 * k, 0.6);
+
     for (const t of e.tiles) c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), 0xff8a3a, 3);
     c.stage.shake(0.45 * k);
     await c.tweens.wait(0.3);
@@ -114,17 +123,21 @@ const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vec
     const at = c.terrain.at(e.x, e.z, 0, false);
     const sky = at.clone().add(new THREE.Vector3(0, 3.4, 0)), gather = c.fx.cloud(sky, 2.6, 1.2);
     await c.tweens.wait(0.4);
+
     for (const t of e.tiles) {
       const g = c.terrain.at(t.x, t.z, 0.05, false);
       c.fx.bolt(sky.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0, (Math.random() - 0.5) * 1.5)), g, 0xe8dcff, 0.45);
       void c.fx.ring(g, 0xc9a7ff, 0.6, 0.4);
     }
+
     c.stage.shake(0.3);
     await gather;
   },
   gravitywell: async (e, c) => {
     const at = c.terrain.at(e.x, e.z, 0.1, false);
+
     for (let i = 0; i < 3; i++) { void c.fx.implode(at, i % 2 ? 0x9a8cff : 0x7a6aff, 2.8, 0.55); await c.tweens.wait(0.12); }
+
     void c.fx.burst(at.clone().add(new THREE.Vector3(0, 0.5, 0)), 0x7a6aff, 2.6, 0.5);
     await c.tweens.wait(0.35);
   },
@@ -146,6 +159,7 @@ export const PLAY: Handlers = {
   round: () => {},
   queue: (_e, c) => {
     const id = c.active(), v = id !== null ? c.views.get(id) : undefined;
+
     if (!v) return;
     void c.fx.ring(above(v, 0.1), 0xe0b04a, 3.2, 0.6);
     c.overlay.float('🔔 the order changes', '#e0b04a', above(v, 2.6));
@@ -156,25 +170,31 @@ export const PLAY: Handlers = {
       c.fx.bolt(ground.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 7, (Math.random() - 0.5) * 0.6)), ground, 0xdff4ff, 0.5);
       void c.fx.ring(ground, 0x9ad8ff, 0.7, 0.5);
     }
+
     c.stage.shake(0.3);
     await c.tweens.wait(0.25);
+
     for (const t of e.tiles) void c.fx.burst(c.terrain.at(t.x, t.z, 0.4), 0xbfe8ff, 1.6, 0.45);
     await c.tweens.wait(0.35);
   },
   crumble: async (e, c) => {
     const views = e.tiles.flatMap(t => c.terrain.tile(t.x, t.z) ?? []);
+
     for (const t of views) {
       void c.fx.burst(c.terrain.at(t.x, t.z, 0.2), 0x8a7a6a, 1.8, 0.6);
       c.fx.sparkles(c.terrain.at(t.x, t.z), 0x6a5a4a, 3);
     }
+
     c.stage.shake(0.4);
     await c.tweens.run(0.6, p => { for (const t of views) t.group.position.y = -1.6 * p * p; });
     c.terrain.rebase(c.after, e.tiles);
   },
   favor: async (e, c) => {
     const tiles = c.after.terr.flatMap((ch, k) => (ch === 'A' ? [c.terrain.at(k % N, Math.floor(k / N))] : []));
+
     if (e.team === null || !tiles.length) return;
     const mid = tiles.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(tiles.length);
+
     for (const p of tiles) c.fx.sparkles(p, TEAM_HEX[e.team], 5);
     void c.fx.ring(mid.clone().setY(mid.y + 0.08), TEAM_HEX[e.team], 1.8, 0.6);
     c.overlay.float('+1 favor', TEAM_CSS[e.team], mid.add(new THREE.Vector3(0, 1.8, 0)), true);
@@ -183,24 +203,31 @@ export const PLAY: Handlers = {
   activate: async (e, c) => {
     c.setActive(e.id);
     const v = c.views.get(e.id);
+
     if (!v) return;
     track(c, v, e.team);
+
     if (v.shown.life.kind === 'up') await c.tweens.wait(0.25);
   },
   move: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const step = e.slide ? 0.09 : 0.14, hop = e.slide ? 0.04 : 0.12;
+
     for (let i = 1; i < e.path.length; i++) {
       const a = e.path[i - 1]!, b = e.path[i]!;
       const pa = c.terrain.at(a.x, a.z, 0, false), pb = c.terrain.at(b.x, b.z, 0, false);
+
       if (!e.slide) face(v, pb.x, pb.z);
       await c.tweens.run(step, p => { v.group.position.lerpVectors(pa, pb, p); v.group.position.y += Math.sin(p * Math.PI) * hop; });
     }
+
     if (c.active() === e.id) track(c, v, v.team);
   },
   teleport: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const col = 0xb07cff;
     void c.fx.burst(above(v, 0.7), col, 2.2, 0.4);
@@ -209,10 +236,12 @@ export const PLAY: Handlers = {
     v.group.position.copy(c.terrain.at(e.x, e.z));
     void c.fx.burst(c.terrain.at(e.x, e.z, 0.7), col, 2.2, 0.4);
     await c.tweens.run(0.15, p => { v.group.scale.setScalar(0.05 + p * 0.95); });
+
     if (c.active() === e.id) track(c, v, v.team);
   },
   fall: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const a = v.group.position.clone(), b = c.terrain.at(e.x, e.z, 0, true);
     c.overlay.float('INTO THE ABYSS', '#c8a0ff', above(v, 2), true);
@@ -221,8 +250,10 @@ export const PLAY: Handlers = {
   },
   cast: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const sk = SKILLS[e.skill], to = c.terrain.at(e.tx, e.tz, 0.8);
+
     if (sk.target !== 'self') face(v, to.x, to.z);
     await castPose(c, v);
     const shot: Shot = { e, c, v, from: above(v, v.height * 0.85), to, color: skillColor(e.skill), basic: !!sk.basic };
@@ -230,25 +261,31 @@ export const PLAY: Handlers = {
   },
   damage: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     v.shown.hp = Math.max(0, v.shown.hp - e.amount);
     v.shown.shield = Math.max(0, v.shown.shield - e.absorbed);
+
     if (e.amount > 0) {
       c.overlay.float(`−${e.amount}`, DAMAGE_COLOR[e.kind], above(v, 1.6), e.amount >= 30);
       c.fx.flash(v.main, 0xff2a1a);
+
       if (e.amount >= 30) c.stage.shake(0.18);
     }
+
     if (e.absorbed > 0) c.overlay.float(`(${e.absorbed} blocked)`, '#e0c477', above(v, 2.1));
     await c.tweens.wait(0.06);
   },
   shared: (e, c) => {
     const v = c.views.get(e.id), w = c.views.get(e.by);
+
     if (!v || !w) return;
     c.fx.bolt(above(v, 0.8), above(w, 0.8), 0xf0a0d0, 0.08);
     c.overlay.float('💞 shared', '#f0a0d0', above(w, 2.2));
   },
   heal: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v || e.amount <= 0) return;
     v.shown.hp = Math.min(v.shown.maxHp, v.shown.hp + e.amount);
     c.fx.sparkles(above(v, 0.4), 0x7ee081, 8);
@@ -256,6 +293,7 @@ export const PLAY: Handlers = {
   },
   shield: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     v.shown.shield += e.amount;
     c.overlay.float(`+${e.amount} 🛡`, '#e0c477', above(v, 1.7));
@@ -263,6 +301,7 @@ export const PLAY: Handlers = {
   },
   status: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     v.shown.st.add(e.key);
     const S = STATUS[e.key];
@@ -270,32 +309,39 @@ export const PLAY: Handlers = {
   },
   resist: (e, c) => {
     const v = c.views.get(e.id);
+
     if (v) c.overlay.float('Resists', '#e0b877', above(v, 2.1));
   },
   steam: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     c.overlay.float('Steam: no burn', '#9ad0ff', above(v, 2.1));
     void c.fx.burst(above(v, 0.9), 0xcfe8ff, 2, 0.4);
   },
   cleanse: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
+
     for (const k of [...v.shown.st]) if (STATUS[k].bad) v.shown.st.delete(k);
     c.fx.sparkles(above(v, 0.4), 0xffe08a, 8);
   },
   combo: async (e, c) => {
     const v = (e.id !== null ? c.views.get(e.id) : undefined) ?? c.views.get(e.by);
+
     if (v) {
       c.overlay.float(`${e.name}!`, '#ffd36b', above(v, 2.6), true);
       void c.fx.ring(above(v, 0.1), 0xffd36b, 2.4, 0.55);
       void c.fx.burst(above(v, 1), 0xffd36b, 3.4, 0.5);
     }
+
     c.stage.shake(0.25);
     await c.tweens.wait(0.38);
   },
   downed: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const u = getUnit(c.after, e.id);
     v.shown.hp = 0;
@@ -306,6 +352,7 @@ export const PLAY: Handlers = {
   },
   revive: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const u = getUnit(c.after, e.id);
     v.shown.life = { kind: 'up' };
@@ -317,6 +364,7 @@ export const PLAY: Handlers = {
   },
   death: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     v.shown.life = { kind: 'dead' };
     v.ring.visible = false;
@@ -327,6 +375,7 @@ export const PLAY: Handlers = {
   },
   bleed: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     v.shown.life = { kind: 'downed', bleed: e.left };
     c.overlay.float(`🩸 bleeding · ${e.left} left`, '#ff7a6a', above(v, 1.4));
@@ -334,6 +383,7 @@ export const PLAY: Handlers = {
   },
   skip: async (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const held = v.shown.st.has('encased') && !v.shown.st.has('stun');
     v.shown.st.delete('stun');
@@ -342,6 +392,7 @@ export const PLAY: Handlers = {
   },
   dark: (e, c) => {
     const v = c.views.get(e.id);
+
     if (v) c.overlay.float(`🕯 −${e.amount}`, '#c8a0ff', above(v, 2.4));
   },
   burst: (e, c) => {
@@ -359,8 +410,10 @@ export const PLAY: Handlers = {
     for (const t of e.tiles) {
       c.terrain.setFx(t.x, t.z, e.kind, true);
       void c.fx.burst(c.terrain.at(t.x, t.z, 0.4, false), TERRAIN_COLOR[e.kind], e.kind === 'web' ? 1.1 : 1.6, 0.35);
+
       if (e.kind !== 'web') c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), DUST, 4);
     }
+
     await c.tweens.wait(0.2);
   },
   roundEnd: async (e, c) => {
@@ -369,7 +422,9 @@ export const PLAY: Handlers = {
       void c.fx.burst(c.terrain.at(x, z, 0.3), 0xff8a3a, 1.8, 0.5);
       c.fx.sparkles(c.terrain.at(x, z), 0x5a4a44, 4);
     }
+
     c.terrain.sync(c.after);
+
     if (e.burnt.length) await c.tweens.wait(0.3);
   },
   call: async (e, c) => {
@@ -379,6 +434,7 @@ export const PLAY: Handlers = {
   land: async (e, c) => {
     const sigil = c.marks.takeCall(e.id, e);
     const v = c.views.get(e.id);
+
     if (v && c.follow()) c.stage.follow(c.terrain.at(e.x, e.z), v.team);
     await LAND_FX[e.skill](e, c, sigil);
   },
@@ -388,17 +444,20 @@ export const PLAY: Handlers = {
       void c.fx.burst(at, 0x6a6a8a, 1.6, 0.5);
       c.overlay.float('fizzles', '#9a8cff', at);
     }
+
     await c.tweens.wait(0.2);
   },
   thread: async (e, c) => {
     const t = c.after.threads.find(x => x.by === e.by && x.to === e.to) ?? { by: e.by, to: e.to, len: 1 };
     const v = c.views.get(e.to);
+
     if (v) void c.fx.burst(above(v, 0.8), 0xf4eefa, 1.4, 0.35);
     await c.marks.tie(t, c.after);
   },
   snap: (e, c) => c.marks.snap(e),
   encased: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     const ice = !!getUnit(c.after, e.id)?.st.encased?.ice;
     v.shown.st.add('encased');
@@ -411,6 +470,7 @@ export const PLAY: Handlers = {
   gather: (e, c) => c.marks.gather(e, c.views.get(e.id)),
   spend: (e, c) => {
     const v = c.views.get(e.id);
+
     if (!v) return;
     c.fx.sparkles(above(v, 1), 0x9fe0b8, 8);
     c.overlay.float('−1 Soul', '#9fe0b8', above(v, 2.2));

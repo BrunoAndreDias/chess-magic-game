@@ -6,19 +6,25 @@ import type { Draft } from '../draft';
 
 /** Where a party member stands: index 0 is the front spot for the selected one, then back-right, back-left. */
 interface Station { x: number; z: number; scale: number; turn: number }
+
 const STATIONS: readonly Station[] = [
   { x: 0, z: 1.5, scale: 1.3, turn: 0 },
   { x: 1.75, z: -0.7, scale: 0.95, turn: -0.45 },
   { x: -1.75, z: -0.7, scale: 0.95, turn: 0.45 },
 ];
+
 const SWAP_SEC = 0.4;
+
 const FIRE = new THREE.Vector3(0, 0, 0.2);
 
 interface Pose { x: number; z: number; scale: number; turn: number }
+
 interface Fire { light: THREE.PointLight; flames: THREE.Object3D[]; sprite: THREE.Sprite }
+
 interface Figure { key: string; root: THREE.Group; body: THREE.Group; idle: ((time: number) => void) | null; from: Pose; to: Station; t: number; ph: number }
 
 const ease = (t: number): number => 1 - (1 - t) ** 3;
+
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /** The party standing around a fire, selected member in front. It only renders `draft`; picks go back through `onPick`. */
@@ -61,7 +67,9 @@ export class Lineup {
     this.#resize = new ResizeObserver(() => this.#fit());
     this.#resize.observe(canvas);
     const move = (ev: PointerEvent) => { canvas.style.cursor = this.#hit(ev) === null ? '' : 'pointer'; };
+
     const click = (ev: PointerEvent) => { const slot = this.#hit(ev); if (slot !== null) onPick(slot); };
+
     canvas.addEventListener('pointermove', move);
     canvas.addEventListener('click', click);
     this.#off.push(() => canvas.removeEventListener('pointermove', move), () => canvas.removeEventListener('click', click));
@@ -75,30 +83,36 @@ export class Lineup {
     ground.receiveShadow = true;
     s.add(ground);
     const stone = mat(0x3b3540), log = mat(0x4a2f1a), ember = mat(0xff7a2a, { emissive: new THREE.Color(0xff5a1a), emissiveIntensity: 1.4 });
+
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2, b = mesh(new THREE.DodecahedronGeometry(0.13 + rnd() * 0.05, 0), stone, FIRE.x + Math.cos(a) * 0.45, 0.06, FIRE.z + Math.sin(a) * 0.45);
       b.rotation.set(rnd() * 3, rnd() * 3, 0);
       b.castShadow = b.receiveShadow = true;
       s.add(b);
     }
+
     for (let i = 0; i < 3; i++) {
       const l = mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.62, 6), log, FIRE.x, 0.1, FIRE.z);
       l.rotation.set(Math.PI / 2 - 0.35, (i / 3) * Math.PI * 2, 0, 'YXZ');
       s.add(l);
     }
+
     s.add(mesh(new THREE.SphereGeometry(0.14, 8, 6), ember, FIRE.x, 0.06, FIRE.z));
     const flames: THREE.Object3D[] = [];
+
     for (const [c, sz, y] of [[0xff5a1a, 0.17, 0.26], [0xffa040, 0.11, 0.3], [0xffe08a, 0.06, 0.26]] as const) {
       const f = mesh(new THREE.ConeGeometry(sz, sz * 3.4, 7), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }), FIRE.x, y, FIRE.z);
       flames.push(f);
       s.add(f);
     }
+
     for (let i = 0; i < 14; i++) {
       const a = rnd() * Math.PI * 2, d = 4.2 + rnd() * 3.5, b = mesh(new THREE.DodecahedronGeometry(0.25 + rnd() * 0.5, 0), stone, Math.cos(a) * d, 0.05, Math.sin(a) * d - 1.5);
       b.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
       b.receiveShadow = true;
       s.add(b);
     }
+
     const sprite = glow(0xff8a3a, 2.2, 0.75);
     sprite.position.set(FIRE.x, 0.45, FIRE.z);
     const pool = glow(0xff6a20, 5, 0.18);
@@ -108,6 +122,7 @@ export class Lineup {
     light.castShadow = true;
     light.shadow.mapSize.set(512, 512);
     s.add(sprite, pool, light);
+
     return { light, flames, sprite };
   }
 
@@ -117,7 +132,9 @@ export class Lineup {
     draft.teams[team].forEach((m, slot) => {
       const to = STATIONS[(slot - draft.sel.slot + 3) % 3]!, key = `${team}:${m.cls}`;
       let f = this.#figs[slot];
+
       if (f && f.key !== key) { disposeTree(f.root); f = null; }
+
       if (!f) {
         const { body, idle } = buildModel(m.cls, team), root = new THREE.Group();
         root.add(body);
@@ -126,8 +143,10 @@ export class Lineup {
         const prev = this.#figs[slot];
         f = { key, root, body, idle, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1 };
         this.#figs[slot] = f;
+
         return;
       }
+
       if (f.to !== to) { f.from = pose(f); f.to = to; f.t = 0; }
     });
     this.#place();
@@ -137,11 +156,13 @@ export class Lineup {
     const rect = this.canvas.getBoundingClientRect();
     this.#ray.setFromCamera(new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1), this.#camera);
     const hit = this.#ray.intersectObjects(this.#figs.flatMap(f => (f ? [f.root] : [])), true)[0];
+
     return hit ? (hit.object.userData.slot as number) : null;
   }
 
   #fit(): void {
     const w = this.canvas.clientWidth, hh = this.canvas.clientHeight;
+
     if (!w || !hh) return;
     this.#renderer.setSize(w, hh, false);
     const c = this.#camera, aspect = w / hh, halfWidth = 2.85, dist = c.position.length();
@@ -155,8 +176,10 @@ export class Lineup {
   /** Pins each nameplate under its member's feet. */
   #place(): void {
     const w = this.canvas.clientWidth, hh = this.canvas.clientHeight, v = new THREE.Vector3();
+
     for (const el of this.plates.querySelectorAll<HTMLElement>('[data-slot]')) {
       const f = this.#figs[Number(el.dataset.slot)];
+
       if (!f) continue;
       v.set(f.root.position.x, 0, f.root.position.z).project(this.#camera);
       el.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * hh}px) translate(-50%, 16px)`;
@@ -168,6 +191,7 @@ export class Lineup {
     const dt = Math.min(0.05, (now - this.#last) / 1000);
     this.#last = now;
     const time = (this.#time += dt);
+
     for (const f of this.#figs) {
       if (!f) continue;
       f.t = Math.min(1, f.t + dt / SWAP_SEC);
@@ -179,6 +203,7 @@ export class Lineup {
       f.body.scale.y = 1 + Math.sin(time * 1.6 + f.ph + 0.8) * 0.012;
       f.idle?.(time);
     }
+
     const fl = this.#fire;
     fl.light.intensity = 7 * (0.85 + 0.12 * Math.sin(time * 9) + 0.07 * Math.sin(time * 23));
     fl.sprite.scale.setScalar(2.1 + 0.18 * Math.sin(time * 11));
@@ -190,7 +215,9 @@ export class Lineup {
   dispose(): void {
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
+
     for (const off of this.#off) off();
+
     for (const o of [...this.#scene.children]) disposeTree(o);
     this.#renderer.dispose();
     this.#renderer.forceContextLoss();

@@ -4,6 +4,7 @@ import type { BattleEvent, BattleState, NodeId, UnitId } from '../engine/index';
 import { callLines, comboCredit, describe, openingLines, previewLines } from './format';
 
 const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tree });
+
 const s = createBattle({
   map: 'storm', starter: 0,
   teams: [[newMember('weaver', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
@@ -12,7 +13,9 @@ const s = createBattle({
       pathed(newMember('weaver', 'Grix'), ['w_hp', 'w_leash', 'w_thread', 'w_fate'])]],
   deploy: [[{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 2, z: 0 }], [{ x: 0, z: 11 }, { x: 1, z: 11 }, { x: 2, z: 11 }]],
 }, mulberry32(1));
+
 const id = (n: number) => n as UnitId;
+
 const line = (e: BattleEvent) => describe(e, s);
 
 suite('describe', () => {
@@ -101,6 +104,7 @@ suite('previewLines', () => {
       { type: 'downed', id: id(4), team: 1 },
       { type: 'activate', id: id(1), team: 0, qi: 0 },
     ];
+
     expect(previewLines(ev, s).map(l => l.text)).toEqual(['Morvath: −40', '⚡ COMBO: SHATTER', '✖ Morvath goes down']);
   });
 });
@@ -121,9 +125,11 @@ suite('callLines', () => {
     units: s.units.map(u => {
       const m = moves[u.id];
       const v = m ? { ...u, x: m[0], z: m[1] } : u;
+
       return v.id === 2 && benevolent ? { ...v, mods: { ...v.mods, benevolent: 1 } } : v;
     }),
   });
+
   const seren = (st: BattleState) => st.units.find(u => u.id === 2)!;
 
   test('a Meteor warns of friendly fire and names the enemies in its area', () => {

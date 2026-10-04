@@ -30,15 +30,20 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
   function preview(): BattleState {
     const units = base.units.filter(u => u.team === team || team === 1).map(u => {
       const p = picks[u.team][u.slot] ?? u;
+
       return { ...u, x: p.x, z: p.z };
     });
+
     return { ...base, units };
   }
+
   function slotAt(t: Team, p: Pos): number { return picks[t].findIndex(q => same(q, p)); }
 
   function next(): void {
     const t = queue.shift();
+
     if (t === undefined) { begin(); return; }
+
     team = t; sel = 0;
     deadline = draft.timer ? performance.now() + draft.timer * 1000 : null;
     ctx.board.load(preview());
@@ -54,6 +59,7 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
 
   function highlight(): void {
     const zone: Pos[] = [];
+
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (canDeploy(base, team, x, z)) zone.push({ x, z });
     const p = picks[team][sel];
     ctx.board.highlight([
@@ -66,11 +72,15 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
 
   function renderTimer(): void {
     const el = panel.querySelector('.timer');
+
     if (!el) return;
+
     if (deadline === null) { el.textContent = '∞'; return; }
+
     const left = Math.max(0, (deadline - performance.now()) / 1000);
     el.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
     el.classList.toggle('low', left < 8);
+
     if (left <= 0) { deadline = null; next(); }
   }
 
@@ -85,6 +95,7 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
         team === draft.starter ? 'You open and close every round.' : `The ${TEAM_NAME[other(team)]} opens and closes every round.`),
       h('div', { id: 'sc-units' }, mine.map(u => {
         const p = picks[team][u.slot] ?? u, C = CLASSES[u.cls];
+
         return h('button', { class: `du${u.slot === sel ? ' on' : ''}`, style: { '--tc': TEAM_COLOR[team] }, data: { slot: String(u.slot) }, onclick: () => { sel = u.slot; render(); } },
           h('b', null, u.name), ' ', h('span', null, `${C.icon} ${C.name} · on ${TERRAIN[terrAt(base, p.x, p.z)].name.toLowerCase()}`));
       })),
@@ -106,7 +117,9 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
 
   function place(t: Pos): void {
     const own = slotAt(team, t);
+
     if (own >= 0) { sel = own; render(); return; }
+
     if (!canDeploy(base, team, t.x, t.z)) return;
     picks[team][sel] = { x: t.x, z: t.z };
     sel = (sel + 1) % picks[team].length;
@@ -116,11 +129,15 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
 
   function tile(input: TileInput): void {
     if (input.kind === 'click') { if (input.button === 'left') place(input.tile); return; }
+
     hover = input.tile;
     highlight();
+
     if (!hover) { hideTip(); return; }
+
     const s = preview(), u = s.units.find(o => same(o, hover ?? o));
     const zone = inDeploy(team, hover.x, hover.z) ? h('div', { class: 'm' }, 'Deploy zone.') : null;
+
     if (u) showTip(unitTip(s, u, draft.teams[u.team][u.slot]?.human ?? false), h('div', { style: { 'margin-top': '4px' } }, terrainTip(s, hover.x, hover.z)), zone);
     else showTip(terrainTip(s, hover.x, hover.z), zone);
   }

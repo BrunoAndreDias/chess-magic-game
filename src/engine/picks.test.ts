@@ -5,7 +5,9 @@ import type { PickCmd, PickState } from './picks';
 function picks(p: PickState, ...cmds: PickCmd[]): PickState {
   return cmds.reduce((s, cmd) => {
     const r = applyPick(s, cmd);
+
     if (!r.ok) throw new Error(`${JSON.stringify(cmd)} rejected: ${r.error}`);
+
     return r.state;
   }, p);
 }
@@ -19,6 +21,7 @@ describe('picks', () => {
       { kind: 'lock', team: 0, member: 0, cls: 'gravecaller' },
       { kind: 'lock', team: 0, member: 2, cls: 'gravecaller' },
       { kind: 'lock', team: 1, member: 1, cls: 'astromancer' });
+
     expect(lineup(done, 1)).toEqual([
       { team: 1, member: 2, cls: 'bellringer' }, { team: 1, member: 0, cls: 'weaver' }, { team: 1, member: 1, cls: 'astromancer' },
     ]);
@@ -52,6 +55,7 @@ describe('picks', () => {
       { kind: 'hover', team: 1, member: 0, cls: 'bellringer' },
       { kind: 'hover', team: 1, member: 2, cls: 'gravecaller' },
       { kind: 'hover', team: 1, member: 2, cls: null });
+
     expect(p.hover).toEqual([[null, null, null], ['bellringer', null, null]]);
     const locked = picks(p, { kind: 'lock', team: 0, member: 0, cls: 'astromancer' }, { kind: 'lock', team: 1, member: 0, cls: 'bellringer' });
     expect(lineup(locked, 1)).toEqual([{ team: 1, member: 0, cls: 'bellringer' }]);

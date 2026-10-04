@@ -48,11 +48,13 @@ export class Overlay {
   /** Position in the labels layer; `ok` is false behind the camera. */
   project(p: THREE.Vector3): { x: number; y: number; ok: boolean } {
     const v = this.#v.copy(p).project(this.camera);
+
     return { x: this.#dx + (v.x * 0.5 + 0.5) * this.#w, y: this.#dy + (-v.y * 0.5 + 0.5) * this.#h, ok: v.z < 1 };
   }
   /** Position in the browser viewport. */
   viewport(p: THREE.Vector3): { x: number; y: number } {
     const v = this.#v.copy(p).project(this.camera), c = this.canvas.getBoundingClientRect();
+
     return { x: c.left + (v.x * 0.5 + 0.5) * c.width, y: c.top + (-v.y * 0.5 + 0.5) * c.height };
   }
 
@@ -71,18 +73,24 @@ export class Overlay {
     const g = v.group, s = v.shown, el = v.label;
     const lift = v.pose > 0.5 ? 0.8 : v.height + 0.4;
     const p = this.project(new THREE.Vector3(g.position.x, g.position.y + lift, g.position.z));
+
     if (!p.ok || !g.visible) { el.style.display = 'none'; return; }
+
     el.style.display = '';
     el.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
     el.classList.toggle('bd-down', s.life.kind === 'downed');
     const name = s.life.kind === 'downed' ? `${s.name} · DOWNED ${s.life.bleed}` : s.name;
     const [st, n, bar] = el.children as unknown as [HTMLElement, HTMLElement, HTMLElement];
+
     if (n.textContent !== name) n.textContent = name;
     const icons = [...s.st].map(k => (k === 'encased' && !s.ice ? '🥚' : STATUS[k].icon)).join('');
+
     if (st.textContent !== icons) st.textContent = icons;
     const hpW = `${Math.round(Math.max(0, s.hp) / s.maxHp * 100)}%`, shW = `${Math.min(100, Math.round(s.shield / s.maxHp * 100))}%`;
     const [i, sh] = bar.children as unknown as [HTMLElement, HTMLElement];
+
     if (i.style.width !== hpW) i.style.width = hpW;
+
     if (sh.style.width !== shW) sh.style.width = shW;
   }
 
@@ -93,6 +101,7 @@ export class Overlay {
       const q = this.project(this.#v.copy(f.pos).add(new THREE.Vector3(0, f.t * 0.8, 0)));
       f.el.style.transform = `translate(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px) translate(-50%,-50%)`;
       f.el.style.opacity = String(Math.max(0, 1 - Math.max(0, f.t - f.life * 0.6) / (f.life * 0.4)));
+
       if (f.t > f.life) { f.el.remove(); this.#floats.splice(k, 1); }
     }
   }

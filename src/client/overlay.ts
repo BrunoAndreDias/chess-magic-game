@@ -28,6 +28,7 @@ export async function banner(text: string, color: string, sub: string | readonly
 }
 
 let comboTimer: ReturnType<typeof setTimeout> | undefined;
+
 export function comboBanner(name: string, credit: string, info: string): void {
   const c = byId('combo');
   c.replaceChildren(h('div', { class: 'cn' }, `${name}!`), h('div', { class: 'cw' }, credit), h('div', { class: 'ci' }, info));

@@ -32,19 +32,24 @@ export interface UnitView {
 
 
 const silk = keep(basic(0xf4eefa));
+
 const iceMat = keep(new THREE.MeshStandardMaterial({ color: 0xbfeaff, emissive: 0x3a9ad0, emissiveIntensity: 0.45, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.55, flatShading: true }));
+
 const silkMat = keep(new THREE.MeshStandardMaterial({ color: 0xf6f0fa, emissive: 0x6a5a7a, emissiveIntensity: 0.25, roughness: 0.9, transparent: true, opacity: 0.88 }));
 
 function buildCocoon(height: number): THREE.Group {
   const g = new THREE.Group(), shell = mesh(new THREE.SphereGeometry(0.42, 14, 10), silkMat, 0, height * 0.5, 0);
   shell.scale.y = height * 0.72;
   g.add(shell);
+
   for (let i = 0; i < 5; i++) {
     const wrap = mesh(new THREE.TorusGeometry(0.43 - Math.abs(i - 2) * 0.06, 0.018, 5, 20), silk, 0, height * (0.2 + i * 0.15), 0);
     wrap.rotation.x = Math.PI / 2 + (i % 2 ? 0.25 : -0.2);
     g.add(wrap);
   }
+
   g.visible = false;
+
   return g;
 }
 
@@ -87,6 +92,7 @@ export function shownOf(u: Unit): Shown {
 }
 
 const DOWN_TILT = -Math.PI / 2 * 0.9;
+
 export function setPose(v: UnitView, down: number): void {
   v.pose = down;
   v.body.rotation.x = DOWN_TILT * down;
@@ -100,21 +106,26 @@ const AURA: readonly (readonly [StatusKey, number])[] = [
 
 export function animateUnit(v: UnitView, time: number): void {
   const s = v.shown, up = s.life.kind === 'up';
+
   if (v.pose === 0) v.body.position.y = Math.sin(time * 2 + v.bob) * 0.025;
   const encased = s.st.has('encased');
   v.ice.visible = encased && s.ice;
   v.cocoon.visible = encased && !s.ice;
   v.idle?.(time);
   v.bubble.visible = up && s.shield > 0;
+
   if (v.blood.visible) v.blood.material.opacity = 0.45 + 0.25 * Math.sin(time * 4);
   const aura = up ? AURA.find(([key]) => s.st.has(key)) : undefined;
   const am = v.aura.material;
   am.opacity = aura ? 0.32 + 0.12 * Math.sin(time * 5) : 0;
+
   if (aura) am.color.setHex(aura[1]);
+
   if (v.ring.visible) v.ring.material.opacity = 0.65 + 0.3 * Math.sin(time * 5);
 }
 
 export function face(v: UnitView, x: number, z: number): void {
   const dx = x - v.group.position.x, dz = z - v.group.position.z;
+
   if (Math.abs(dx) + Math.abs(dz) > 0.01) v.group.rotation.y = Math.atan2(dx, dz);
 }

@@ -3,13 +3,17 @@ import type { BattleEvent, BattleState, CallSkill, DamageKind, OverReason, Team,
 import { TEAMS, TEAM_NAME } from './theme';
 
 type Tone = 't0' | 't1' | 'sys' | 'combo';
+
 export interface Line { text: string; tone: Tone }
 
 function name(s: BattleState, id: UnitId | null | undefined): string { return getUnit(s, id)?.name ?? 'someone'; }
+
 function teamOf(s: BattleState, id: UnitId): Tone {
   const u = getUnit(s, id);
+
   return u ? (u.team === 0 ? 't0' : 't1') : 'sys';
 }
+
 function toneOf(t: Team): Tone { return t === 0 ? 't0' : 't1'; }
 
 const DAMAGE_WORD: Record<DamageKind, string> = {
@@ -28,10 +32,14 @@ export function winnerTitle(w: Team | 'draw'): string { return w === 'draw' ? 'D
 /** Who set the combo up and who paid it off, for the banner and the log. */
 export function comboCredit(e: Extract<BattleEvent, { type: 'combo' }>, s: BattleState): string {
   const by = name(s, e.by);
+
   if (e.setup === null) return `${by} pays off: ${e.name}!`;
+
   if (e.setup === e.by) return `${by} sets it up and pays off: ${e.name}!`;
+
   return `${name(s, e.setup)} set it up → ${by} pays off: ${e.name}!`;
 }
+
 export function comboInfo(e: Extract<BattleEvent, { type: 'combo' }>): string { return COMBO_INFO[e.name]; }
 
 /** One readable log line for an event, or null when the board's animation says it all. `s` is any state of the same battle (names never change). */
@@ -45,16 +53,23 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'fall': return { tone: 'sys', text: `${name(s, e.id)} falls into the chasm!` };
     case 'cast': {
       const sk = SKILLS[e.skill], tgt = e.target !== null && e.target !== e.id ? ` on ${name(s, e.target)}` : '';
+
       return { tone: toneOf(e.team), text: `${name(s, e.id)} uses ${sk.name}${tgt}.` };
     }
+
     case 'damage': {
       const who = name(s, e.id);
+
       if (e.amount <= 0) return e.absorbed > 0 ? { tone: teamOf(s, e.id), text: `${who}'s shield absorbs ${e.absorbed}.` } : null;
       const blocked = e.absorbed > 0 ? ` (${e.absorbed} blocked)` : '';
+
       if (e.kind === 'dark') return { tone: teamOf(s, e.id), text: `The dark drains ${e.amount} HP from ${who}.` };
+
       if (e.kind === 'share') return { tone: teamOf(s, e.id), text: `${who} takes ${e.amount} through Shared Pain${blocked}.` };
+
       return { tone: teamOf(s, e.id), text: `${who} takes ${e.amount}${DAMAGE_WORD[e.kind]} damage${blocked}.` };
     }
+
     case 'shared': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} takes half the blow for ${name(s, e.id)}.` };
     case 'heal': return e.amount > 0 ? { tone: teamOf(s, e.id), text: `${name(s, e.id)} heals ${e.amount}.` } : null;
     case 'shield': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} gains a ${e.amount} shield.` };
@@ -100,7 +115,9 @@ const TERRAIN_LINE: Readonly<Record<TerrainChange, string>> = {
 
 function bonusNames(s: BattleState, t: Team): string[] {
   const on = s.party[t], names = PAIRS.filter(p => on.has(p.id)).map(p => p.name);
+
   if (on.has('coverage')) names.push(COVERAGE.name);
+
   return names;
 }
 
@@ -114,6 +131,7 @@ export function openingLines(s: BattleState): Line[] {
 /** The target preview: what a cast would do, one short line per consequence. */
 export function previewLines(events: readonly BattleEvent[], s: BattleState): Line[] {
   const out: Line[] = [];
+
   for (const e of events) {
     switch (e.type) {
       case 'damage':
@@ -137,26 +155,36 @@ export function previewLines(events: readonly BattleEvent[], s: BattleState): Li
       default: break;
     }
   }
+
   return out;
 }
 
 /** The target preview for a Call: when it lands and who stands in its area right now. */
 export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, z: number): Line[] {
   const out: Line[] = [{ tone: 'sys', text: `Lands at the start of ${u.name}'s next turn.` }];
+
   if (skill === 'recall') {
     const o = unitAt(s, x, z);
+
     if (o) out.push({ tone: teamOf(s, o.id), text: `${o.name} snaps back to this tile and regains the HP it lost.` });
+
     return out;
   }
+
   const tiles = callTiles(skill, x, z);
   const inside = s.units.filter(o => o.life.kind !== 'dead' && o !== u && tiles.some(t => t.x === o.x && t.z === o.z));
+
   if (tiles.some(t => t.x === u.x && t.z === u.z)) inside.unshift(u);
+
   for (const o of inside) {
     const tone = teamOf(s, o.id);
+
     if (o.team !== u.team) out.push({ tone, text: `${o.name}: in the area now` });
     else if (u.mods.benevolent && skill !== 'gravitywell') out.push({ tone, text: `${o.name}: ally, healed instead (Benevolent Heavens)` });
     else out.push({ tone: 'combo', text: `⚠ ${o.name}: ally in the area, friendly fire` });
   }
+
   if (inside.length === 0) out.push({ tone: 'sys', text: 'Nobody stands there yet.' });
+
   return out;
 }

@@ -8,7 +8,9 @@ const setup: BattleSetup = {
   map: 'span', starter: 0,
   teams: [[newMember('weaver', 'Wi'), newMember('astromancer', 'As'), newMember('weaver', 'We')], [newMember('weaver', 'We'), newMember('weaver', 'Wi'), newMember('astromancer', 'As')]],
 };
+
 const ai: Seats = [[{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }], [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }]];
+
 const id = (n: number) => n as UnitId;
 
 describe('Match', () => {
@@ -39,8 +41,10 @@ describe('Match', () => {
       let events = 0;
       m.subscribe(ev => { events += ev.length; });
       m.start();
+
       return { state: m.state, events };
     };
+
     const a = play(42), b = play(42), c = play(43);
     expect(a.state.phase).toEqual({ kind: 'over', winner: 1, reason: 'wipe' });
     expect(a.state.round).toBe(7);

@@ -1,4 +1,5 @@
 type Child = Node | string | number | null | undefined | false | readonly Child[];
+
 interface Props {
   class?: string;
   style?: Record<string, string>;
@@ -9,6 +10,7 @@ interface Props {
 function append(el: Element, children: readonly Child[]): void {
   for (const c of children) {
     if (c === null || c === undefined || c === false) continue;
+
     if (Array.isArray(c)) append(el, c);
     else if (c instanceof Node) el.appendChild(c);
     else el.appendChild(document.createTextNode(String(c)));
@@ -17,8 +19,10 @@ function append(el: Element, children: readonly Child[]): void {
 
 function assign(el: Element, props: Props | null | undefined): void {
   if (!props) return;
+
   for (const [k, v] of Object.entries(props)) {
     if (v === undefined || v === null || v === false) continue;
+
     if (k === 'class') el.setAttribute('class', String(v));
     else if (k === 'style') for (const [p, val] of Object.entries(v as Record<string, string>)) (el as HTMLElement | SVGElement).style.setProperty(p, val);
     else if (k === 'data') for (const [p, val] of Object.entries(v as Record<string, string>)) (el as HTMLElement).dataset[p] = val;
@@ -33,6 +37,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props?: Props |
   const el = document.createElement(tag);
   assign(el, props);
   append(el, children);
+
   return el;
 }
 
@@ -40,12 +45,15 @@ export function svg<K extends keyof SVGElementTagNameMap>(tag: K, props?: Props 
   const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
   assign(el, props);
   append(el, children);
+
   return el;
 }
 
 export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   const el = document.getElementById(id);
+
   if (!el) throw new Error(`#${id} is missing from index.html`);
+
   return el as T;
 }
 

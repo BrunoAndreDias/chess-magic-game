@@ -1,11 +1,15 @@
 export type Team = 0 | 1;
+
 export type UnitId = number & { readonly __brand: 'UnitId' };
 
 export interface Pos { x: number; z: number }
 
 export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 'A';
+
 export type MapId = 'span' | 'storm' | 'altar';
+
 export type ClassId = 'astromancer' | 'weaver' | 'gravecaller' | 'bellringer';
+
 export type Role = 'tank' | 'damage' | 'support';
 
 export type ClassSkillId =
@@ -13,12 +17,17 @@ export type ClassSkillId =
   | 'reel' | 'web' | 'cocoon' | 'venombite' | 'puppet' | 'sharedpain' | 'skitter'
   | 'lastrites' | 'bonewall' | 'wither' | 'soulbolt' | 'soulburst' | 'siphon' | 'equalize'
   | 'knell' | 'hush' | 'peal' | 'encore' | 'overture' | 'hourglass' | 'bellguard';
+
 /** Every build has its class's innate: the class mechanic, always on. */
 export type InnateSkillId = 'snap' | 'tether' | 'harvest' | 'toll';
+
 export type BasicSkillId = `basic_${ClassId}`;
+
 export type SkillId = ClassSkillId | InnateSkillId | BasicSkillId | 'helpup';
+
 /** Skills that mark an area now and land at the start of the caster's next activation. */
 export type CallSkill = 'meteor' | 'thunderhead' | 'gravitywell' | 'recall';
+
 /** `any`: any other unit. `friend`: an ally, standing or Downed. */
 export type SkillTarget = 'enemy' | 'ally' | 'downed' | 'friend' | 'any' | 'tile' | 'self';
 
@@ -51,13 +60,16 @@ export type Mods = Partial<Record<
 export type PairId =
   | 'startether' | 'seconddawn' | 'appointedhour' | 'soulsilk' | 'clockworksilk' | 'deathknell'
   | 'conjunction' | 'greatweb' | 'charnel' | 'pealofbells';
+
 export type PartyBonusId = PairId | 'coverage';
+
 export type PartyBonuses = ReadonlySet<PartyBonusId>;
 
 export type ComboName = 'SLAM' | 'ABYSS' | 'FREEZE' | 'CONDUCT' | 'COMBUST' | 'SHATTER' | 'EXECUTE' | 'IGNITE' | 'REAP';
 
 /** `t` counts the owner's remaining turns. `by` is the unit that applied it (null for terrain), shown as the combo's setup. */
 export interface Timed { t: number; by: UnitId | null }
+
 export interface Statuses {
   stun?: Timed;
   root?: Timed;
@@ -78,6 +90,7 @@ export interface Statuses {
   /** +2 move on its next turn (Accelerando). */
   haste?: Timed;
 }
+
 export type StatusKey = keyof Statuses;
 
 export type Life =
@@ -129,6 +142,7 @@ export interface Call {
   by: UnitId; team: Team; skill: CallSkill; x: number; z: number;
   recall: { id: UnitId; x: number; z: number; hp: number } | null;
 }
+
 /** A Weaver's Thread. `len` is the leash: how far the held enemy may end a move from the Weaver. */
 export interface Thread { by: UnitId; to: UnitId; len: number }
 
@@ -141,6 +155,7 @@ export type Phase =
   /** `tolled`: the units Tolled this round; a second Toll on one is refused. */
   | { kind: 'act'; queue: Turn[]; qi: number; tolled: UnitId[] }
   | { kind: 'over'; winner: Team | 'draw'; reason: OverReason };
+
 export type OverReason = 'wipe' | 'mutual' | 'rounds' | 'altar';
 
 export interface BattleStats {
@@ -197,6 +212,7 @@ export type Command =
   | { kind: 'endTurn'; unit: UnitId };
 
 export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'poison' | 'burn' | 'dark' | 'slam' | 'share' | 'storm' | 'drain';
+
 export type TerrainChange = 'ice' | 'smoke' | 'web' | 'bone';
 
 export type BattleEvent =

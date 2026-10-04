@@ -8,6 +8,7 @@ import { SCENERY } from './scenery';
 import type { Scenery } from './scenery';
 
 const FLASH_SKY = new THREE.Color(0xcfe6ff);
+
 interface CamGoal { target: THREE.Vector3; pos: THREE.Vector3; t: number }
 
 /** Renderer, camera, lights and the scenery around the map: everything that outlives a battle. The map's biome sets the sky, light and scenery. */
@@ -78,6 +79,7 @@ export class Stage {
     this.#sun.color.setHex(b.sun.color);
     this.#sun.intensity = b.sun.k * Math.PI;
     this.#sun.position.set(...b.sun.pos);
+
     if (this.#scenery) disposeTree(this.#scenery.s.root);
     const s = SCENERY[map](b);
     this.world.add(s.root);
@@ -86,8 +88,10 @@ export class Stage {
 
   resize(): void {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+
     if (!w || !h) return;
     const cur = this.renderer.getSize(new THREE.Vector2());
+
     if (cur.x === w && cur.y === h) return;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
@@ -101,24 +105,30 @@ export class Stage {
   }
   overview(team: Team, instant = false): void {
     this.#goal = { target: new THREE.Vector3(), pos: new THREE.Vector3(0, 14.5, team === 1 ? 13 : -13), t: instant ? 1 : 0 };
+
     if (instant) { this.camera.position.copy(this.#goal.pos); this.controls.target.copy(this.#goal.target); this.controls.update(); this.#goal = null; }
   }
   shake(sec: number): void { this.#shake = Math.max(this.#shake, sec); }
 
   update(dt: number, time: number): void {
     const g = this.#goal;
+
     if (g) {
       g.t = Math.min(1, g.t + dt * 2.2);
       const k = g.t >= 1 ? 1 : Math.min(1, dt * 4);
       this.controls.target.lerp(g.target, k);
       this.camera.position.lerp(g.pos, k);
+
       if (g.t >= 1) this.#goal = null;
     }
+
     const flash = this.#scenery?.s.update(time) ?? 0, b = this.#scenery ? BIOMES[this.#scenery.map] : null;
+
     if (b) {
       this.#hemi.intensity = this.#hemiK * Math.PI * (1 + 3 * flash);
       this.#sky.setHex(b.sky).lerp(FLASH_SKY, flash * 0.5);
     }
+
     this.controls.update();
   }
 

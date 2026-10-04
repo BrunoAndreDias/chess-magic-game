@@ -17,15 +17,25 @@ declare global {
 }
 
 installErrorOverlay();
+
 trackMouse();
+
 const params = new URLSearchParams(location.search);
+
 const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
+
 const seed = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 2 ** 31);
+
 const board = createBoard(byId<HTMLCanvasElement>('board'), byId('labels'));
+
 const app = createApp(board, byId('ui'), seed);
+
 const mapParam = params.get('map');
+
 const map = mapParam === null ? drawMap(mulberry32(seed ^ 0x5eed)) : MAP_ORDER.find(id => id === mapParam);
+
 if (!map) throw new Error(`Unknown ?map=${mapParam}: use one of ${MAP_ORDER.join(', ')}`);
+
 const draft = defaultDraft({ allAi: params.has('ai'), map, starter: drawStarter(mulberry32(seed ^ 0xc017)) });
 
 window.__party = {
@@ -35,4 +45,5 @@ window.__party = {
 };
 
 await loadFigures();
+
 app.go({ kind: params.has('quick') ? 'scout' : 'map', draft });

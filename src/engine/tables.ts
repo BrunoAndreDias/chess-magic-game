@@ -3,17 +3,25 @@ import type {
 } from './types';
 
 export const N = 12;
+
 export const DEPLOY_ROWS = 3;
+
 export const MAX_ROUNDS = 20;
+
 export const BLEED = 2;
+
 export const POINTS = 6;
+
 export const DARK_ROUND = 8;
+
 /** Rounds a Soul lies on the ground. */
 export const SOUL_ROUNDS = 3;
+
 /** One hit at least this big (after shields) drops a Soul. */
 export const SOUL_HIT = 20;
 
 export const DIR4: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
 export const DIR8: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
 export interface TerrainDef { name: string; solid?: true; sight?: true; pit?: true; cost?: number; text?: string }
@@ -31,9 +39,11 @@ const TERRAIN_TABLE = {
   'I': { name: 'Ice', text: 'Frozen water: walk on it freely, no Wet.' },
   'A': { name: 'Sun Altar', text: 'At the end of each round, the party with more characters standing here gains 1 favor. 5 favor wins the battle.' },
 } satisfies Record<TerrainChar, TerrainDef>;
+
 export const TERRAIN: Readonly<Record<TerrainChar, TerrainDef>> = TERRAIN_TABLE;
 
 export interface StormLine { name: string; cols?: readonly number[]; rows?: readonly number[] }
+
 /** What the map does at the end of each round. Fully known in advance: no dice. */
 export type MapRule =
   /** `rounds` uses the map's own rows layout: a digit is the round at whose end the tile falls, '.' never falls. */
@@ -78,17 +88,23 @@ const MAP_TABLE = {
     ruleText: 'Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to 5 favor wins at once.',
     favors: 'Tanks and area control: a Meteor on the altar makes holders leave or eat it, Puppet Strings walks them off, and grass on the flanks hides the ambush.' },
 } satisfies Record<MapId, MapDef>;
+
 export const MAPS: Readonly<Record<MapId, MapDef>> = MAP_TABLE;
+
 export const MAP_ORDER: readonly MapId[] = ['span', 'storm', 'altar'];
 
 const TERRAIN_CHARS = new Set<string>(Object.keys(TERRAIN));
+
 function isTerrainChar(c: string): c is TerrainChar { return TERRAIN_CHARS.has(c); }
 
 /** The full N×N grid of a half-map layout (rows 0..5), row-major: rows 6..11 are rows 5..0 reversed. */
 export function mirrored(half: readonly string[]): string[] {
   const out: string[] = [];
+
   for (const row of half) out.push(...row);
+
   for (let z = half.length - 1; z >= 0; z--) out.push(...(half[z] ?? '').split('').reverse());
+
   return out;
 }
 
@@ -96,6 +112,7 @@ export function mirrored(half: readonly string[]): string[] {
 export function mapTerrain(id: MapId): TerrainChar[] {
   return mirrored(MAPS[id].rows).map(c => {
     if (!isTerrainChar(c)) throw new Error(`map ${id}: unknown terrain '${c}'`);
+
     return c;
   });
 }
@@ -130,10 +147,12 @@ export const CLASSES = {
     skills: ['knell', 'hush', 'peal', 'encore', 'overture', 'hourglass', 'bellguard'], defaults: ['knell', 'hush', 'peal'],
     tree: ['b_knell', 'b_last', 'b_peal', 'b_final', 'b_hp', 'b_clapper'] },
 } satisfies Record<ClassId, ClassDef>;
+
 export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver', 'gravecaller', 'bellringer'];
 
 // ---------- passive trees: 3 paths of 4 (three nodes, then a keystone). A node needs the one before it ----------
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
+
 export interface BranchDef { name: string; role: Role; color: string; nodes: readonly [NodeDef, NodeDef, NodeDef, NodeDef] }
 
 const TREE_TABLE = {
@@ -202,19 +221,26 @@ const TREE_TABLE = {
       { id: 'b_hp2', name: 'Steady Hands', text: '+20 max HP.', mods: { hp: 20 } },
       { id: 'b_accel', name: 'Accelerando', key: true, text: 'Allies you Toll get +2 move and a 15 shield on that turn, and Toll’s cooldown −1.', mods: { accel: 1, tollCd: 1 } }] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
+
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
 
 type Assert<T extends true> = T;
+
 type NoMissing<All, Listed> = [Exclude<All, Listed>] extends [never] ? true : false;
+
 export type EveryNodeInATree = Assert<NoMissing<NodeId, (typeof TREE_TABLE)[ClassId][number]['nodes'][number]['id']>>;
 
 export interface NodeInfo extends NodeDef { cls: ClassId; branch: number; tier: number }
+
 export const NODE: Partial<Record<NodeId, NodeInfo>> = {};
+
 for (const cls of CLASS_ORDER) TREES[cls].forEach((b, branch) => b.nodes.forEach((n, tier) => { NODE[n.id] = { ...n, cls, branch, tier }; }));
+
 export const KEYSTONE_TIER = 3;
 
 // ---------- party resonances: every pair of classes in the party, and every class taken twice ----------
 export interface PairDef { id: PairId; a: ClassId; b: ClassId; name: string; text: string }
+
 const PAIR_TABLE = [
   { id: 'startether', a: 'astromancer', b: 'weaver', name: 'Star-Tether', text: 'An enemy held by your Weaver when your Call hits it is Exposed for 2 turns.' },
   { id: 'seconddawn', a: 'astromancer', b: 'gravecaller', name: 'Second Dawn', text: 'A Recall that lands on a Downed ally stands it back up at the HP it had when you cast.' },
@@ -227,12 +253,16 @@ const PAIR_TABLE = [
   { id: 'charnel', a: 'gravecaller', b: 'gravecaller', name: 'Charnel House', text: 'Souls last 2 rounds longer, and each Gravecaller holds 1 more.' },
   { id: 'pealofbells', a: 'bellringer', b: 'bellringer', name: 'Peal of Bells', text: 'Each Bellringer’s Toll gets +1 range and −1 cooldown. A unit still can’t be Tolled twice in a round.' },
 ] satisfies readonly PairDef[];
+
 export const PAIRS: readonly PairDef[] = PAIR_TABLE;
+
 export type EveryPairListed = Assert<NoMissing<PairId, (typeof PAIR_TABLE)[number]['id']>>;
+
 export const COVERAGE: { id: 'coverage'; name: string; text: string } = { id: 'coverage', name: 'Role Coverage', text: 'A tank, a damage and a support path: +40 max HP for everyone.' };
 
 // ---------- statuses: durations count the owner's turns and tick down at the end of each of them ----------
 export interface StatusDef { name: string; icon: string; color: string; bad?: true; text: string }
+
 const STATUS_TABLE = {
   stun: { name: 'Stunned', icon: '💫', color: '#ffd36b', bad: true, text: 'Loses its next turn.' },
   root: { name: 'Rooted', icon: '🌿', color: '#8fe36b', bad: true, text: 'Can’t move on its next turn.' },
@@ -247,6 +277,7 @@ const STATUS_TABLE = {
   guard: { name: 'Bell Guard', icon: '🛎️', color: '#e0b04a', text: 'Until its next turn, enemies that hit it are Hushed.' },
   haste: { name: 'Quickened', icon: '💨', color: '#8fd1ff', text: '+2 move on its next turn.' },
 } satisfies Record<StatusKey, StatusDef>;
+
 export const STATUS: Readonly<Record<StatusKey, StatusDef>> = STATUS_TABLE;
 
 // ---------- skills ----------
@@ -263,6 +294,7 @@ export interface SkillDef {
 
 function basicSkill(cls: ClassId): SkillDef {
   const b = CLASSES[cls].basic, ranged = b.range > 1;
+
   return { name: b.name, icon: ranged ? '✦' : '⚔️', target: 'enemy', range: b.range, ...(ranged ? { los: true } : {}), cd: 0, basic: true, cls, color: '#e8e2d0',
     text: `${ranged ? 'Ranged attack' : 'Melee attack'} for ${b.dmg}. Finishes Downed enemies.` };
 }
@@ -344,7 +376,9 @@ const SKILL_TABLE = {
   basic_gravecaller: basicSkill('gravecaller'),
   basic_bellringer: basicSkill('bellringer'),
 } satisfies Record<SkillId, SkillDef>;
+
 export const SKILLS: Readonly<Record<SkillId, SkillDef>> = SKILL_TABLE;
+
 export function isCall(id: SkillId): id is CallSkill { return !!SKILLS[id].call; }
 
 export const COMBO_INFO = {

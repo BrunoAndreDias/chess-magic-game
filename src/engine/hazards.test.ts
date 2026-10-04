@@ -6,6 +6,7 @@ import type { BattleEvent } from './types';
 /** From the first event of `type` through the end of the round, leaving out the next round's opening. */
 const after = (events: BattleEvent[], type: BattleEvent['type']) => {
   const end = events.findIndex(e => e.type === 'roundEnd');
+
   return events.slice(events.findIndex(e => e.type === type), end < 0 ? undefined : end + 1);
 };
 
@@ -15,6 +16,7 @@ describe('storm', () => {
       a: [bare('weaver'), bare('weaver'), bare('weaver')], b: [bare('weaver'), bare('weaver')],
       place: { 1: [0, 2], 2: [10, 3], 3: [2, 0], 4: [5, 9], 5: [11, 8] }, life: { 5: { kind: 'downed', bleed: 2 } },
     });
+
     expect(threatName(s0)).toBe('The edges');
     const r = run(s0, begin, end(1), end(4), end(2), end(3));
     const [strike, ...rest] = after(r.events, 'storm');
@@ -42,6 +44,7 @@ describe('crumble', () => {
       map: 'span', round: 3, a: [bare('weaver'), bare('astromancer')], b: [bare('weaver'), bare('astromancer')],
       place: { 1: [1, 4], 2: [5, 2], 3: [10, 6], 4: [6, 9] }, life: { 3: { kind: 'downed', bleed: 2 } },
     });
+
     expect(threatName(s0)).toBe('The side bridges crumble');
     const r = run(s0, begin, end(1), end(4), end(2));
     const [fall, ...rest] = after(r.events, 'crumble');
@@ -72,6 +75,7 @@ describe('altar', () => {
   const hold = (place: Record<number, [number, number]>, favor: [number, number] = [0, 0]) => {
     const s0 = stage({ map: 'altar', a: [bare('astromancer'), bare('weaver')], b: [bare('astromancer'), bare('weaver')], place });
     s0.favor = favor;
+
     return run(s0, begin, end(1), end(3), end(4), end(2));
   };
 

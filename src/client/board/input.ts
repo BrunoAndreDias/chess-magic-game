@@ -7,6 +7,7 @@ const CLICK_SLOP = 6;
 /** Three's raycaster ignores visibility, so a hidden casing, mound or sunk body would still catch clicks. */
 function drawn(o: THREE.Object3D): boolean {
   for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+
   return true;
 }
 
@@ -26,20 +27,28 @@ export class Picker {
   ) {
     const move = (ev: PointerEvent): void => {
       const t = this.#pick(ev);
+
       if (t?.x === this.#hover?.x && t?.z === this.#hover?.z) return;
       this.#hover = t;
       this.#emit({ kind: 'hover', tile: t });
     };
+
     const leave = (): void => { if (this.#hover) { this.#hover = null; this.#emit({ kind: 'hover', tile: null }); } };
+
     const down = (ev: PointerEvent): void => { this.#down = { x: ev.clientX, y: ev.clientY, button: ev.button }; };
+
     const up = (ev: PointerEvent): void => {
       const d = this.#down;
       this.#down = null;
+
       if (!d || d.button !== ev.button || Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > CLICK_SLOP) return;
+
       if (ev.button !== 0 && ev.button !== 2) return;
       const t = this.#pick(ev);
+
       if (t) this.#emit({ kind: 'click', tile: t, button: ev.button === 0 ? 'left' : 'right' });
     };
+
     const menu = (ev: Event): void => ev.preventDefault();
     canvas.addEventListener('pointermove', move);
     canvas.addEventListener('pointerleave', leave);
@@ -66,10 +75,13 @@ export class Picker {
     const { tiles, units, tileOfUnit } = this.targets();
     const hitUnit = this.#ray.intersectObjects(units, true).find(h => h.object instanceof THREE.Mesh && drawn(h.object));
     const hitTile = this.#ray.intersectObjects(tiles, false)[0];
+
     if (hitUnit && (!hitTile || hitUnit.distance <= hitTile.distance)) {
       const t = tileOfUnit(hitUnit.object);
+
       if (t) return t;
     }
+
     return (hitTile?.object.userData.tile as Pos | undefined) ?? null;
   }
 

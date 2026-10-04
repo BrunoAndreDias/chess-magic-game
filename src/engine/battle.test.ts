@@ -7,6 +7,7 @@ import { bare, begin, cast, end, move, run, stage, turns, uid, unit } from './te
 import type { BattleEvent, MemberBuild } from './types';
 
 const trio = () => [bare('astromancer'), bare('weaver'), bare('weaver')];
+
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
 
 describe('turn order', () => {
@@ -173,6 +174,7 @@ describe('encased', () => {
       a: [bare('weaver', ['cocoon', 'web', 'reel']), bare('astromancer'), bare('weaver')], b: [bare('weaver')],
       place: { 1: [3, 1], 2: [4, 2], 3: [3, 2], 4: [10, 10] }, life: { 3: { kind: 'downed', bleed: 2 } },
     });
+
     const r = run(s0, begin, cast(1, 'cocoon', 3, 2), end(1), end(4), cast(2, 'helpup', 3, 2));
     expect([unit(r.state, 3).life, unit(r.state, 3).st]).toEqual([{ kind: 'up' }, {}]);
     const next = run(r.state, end(2));
@@ -185,18 +187,22 @@ describe('encased', () => {
       a: [bare('astromancer', ['recall', 'meteor', 'frostbolt']), bare('weaver')], b: [bare('astromancer', ['prison', 'frostbolt', 'meteor']), bare('astromancer')],
       starter: 1, place: { 1: [4, 0], 2: [2, 2], 3: [2, 5], 4: [1, 5] },
     });
+
     const r = run(s0, begin, end(3), cast(1, 'recall', 2, 2), end(1), move(2, 1, 2), end(2), cast(4, 'basic_astromancer', 1, 2), end(4),
       cast(3, 'prison', 1, 2), end(3));
+
     expect(after(r.events, 'land').slice(1)).toEqual([{ type: 'heal', id: 2, amount: 34 }]);
     expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).hp]).toEqual([1, 2, 170]);
   });
 
   test('Absolute Zero on an Encased unit: the skipped turn spends the Encase, and the Stun skips the turn after', () => {
     const rime = bare('astromancer', ['thunderhead', 'prison', 'frostbolt'], ['a_frost', 'a_prison', 'a_wet', 'a_zero']);
+
     const s0 = stage({
       a: [rime, bare('astromancer', ['prison', 'meteor', 'frostbolt'])], b: [bare('weaver'), bare('weaver')],
       place: { 1: [2, 2], 2: [4, 3], 3: [10, 10], 4: [3, 5] },
     });
+
     const jailed = run(s0, begin, cast(1, 'thunderhead', 3, 5), end(1), end(3), end(4), cast(2, 'prison', 3, 5), end(2));
     const r2 = run(jailed.state, end(1), end(3));
     expect(r2.events).toContainEqual({ type: 'skip', id: 4 });

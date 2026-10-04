@@ -10,8 +10,10 @@ import { TEAM_COLOR, TEAM_NAME } from '../theme';
 export function mountResult(ctx: Ctx, draft: Draft, final: BattleState): Mounted {
   if (final.phase.kind !== 'over') throw new Error('result screen needs a finished battle');
   const { winner, reason } = final.phase, st = final.stats;
+
   const row = (label: string, v: readonly [number, number]) => h('tr', null, h('th', null, label),
     v.map((n, t) => h('td', { class: n > (v[1 - t] ?? 0) ? 'win' : '' }, n)));
+
   const root = h('div', { id: 'result', class: 'screen' }, h('div', { class: 'rbox' },
     h('div', { class: 'tag', id: 'res-tag' }, `${MAPS[final.map].name} · battle over`),
     h('h1', { id: 'res-title', style: { color: winner === 'draw' ? '#ece2cf' : TEAM_COLOR[winner] } }, winnerTitle(winner)),
@@ -23,6 +25,8 @@ export function mountResult(ctx: Ctx, draft: Draft, final: BattleState): Mounted
       h('button', { class: 'btn primary', id: 'res-again', onclick: () => ctx.go({ kind: 'scout', draft }) }, 'Rematch'),
       h('button', { class: 'btn', id: 'res-party', onclick: () => ctx.go({ kind: 'picks', draft: { ...draft, starter: drawStarter(Math.random) } }) }, 'Change parties'),
       h('button', { class: 'btn', id: 'res-map', onclick: () => ctx.go({ kind: 'map', draft: { ...draft, map: drawMap(Math.random, draft.map), starter: drawStarter(Math.random) } }) }, 'New battlefield'))));
+
   ctx.ui.append(root);
+
   return { phase: () => 'result', state: () => final, dispose: () => root.remove() };
 }

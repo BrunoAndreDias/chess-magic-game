@@ -7,6 +7,7 @@ import type { Biome } from '../biome';
 import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
 
 export type FxKey = Exclude<keyof TileFx, 'spent'>;
+
 export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'web', 'bone'];
 
 interface Brazier { flame: THREE.Sprite; core: THREE.Sprite; light: THREE.PointLight; ph: number }
@@ -27,8 +28,11 @@ export interface TileView {
 }
 
 const TOP: Partial<Record<TerrainChar, number>> = { '^': 0.42, '~': -0.14 };
+
 const SLAB_H: Partial<Record<TerrainChar, number>> = { '^': 0.72, '~': 0.16 };
+
 const SCORCHED_COL = [0x2a2224, 0x261f20] as const;
+
 export const CHASM_Y = -1.4;
 
 const TONE: Readonly<Record<HighlightTone, { color: number; opacity: number }>> = {
@@ -53,8 +57,10 @@ const HL_TEX = (() => {
   g.strokeStyle = 'rgba(255,255,255,1)';
   g.lineWidth = 4;
   g.strokeRect(4, 4, 56, 56);
+
   return new THREE.CanvasTexture(c);
 })();
+
 /** Diagonal stripes with a rim: reads as danger on floor, water and grass, and stays distinct from the solid red target fill. */
 const HZ_TEX = (() => {
   const c = document.createElement('canvas');
@@ -62,20 +68,26 @@ const HZ_TEX = (() => {
   const g = c.getContext('2d')!;
   g.strokeStyle = 'rgba(255,255,255,0.75)';
   g.lineWidth = 7;
+
   for (let k = -64; k < 128; k += 16) { g.beginPath(); g.moveTo(k, 64); g.lineTo(k + 64, 0); g.stroke(); }
+
   g.strokeStyle = 'rgba(255,255,255,1)';
   g.lineWidth = 4;
   g.strokeRect(2, 2, 60, 60);
+
   return new THREE.CanvasTexture(c);
 })();
+
 const HL_Y = 0.045;
 
 function canvasTex(draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   draw(c.getContext('2d')!);
+
   return new THREE.CanvasTexture(c);
 }
+
 /** Eight spokes and a spiral of silk, white on clear. */
 function drawWeb(g: CanvasRenderingContext2D): void {
   g.translate(64, 64);
@@ -87,24 +99,31 @@ function drawWeb(g: CanvasRenderingContext2D): void {
   g.strokeStyle = 'rgba(250,245,255,0.95)';
   g.lineWidth = 3;
   const spokes = 8;
+
   for (let i = 0; i < spokes; i++) {
     const a = (i / spokes) * Math.PI * 2;
     g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 64, Math.sin(a) * 64); g.stroke();
   }
+
   g.lineWidth = 2.2;
+
   for (let r = 10; r < 62; r += 9) {
     g.beginPath();
+
     for (let i = 0; i <= spokes; i++) {
       const a = (i / spokes) * Math.PI * 2, rr = r + (i % 2) * 2;
+
       // Each strand sags toward the centre between spokes.
       if (i === 0) g.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
       else { const m = a - Math.PI / spokes; g.quadraticCurveTo(Math.cos(m) * rr * 0.86, Math.sin(m) * rr * 0.86, Math.cos(a) * rr, Math.sin(a) * rr); }
     }
+
     g.stroke();
   }
 }
 
 const pickMat = keep(new THREE.MeshBasicMaterial({ visible: false }));
+
 const shared = {
   rim: mat(0x2a2430), void: basic(0x0c0618),
   bowl: mat(0x6a4a2a, { metalness: 0.4 }), leg: mat(0x3a2a1a), plank: mat(0x8a6a44), band: mat(0x5a4a34),
@@ -113,6 +132,7 @@ const shared = {
   web: new THREE.MeshBasicMaterial({ map: canvasTex(drawWeb), transparent: true, depthWrite: false }),
   bone: mat(0xe8e2d0, { roughness: 0.6 }), marrow: mat(0x9a8f78),
 };
+
 for (const m of Object.values(shared)) keep(m);
 
 /** Per-load materials the tiles of one map share, rebuilt when the biome changes. */
@@ -155,6 +175,7 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
   },
   'G': (t, rnd, _n, look) => {
     slab(t, look);
+
     for (let i = 0; i < 7; i++) {
       const tuft = mesh(new THREE.ConeGeometry(0.07, 0.5 + rnd() * 0.35, 4), look.grass, (rnd() - 0.5) * 0.8, 0.28, (rnd() - 0.5) * 0.8);
       tuft.rotation.z = (rnd() - 0.5) * 0.4;
@@ -181,8 +202,10 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
     const g = glow(0x7a3aff, 1.9, 0.55);
     g.position.y = -1.1;
     t.group.add(g);
+
     for (const [dx, dz] of DIR4) {
       const n = neighbour(dx, dz);
+
       if (n === null || n === 'o') continue;
       t.group.add(mesh(new THREE.BoxGeometry(dx ? 0.12 : 1, 1.4, dz ? 0.12 : 1), shared.rim, dx * 0.45, -0.75, dz * 0.45));
     }
@@ -205,22 +228,26 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
   fire: () => {
     const g = new THREE.Group();
     g.add(decal(new THREE.PlaneGeometry(0.9, 0.9), shared.fireBase, 0.03));
+
     for (let i = 0; i < 3; i++) {
       const s = glow(i ? 0xff7a2a : 0xffd08a, 0.6, 0.9);
       s.position.set((Math.random() - 0.5) * 0.5, 0.3, (Math.random() - 0.5) * 0.5);
       s.userData.flick = Math.random() * 9;
       g.add(s);
     }
+
     return g;
   },
   smoke: () => {
     const g = new THREE.Group();
+
     for (let i = 0; i < 4; i++) {
       const s = glow(0x8a8f9a, 1.3, 0.45, false);
       s.position.set((Math.random() - 0.5) * 0.6, 0.4 + Math.random() * 0.8, (Math.random() - 0.5) * 0.6);
       s.userData.drift = Math.random() * 9;
       g.add(s);
     }
+
     return g;
   },
   ice: () => mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), shared.ice, 0, -0.02, 0),
@@ -228,6 +255,7 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
   bone: () => {
     const g = new THREE.Group();
     g.add(mesh(new THREE.BoxGeometry(0.9, 0.14, 0.5), shared.marrow, 0, 0.07, 0));
+
     for (let i = 0; i < 5; i++) {
       const h = 1.05 + (i % 2) * 0.3, x = -0.36 + i * 0.18;
       const b = mesh(new THREE.CylinderGeometry(0.05, 0.065, h, 6), shared.bone, x, h / 2, (i % 2 ? 0.06 : -0.06));
@@ -235,8 +263,10 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
       b.castShadow = true;
       g.add(b, mesh(new THREE.SphereGeometry(0.085, 8, 6), shared.bone, x + (i - 2) * 0.03, h, b.position.z));
     }
+
     const rib = mesh(new THREE.TorusGeometry(0.42, 0.03, 5, 16, Math.PI), shared.bone, 0, 0.75, 0);
     g.add(rib);
+
     return g;
   },
   web: () => {
@@ -244,6 +274,7 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
     w.rotation.z = Math.random() * Math.PI;
     // Above the hazard stripes: a web changes how the tile plays, so it must read through them.
     w.renderOrder = 5;
+
     return w;
   },
 };
@@ -261,9 +292,11 @@ export class Terrain {
 
   load(s: BattleState): void {
     for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); disposeTree(t.hz); }
+
     this.#tiles = [];
     this.#disposeLook();
     this.#look = makeLook(BIOMES[s.map]);
+
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
       const base = s.terr[idx(x, z)] ?? '.';
       const group = new THREE.Group();
@@ -279,6 +312,7 @@ export class Terrain {
       const t: TileView = { x, z, origin: base, base, group, pick: new THREE.Mesh(), fx: {}, spent: false, brazier: null, hl, hz };
       this.#tiles.push(t);
     }
+
     for (const t of this.#tiles) this.#build(t, s);
     this.sync(s);
   }
@@ -297,6 +331,7 @@ export class Terrain {
 
   #rebuild(t: TileView, s: BattleState, base: TerrainChar): void {
     const fx = t.fx;
+
     for (const c of [...t.group.children]) if (!Object.values(fx).includes(c)) disposeTree(c);
     t.base = base;
     t.brazier = null;
@@ -306,9 +341,13 @@ export class Terrain {
   /** Where a unit stands on this tile. A unit downed in a chasm rests at its bottom. */
   standY(x: number, z: number, resting = true): number {
     const t = this.tile(x, z);
+
     if (!t) return 0;
+
     if (t.base === 'o') return resting ? CHASM_Y : 0;
+
     if (t.fx.ice) return 0.02;
+
     return TOP[t.base] ?? 0;
   }
   at(x: number, z: number, y = 0, resting = true): THREE.Vector3 {
@@ -317,7 +356,9 @@ export class Terrain {
 
   setFx(x: number, z: number, key: FxKey, on: boolean): void {
     const t = this.tile(x, z);
+
     if (!t || !!t.fx[key] === on) return;
+
     if (on) {
       const o = FX_BUILD[key]();
       o.position.y += Math.max(0, TOP[t.base] ?? 0);
@@ -330,8 +371,10 @@ export class Terrain {
   }
   setSpent(x: number, z: number, spent: boolean): void {
     const t = this.tile(x, z);
+
     if (!t) return;
     t.spent = spent;
+
     if (!t.brazier) return;
     t.brazier.flame.visible = t.brazier.core.visible = !spent;
     // Hiding a light changes the light count and recompiles every shader; dimming it does not.
@@ -341,8 +384,10 @@ export class Terrain {
   /** Make every tile match `s`: base terrain (burnt grass, crumbled tiles), overlays and spent braziers. */
   sync(s: BattleState): void {
     this.rebase(s, this.#tiles.filter(t => (s.terr[idx(t.x, t.z)] ?? '.') !== t.base));
+
     for (const t of this.#tiles) {
       const f = s.fx[idx(t.x, t.z)];
+
       for (const key of FX_KEYS) this.setFx(t.x, t.z, key, f?.[key] !== undefined);
       this.setSpent(t.x, t.z, !!f?.spent);
     }
@@ -351,24 +396,31 @@ export class Terrain {
   /** Rebuild `tiles` to their base in `s`, and the chasm tiles beside them, whose rim walls face their neighbours. */
   rebase(s: BattleState, tiles: readonly Pos[]): void {
     const views = tiles.flatMap(p => this.tile(p.x, p.z) ?? []), near = new Set<TileView>();
+
     for (const t of views) {
       t.group.position.y = 0;
       this.#rebuild(t, s, s.terr[idx(t.x, t.z)] ?? '.');
     }
+
     for (const t of views) for (const [dx, dz] of DIR4) {
       const n = this.tile(t.x + dx, t.z + dz);
+
       if (n && inb(n.x, n.z) && n.base === 'o' && !views.includes(n)) near.add(n);
     }
+
     for (const n of near) this.#rebuild(n, s, 'o');
   }
 
   /** Later layers win where they overlap. */
   highlight(layers: readonly Highlight[]): void {
     for (const t of this.#tiles) t.hl.visible = t.hz.visible = false;
+
     for (const layer of layers) {
       const tone = TONE[layer.tone];
+
       for (const p of layer.tiles) {
         const t = this.tile(p.x, p.z);
+
         if (!t) continue;
         const q = layer.tone === 'hazard' || layer.tone === 'friendly' ? t.hz : t.hl;
         q.visible = true;
@@ -380,18 +432,23 @@ export class Terrain {
 
   update(time: number): void {
     this.#look.water.emissiveIntensity = 0.5 + 0.15 * Math.sin(time * 1.5);
+
     for (const t of this.#tiles) {
       const b = t.brazier;
+
       if (b && !t.spent) {
         b.light.intensity = Math.PI * (0.9 + 0.25 * Math.sin(time * 10 + b.ph));
         b.flame.scale.setScalar(1.2 + 0.2 * Math.sin(time * 12 + b.ph));
       }
+
       if (t.fx.fire) for (const c of t.fx.fire.children) {
         const ph = c.userData.flick as number | undefined;
+
         if (ph === undefined) continue;
         c.scale.setScalar(0.55 + 0.2 * Math.sin(time * 14 + ph));
         c.position.y = 0.3 + 0.08 * Math.sin(time * 9 + ph);
       }
+
       if (t.fx.smoke) for (const c of t.fx.smoke.children) {
         const ph = c.userData.drift as number;
         c.position.y += Math.sin(time + ph) * 0.002;
@@ -402,11 +459,13 @@ export class Terrain {
 
   #disposeLook(): void {
     const { wall, cap, grass, water } = this.#look;
+
     for (const m of [wall, cap, grass, water]) m.dispose();
   }
 
   dispose(): void {
     for (const t of this.#tiles) { disposeTree(t.group); disposeTree(t.hl); disposeTree(t.hz); }
+
     this.#tiles = [];
     this.#disposeLook();
     this.root.removeFromParent();

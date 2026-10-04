@@ -63,6 +63,7 @@ class BoardView implements Board {
     }));
     // A hidden tab gets no animation frames, so a play would never resolve; finish animations instantly instead.
     this.#onVisibility = () => { this.#tweens.instant = document.hidden; if (document.hidden) this.#tweens.flush(); };
+
     document.addEventListener('visibilitychange', this.#onVisibility);
     this.#onVisibility();
     this.#raf = requestAnimationFrame(this.#frame);
@@ -76,10 +77,13 @@ class BoardView implements Board {
       marks: () => this.#marks.counts,
       tiles: () => {
         const out: string[] = [];
+
         for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
           const t = this.#terrain.tile(x, z);
+
           if (t) out.push(`${x},${z}:${t.base}:${FX_KEYS.filter(k => t.fx[k]).join('+')}${t.spent ? ':spent' : ''}`);
         }
+
         return out;
       },
       busy: () => this.#playing > 0,
@@ -91,7 +95,9 @@ class BoardView implements Board {
     this.#gen++;
     this.#tweens.flush();
     this.#overlay.clearFloats();
+
     for (const v of this.#views.values()) { disposeTree(v.group); v.label.remove(); }
+
     this.#views.clear();
     this.#stage.setBiome(state.map);
     this.#terrain.load(state);
@@ -102,21 +108,29 @@ class BoardView implements Board {
   play(events: readonly BattleEvent[], before: BattleState, after: BattleState, onEvent?: (e: BattleEvent) => Promise<void> | void): Promise<void> {
     const gen = this.#gen;
     this.#playing++;
+
     const run = async (): Promise<void> => {
       if (gen !== this.#gen) return;
+
       if (this.#map !== before.map) this.load(before);
       else this.#snap(before);
       const g = this.#gen, ctx = this.#ctx(before, after);
+
       for (const e of events) {
         await onEvent?.(e);
+
         if (g !== this.#gen) return;
         await playEvent(e, ctx);
+
         if (g !== this.#gen) return;
       }
+
       this.#snap(after);
     };
+
     const p = this.#queue.then(run).finally(() => { this.#playing--; });
     this.#queue = p.catch(() => {});
+
     return p;
   }
 
@@ -133,17 +147,22 @@ class BoardView implements Board {
   #snap(s: BattleState): void {
     this.#terrain.sync(s);
     const seen = new Set<UnitId>();
+
     for (const u of s.units) {
       seen.add(u.id);
       let v = this.#views.get(u.id);
+
       if (!v) {
         v = buildUnit(u, this.labels);
         this.#unitRoot.add(v.group);
         this.#views.set(u.id, v);
       }
+
       this.#place(v, u);
     }
+
     for (const [id, v] of this.#views) if (!seen.has(id)) { disposeTree(v.group); v.label.remove(); this.#views.delete(id); }
+
     this.#marks.sync(s);
     this.#setActive(s.phase.kind === 'act' ? current(s)?.id ?? null : null);
   }
@@ -159,6 +178,7 @@ class BoardView implements Board {
 
   #setActive(id: UnitId | null): void {
     this.#active = id;
+
     for (const [vid, v] of this.#views) v.ring.visible = vid === id && v.shown.life.kind !== 'dead';
   }
 
@@ -166,7 +186,9 @@ class BoardView implements Board {
 
   focus(unit: UnitId | null, team: Team): void {
     if (unit === null) { this.#stage.overview(team); return; }
+
     const v = this.#views.get(unit);
+
     if (v && this.#follow) this.#stage.follow(v.group.position, team);
   }
 
@@ -185,7 +207,9 @@ class BoardView implements Board {
     this.#tweens.instant = true;
     this.#tweens.flush();
     this.#picker.dispose();
+
     for (const v of this.#views.values()) { disposeTree(v.group); v.label.remove(); }
+
     this.#views.clear();
     this.#marks.dispose();
     this.#terrain.dispose();
@@ -204,15 +228,18 @@ class BoardView implements Board {
     st.update(dt, t);
     this.#terrain.update(t);
     const av = this.#active !== null ? this.#views.get(this.#active) : undefined;
+
     if (av && av.group.visible) {
       st.lantern.position.lerp(av.group.position.clone().add(new THREE.Vector3(0, 2.4, 0)), Math.min(1, dt * 5));
       st.lantern.intensity = 1.3 * Math.PI;
     } else st.lantern.intensity = 0.5 * Math.PI;
     this.#overlay.measure();
+
     for (const v of this.#views.values()) {
       animateUnit(v, t);
       this.#overlay.label(v);
     }
+
     this.#marks.update(dt);
     this.#overlay.update(dt);
     st.render(dt);

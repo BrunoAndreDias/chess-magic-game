@@ -2,8 +2,10 @@ import { aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../en
 import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, Rng, Team } from '../engine/index';
 
 export type Seat = { kind: 'player'; player: string } | { kind: 'ai' };
+
 /** Seats by team, then by slot. A slot with no seat is AI-held. */
 export type Seats = readonly [readonly Seat[], readonly Seat[]];
+
 export type MatchListener = (events: readonly BattleEvent[], state: BattleState) => void;
 
 /**
@@ -26,6 +28,7 @@ export class Match {
 
   subscribe(fn: MatchListener): () => void {
     this.#listeners.add(fn);
+
     return () => { this.#listeners.delete(fn); };
   }
 
@@ -37,9 +40,12 @@ export class Match {
 
   submit(player: string, cmd: Command): ApplyResult {
     const denied = this.#denied(player, cmd);
+
     if (denied) return { ok: false, error: denied };
     const r = this.#commit(cmd);
+
     if (r.ok) this.#drive();
+
     return r;
   }
 
@@ -48,32 +54,41 @@ export class Match {
   #denied(player: string, cmd: Command): string | null {
     if (cmd.kind === 'begin') return 'the match begins itself';
     const u = getUnit(this.#state, cmd.unit);
+
     return u && this.#holder(u.team, u.slot) === player ? null : `${player} does not hold unit ${cmd.unit}`;
   }
   #holder(team: Team, slot: number): string | null {
     const seat = this.#seat(team, slot);
+
     return seat.kind === 'player' ? seat.player : null;
   }
 
   #commit(cmd: Command): ApplyResult {
     const r = apply(this.#state, cmd);
+
     if (!r.ok) return r;
     this.#state = r.state;
+
     for (const fn of this.#listeners) fn(r.events, r.state);
+
     return r;
   }
 
   #drive(): void {
     for (;;) {
       const s = this.#state;
+
       if (s.phase.kind === 'over') return;
       const u = current(s);
+
       if (!u || this.#seat(u.team, u.slot).kind !== 'ai') return;
+
       for (const cmd of aiTurn(s, this.#rng)) this.#must(cmd);
     }
   }
   #must(cmd: Command): void {
     const r = this.#commit(cmd);
+
     if (!r.ok) throw new Error(`AI command ${JSON.stringify(cmd)} rejected: ${r.error}`);
   }
 }

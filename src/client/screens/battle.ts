@@ -19,6 +19,7 @@ import { hideTip, showTip, withTip } from '../tooltip';
 import { bonusChips, skillInfo } from './loadout';
 
 interface Batch { events: readonly BattleEvent[]; state: BattleState }
+
 interface Aim { skill: SkillId; targets: Target[] }
 
 /** Who may act right now. Everything the HUD offers is derived from this and the shown state. */
@@ -59,11 +60,13 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (playing) return;
     playing = true;
     refresh();
+
     try {
       for (let b = pending.shift(); b && !disposed; b = pending.shift()) await play(b);
     } finally {
       playing = false;
     }
+
     if (disposed) return;
     refresh();
     afterDrain();
@@ -71,19 +74,26 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   async function play(b: Batch): Promise<void> {
     const before = shown;
+
     const announce = async (e: BattleEvent) => {
       const line = describe(e, b.state);
+
       if (line) addLog(line);
+
       if (e.type === 'queue' || e.type === 'activate' || e.type === 'round') livePhase(e);
+
       if (e.type === 'round') await roundBanner(e.round, e.starter, b.state);
+
       if (e.type === 'combo') comboBanner(e.name, comboCredit(e, b.state), comboInfo(e));
     };
+
     try {
       await board.play(b.events, before, b.state, announce);
     } catch (err) {
       reportError(`board.play failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
       board.load(b.state);
     }
+
     shown = b.state;
     renderHud();
   }
@@ -91,7 +101,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   /** The initiative bar follows a batch as it plays: whose turn it is, and the order a Toll, Overture or Encore just made. */
   function livePhase(e: Extract<BattleEvent, { type: 'queue' | 'activate' | 'round' }>): void {
     const ph = shown.phase;
+
     if (e.type === 'round') { shown = { ...shown, round: e.round, starter: e.starter, phase: { kind: 'act', queue: e.queue, qi: 0, tolled: [] } }; renderInitbar(); return; }
+
     if (ph.kind !== 'act') return;
     shown = { ...shown, phase: e.type === 'queue' ? { ...ph, queue: e.queue } : { ...ph, qi: e.qi } };
     renderInitbar();
@@ -104,8 +116,10 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   function afterDrain(): void {
     if (shown.phase.kind === 'over') { later(1200, () => ctx.go({ kind: 'result', draft, final: shown })); return; }
+
     if (input.kind === 'turn') {
       const u = getUnit(shown, input.unit), id = input.unit;
+
       if (u && !hasMoves(u)) later(450, () => { if (input.kind === 'turn' && input.unit === id && !playing) submit({ kind: 'endTurn', unit: id }); });
     }
   }
@@ -118,10 +132,13 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   function deriveInput(): Input {
     if (playing || pending.length) return { kind: 'locked', why: 'playing' };
     const s = shown, ph = s.phase;
+
     if (ph.kind === 'over') return { kind: 'locked', why: 'over' };
     const u = current(s);
+
     if (!u || !human(u)) return { kind: 'locked', why: 'ai' };
     const aim = input.kind === 'turn' && input.unit === u.id ? input.aim : null;
+
     return { kind: 'turn', unit: u.id, aim: aim && canUse(s, u, aim.skill) ? { skill: aim.skill, targets: castTargets(s, u, aim.skill) } : null };
   }
 
@@ -134,19 +151,25 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (input.kind === 'turn') input = { kind: 'locked', why: 'playing' };
     hideTip();
     const r = match.submit(LOCAL, cmd);
+
     if (!r.ok) { addLog({ tone: 'sys', text: `Rejected: ${r.error}` }); refresh(); }
   }
 
   function aimAt(id: SkillId): void {
     if (input.kind !== 'turn') return;
     const u = getUnit(shown, input.unit);
+
     if (!u || !canUse(shown, u, id)) return;
+
     if (input.aim?.skill === id) {
       if (SKILLS[id].target === 'self') submit({ kind: 'cast', unit: u.id, skill: id, at: { x: u.x, z: u.z } });
       else setAim(null);
+
       return;
     }
+
     const targets = castTargets(shown, u, id);
+
     if (targets.length) setAim({ skill: id, targets });
   }
 
@@ -155,6 +178,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     input = { ...input, aim };
     hideTip();
     renderHud();
+
     if (hover) hoverTip(hover);
   }
 
@@ -166,6 +190,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     follow = !follow;
     board.setFollow(follow);
     const u = current(shown);
+
     if (u) board.focus(u.id, u.team);
     renderMenu();
   }
@@ -174,28 +199,42 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (ev.kind === 'hover') {
       hover = ev.tile;
       highlight();
+
       if (hover) hoverTip(hover); else hideTip();
+
       return;
     }
+
     if (ev.button === 'right') { setAim(null); return; }
+
     if (input.kind !== 'turn') return;
     const u = getUnit(shown, input.unit);
+
     if (!u) return;
+
     if (input.aim) {
       const { skill, targets } = input.aim;
+
       if (targets.some(t => same(t, ev.tile))) submit({ kind: 'cast', unit: u.id, skill, at: { x: ev.tile.x, z: ev.tile.z } });
+
       return;
     }
+
     if (reachable(shown, u).has(idx(ev.tile.x, ev.tile.z))) submit({ kind: 'move', unit: u.id, to: { x: ev.tile.x, z: ev.tile.z } });
   }
 
   function key(ev: KeyboardEvent): void {
     if (ev.key === 'Escape') { setAim(null); return; }
+
     if (ev.key === ' ') { ev.preventDefault(); endTurn(); return; }
+
     if (ev.key === 'c' || ev.key === 'C') { toggleFollow(); return; }
+
     const n = Number.parseInt(ev.key, 10);
+
     if (input.kind !== 'turn' || !(n >= 1)) return;
     const u = getUnit(shown, input.unit), id = u && actionsOf(u)[n - 1];
+
     if (id) aimAt(id);
   }
 
@@ -203,17 +242,22 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   function highlight(): void {
     const layers: Highlight[] = [hazardLayer(shown)];
     const u = input.kind === 'turn' ? getUnit(shown, input.unit) : null;
+
     if (u && input.kind === 'turn') {
       if (input.aim) {
         const { skill, targets } = input.aim;
         layers.push({ tiles: targets, tone: 'target' });
+
         if (hover && targets.some(t => same(t, hover ?? t))) {
           const area = aoeTiles(shown, u, skill, hover.x, hover.z);
           layers.push({ tiles: area, tone: 'aoe' });
           const walk = skill === 'puppet' ? puppetMoves(shown, u).get(idx(hover.x, hover.z)) : undefined;
+
           if (walk) layers.push({ tiles: walk.path, tone: 'path' });
+
           if (isCall(skill) && skill !== 'recall' && !u.mods.benevolent) {
             const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && area.some(t => same(t, o)));
+
             if (hit.length) layers.push({ tiles: hit, tone: 'friendly' });
           }
         }
@@ -221,23 +265,29 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
         const reach = reachable(shown, u);
         layers.push({ tiles: [...reach.values()].map(p => p[p.length - 1] ?? u), tone: 'move' });
         const path = hover && reach.get(idx(hover.x, hover.z));
+
         if (path) layers.push({ tiles: path.slice(1), tone: 'path' });
       }
     }
+
     if (hover) layers.push({ tiles: [hover], tone: 'selected' });
     board.highlight(layers);
   }
 
   function hoverTip(t: Pos): void {
     const me = input.kind === 'turn' ? getUnit(shown, input.unit) : null;
+
     if (me && input.kind === 'turn' && input.aim && input.aim.targets.some(x => same(x, t))) {
       const { skill } = input.aim, sk = SKILLS[skill];
       const lines = isCall(skill) ? callLines(shown, me, skill, t.x, t.z) : previewLines(predict(shown, skill, t.x, t.z) ?? [], shown);
       showTip(h('div', { class: 'tt', style: { color: skillColor(skill) } }, `${sk.icon} ${sk.name}`),
         lines.length ? lines.map(l => h('div', { class: l.tone }, l.text)) : h('div', { class: 'm' }, sk.text));
+
       return;
     }
+
     const u = unitAt(shown, t.x, t.z);
+
     if (u) showTip(unitTip(shown, u, human(u)), h('div', { style: { 'margin-top': '4px' } }, terrainTip(shown, t.x, t.z)));
     else showTip(terrainTip(shown, t.x, t.z));
   }
@@ -265,6 +315,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   /** The order last drawn, so a chip whose turn moved can flash. */
   let drawn: string[] = [];
+
   function renderInitbar(): void {
     const s = shown, st = s.starter, ph = s.phase;
     const head = h('div', { class: 'rd' }, `Round ${s.round}`, h('small', { style: { color: TEAM_TEXT[st] } }, `${TEAM_NAME[st]} starts`));
@@ -272,16 +323,20 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const order = queue.map(t => `${t.id}${t.extra ? '+' : ''}`), was = drawn;
     drawn = order;
     const moved = (k: number) => was.length > 0 && was.length <= order.length && was.includes(order[k] ?? '') && was.indexOf(order[k] ?? '') !== k;
+
     const chips = queue.map(({ id, extra }, k) => {
       const u = getUnit(s, id);
+
       if (!u) return h('div');
       const C = CLASSES[u.cls], closes = k === queue.length - 1 && u.team === st && queue.length > 2;
       const state = (k < qi ? ' done' : k === qi ? ' now' : '') + (extra ? ' extra' : '') + (moved(k) || (extra && !was.includes(order[k] ?? '') && was.length > 0) ? ' moved' : '');
       const calls = s.calls.filter(c => c.by === u.id);
       const star = calls.length ? withTip(h('span', { class: 'cstar' }, '☄'), () => calls.map(c => h('div', null, `${SKILLS[c.skill].icon} ${SKILLS[c.skill].name} lands at the start of ${u.name}'s turn.`))) : null;
       const xtra = extra ? withTip(h('span', { class: 'xtra' }, '+1'), () => [h('div', null, `An extra turn for ${u.name}: cooldowns don't tick on it.`)]) : null;
+
       return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []), ...(xtra ? [xtra] : []));
     });
+
     const end = endChip(s);
     initbar.replaceChildren(head, ...chips,
       ...(s.round >= DARK_ROUND ? [h('div', { class: 'rd dark' }, '🕯', h('small', null, 'dark'))] : []),
@@ -295,10 +350,13 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       ...units.map(u => {
         const C = CLASSES[u.cls], hp = Math.round((u.hp / u.maxHp) * 100), sh = Math.min(100, Math.round((u.shield / u.maxHp) * 100));
         const life = u.life.kind === 'dead' ? ' dead' : u.life.kind === 'downed' ? ' downed' : '';
+
         const status = u.life.kind === 'dead' ? h('span', null, 'fallen')
           : u.life.kind === 'downed' ? h('span', { class: 'dn' }, `DOWNED · ${u.life.bleed} turn${u.life.bleed > 1 ? 's' : ''}`)
           : h('span', null, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`);
+
         const cap = soulCap(shown, u), souls = cap ? h('span', { class: 'souls', title: `Holds ${u.souls} of ${cap} Souls` }, ` 👻${u.souls}/${cap}`) : null;
+
         return withTip(h('div', { class: `rcard t${t}${cur?.id === u.id ? ' now' : ''}${life}`, data: { unit: String(u.id) } },
           h('div', { class: 'rtop' }, h('b', null, u.name, human(u) ? null : h('span', { style: { 'font-size': '11px' } }, ' 🤖')), h('span', null, `${C.icon} ${C.name}`)),
           h('div', { class: 'rbar' }, h('i', { style: { width: `${hp}%` } }), h('s', { style: { width: `${sh}%` } })),
@@ -308,12 +366,15 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   function renderActions(): void {
     const s = shown, u = current(s);
+
     if (!u || s.phase.kind !== 'act') {
       selinfo.replaceChildren(h('b', null, '…'));
       actions.replaceChildren(h('div', { class: 'wait' }, s.phase.kind === 'over' ? 'The battle is over.' : 'To battle…'));
       endBtn.disabled = true;
+
       return;
     }
+
     const C = CLASSES[u.cls], mine = input.kind === 'turn' && input.unit === u.id;
     selinfo.replaceChildren(
       h('b', { style: { color: TEAM_TEXT[u.team] } }, u.name),
@@ -321,16 +382,22 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`, soulCap(s, u) ? h('span', { class: 'souls' }, ` · 👻 ${u.souls}/${soulCap(s, u)}`) : null),
       h('div', { class: 'mv' }, `${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}`} · ${u.acted ? 'action used' : 'action ready'}`));
     endBtn.disabled = !mine;
+
     if (!human(u)) {
       actions.replaceChildren(h('div', { class: 'wait' }, `${TEAM_NAME[u.team]} (AI) is acting…`));
+
       return;
     }
+
     const aim = input.kind === 'turn' ? input.aim : null;
     actions.replaceChildren(...actionsOf(u).map((id, i) => {
       const sk = SKILLS[id], cd = u.cd[id] || 0, hasT = castTargets(s, u, id).length > 0, ok = mine && canUse(s, u, id) && hasT;
+
       const why = u.acted && !sk.free ? 'Action used' : cd ? `Ready in ${cd}` : blocked(s, u, id) ?? (!hasT ? (id === 'helpup' ? 'No downed ally next to you' : 'No target')
         : `${sk.free ? 'Free · ' : ''}${sk.call ? 'Call · ' : ''}${sk.range ? `Range ${sk.range}` : sk.target === 'self' ? 'Around you' : ''}`);
+
       const combo = sk.pays?.[0] ? h('span', { class: 'cb pays' }, sk.pays[0]) : sk.sets?.[0] ? h('span', { class: 'cb sets' }, sk.sets[0]) : null;
+
       return withTip(h('button', { class: `spbtn${aim?.skill === id ? ' on' : ''}${sk.innate ? ' innate' : ''}`, data: { skill: id }, disabled: !ok, style: { '--el': skillColor(id) }, onclick: () => aimAt(id) },
         h('span', { class: 'key' }, i + 1), h('span', { class: 'nm' }, `${sk.icon} ${sk.name}`), h('span', { class: 'st' }, why), combo,
         sk.innate ? h('span', { class: 'inn' }, 'innate') : null, cd ? h('span', { class: 'cdb' }, cd) : null), () => skillInfo(id));
@@ -340,29 +407,43 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   /** Why a ready skill can't be used right now, for the class mechanics that gate it. */
   function blocked(s: BattleState, u: Unit, id: SkillId): string | null {
     if (u.st.hush && !SKILLS[id].basic) return 'Hushed';
+
     if (SKILLS[id].rite && u.souls < 1) return 'Needs a Soul';
+
     if (id === 'harvest') return u.souls >= soulCap(s, u) ? 'Hands full' : soulsInReach(s, u).length ? null : 'No Souls in reach';
+
     if (id === 'snap' && !callsOf(s, u)) return 'No pending Call';
+
     if (isCall(id) && !canUse(s, u, id) && callsOf(s, u)) return 'Already holding a Call';
+
     return null;
   }
 
   function renderHint(): void {
     const set = (...parts: (Node | string)[]) => { hint.replaceChildren(...parts); hint.classList.toggle('hidden', parts.length === 0); };
+
     const s = shown, u = current(s);
     hint.style.bottom = `${actionbar.offsetHeight + 22}px`;
+
     if (s.phase.kind !== 'act' || !u) { set(); return; }
+
     if (!human(u)) { set(h('b', null, u.name), ` (${TEAM_NAME[u.team]}, AI) is acting…`); return; }
+
     if (input.kind !== 'turn') { set(); return; }
+
     if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
+
     const leash = holders(s, u).flatMap(t => { const w = getUnit(s, t.by); return w && w.team !== u.team ? [`${w.name} (${t.len})`] : []; });
+
     if (leash.length && !u.moved) { set(h('b', null, u.name), ' is leashed by ', h('b', null, leash.join(', ')), ': blue tiles stay within the Thread’s length. ', h('b', null, 'Space'), ' = end turn.'); return; }
+
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
   }
 
   // ---------- start ----------
   board.load(shown);
   board.setFollow(follow);
+
   for (const l of openingLines(shown)) addLog(l);
   renderHud();
   playing = true;
@@ -381,6 +462,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     dispose: () => {
       disposed = true;
       unsubscribe();
+
       for (const t of timers) clearTimeout(t);
       clearBanners();
       hideTip();

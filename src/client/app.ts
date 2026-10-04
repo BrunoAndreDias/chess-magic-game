@@ -38,17 +38,20 @@ export interface Ctx {
 export function createApp(board: Board, ui: HTMLElement, seed: number): { go(next: Screen): void; mounted(): Mounted | null } {
   let mounted: Mounted | null = null;
   const ctx: Ctx = { board, ui, seed, go };
+
   function go(next: Screen): void {
     mounted?.dispose();
     ui.replaceChildren();
     board.highlight([]);
     mounted = mount(ctx, next);
   }
+
   board.onInput(input => mounted?.tile?.(input));
   addEventListener('keydown', ev => {
     if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLSelectElement) return;
     mounted?.key?.(ev);
   });
+
   return { go, mounted: () => mounted };
 }
 

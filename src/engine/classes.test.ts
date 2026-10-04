@@ -5,6 +5,7 @@ import { bare, begin, cast, end, move, run, stage, turns, unit } from './testkit
 import type { BattleEvent } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
+
 const lich = ['g_hp', 'g_cap', 'g_ward', 'g_undying'] as const;
 
 describe('souls', () => {
@@ -13,8 +14,10 @@ describe('souls', () => {
       const s0 = stage({ a: [bare('gravecaller')], b: [bare('weaver')], place: { 1: [5, 1], 2: [5, 4] } });
       unit(s0, 1).souls = 1;
       unit(s0, 2).shield = shield;
+
       return run(s0, begin, cast(1, 'soulbolt', 5, 4));
     };
+
     const hard = bolt(0);
     expect(after(hard.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 20, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 5, z: 4 }]);
     expect(hard.state.souls).toEqual([{ x: 5, z: 4, t: 3 }]);
@@ -52,8 +55,10 @@ describe('rites', () => {
     const scene = (souls: number) => {
       const s0 = stage({ a: [bare('gravecaller'), bare('weaver')], b: [bare('weaver')], place: { 1: [3, 1], 2: [5, 1], 3: [9, 9] }, life: { 2: { kind: 'downed', bleed: 2 } } });
       unit(s0, 1).souls = souls;
+
       return run(s0, begin).state;
     };
+
     expect(apply(scene(0), cast(1, 'lastrites', 5, 1))).toEqual({ ok: false, error: 'lastrites is not usable now' });
     const r = run(scene(1), cast(1, 'lastrites', 5, 1));
     expect(r.events.slice(1)).toEqual([{ type: 'spend', id: 1 }, { type: 'revive', id: 2, by: 1 }]);
@@ -79,8 +84,10 @@ describe('reap', () => {
       a: [bare('gravecaller', ['wither', 'soulbolt', 'siphon']), bare('weaver')], b: [bare('astromancer')],
       place: { 1: [3, 1], 2: [5, 2], 3: [5, 3] }, hp: { 3: hp },
     });
+
     unit(s0, 1).souls = 1;
     unit(s0, 3).maxHp = 100;
+
     return run(s0, begin, cast(1, 'wither', 5, 3), end(1), end(3), cast(2, 'basic_weaver', 5, 3));
   };
 
@@ -102,8 +109,10 @@ describe('reap', () => {
       const s0 = stage({ a: [bare('gravecaller', ['wither', 'soulbolt', 'siphon'])], b: [bare('astromancer')], place: { 1: [3, 1], 2: [3, 3] }, hp: { 2: 50 }, terr: [[3, 3, '+']] });
       unit(s0, 1).souls = 1;
       const live = run(s0, begin).state;
+
       return run(wither ? run(live, cast(1, 'wither', 3, 3)).state : live, end(1), end(2)).state;
     };
+
     expect([unit(shrine(true), 2).hp, unit(shrine(false), 2).hp]).toEqual([50, 62]);
   });
 });
@@ -112,6 +121,7 @@ describe('undying', () => {
   const downedLich = (souls: number) => {
     const s0 = stage({ a: [bare('gravecaller', undefined, [...lich])], b: [bare('weaver')], place: { 1: [5, 1], 2: [9, 9] }, life: { 1: { kind: 'downed', bleed: 2 } } });
     unit(s0, 1).souls = souls;
+
     return run(s0, begin);
   };
 
@@ -148,6 +158,7 @@ describe('toll', () => {
       a: [bare('bellringer'), bare('bellringer'), bare('astromancer')], b: [bare('weaver'), bare('weaver'), bare('astromancer')],
       place: { 1: [5, 2], 2: [4, 2], 3: [6, 2], 4: [5, 5], 5: [6, 5], 6: [9, 9] },
     });
+
     return run(s0, begin).state;
   };
 
@@ -218,8 +229,10 @@ describe('resonances', () => {
   test('Death Knell: a Downed enemy of a Gravecaller and Bellringer party loses 2 bleed a turn and is gone after one', () => {
     const bleedOut = (a: ReturnType<typeof bare>[]) => {
       const s0 = stage({ a, b: [bare('weaver'), bare('weaver')], place: { 1: [0, 0], 2: [1, 0], 3: [5, 9], 4: [9, 9] }, life: { 3: { kind: 'downed', bleed: 2 } } });
+
       return run(run(s0, begin).state, end(1)).events.slice(1, 2);
     };
+
     expect(bleedOut([bare('gravecaller'), bare('bellringer')])).toEqual([{ type: 'death', id: 3, team: 1, cause: 'bled' }]);
     expect(bleedOut([bare('gravecaller'), bare('weaver')])).toEqual([{ type: 'bleed', id: 3, left: 1 }]);
   });
@@ -230,9 +243,12 @@ describe('resonances', () => {
         a: [bare('weaver'), bare('bellringer'), bare('astromancer')], b: [bare('astromancer'), bare('astromancer'), bare('astromancer')],
         place: { 1: [4, 1], 2: [0, 0], 3: [1, 1], 4: [11, 11], 5: [8, 4], 6: [10, 10] },
       });
+
       const live = run(s0, begin).state;
+
       return run(tether ? run(live, cast(1, 'tether', 8, 4)).state : live, end(1), end(4)).state;
     };
+
     expect(apply(scene(false), cast(2, 'toll', 8, 4))).toEqual({ ok: false, error: '(8, 4) is not a target of toll' });
     expect(run(scene(true), cast(2, 'toll', 8, 4)).events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 4, 2, 6, 3, 5) });
   });

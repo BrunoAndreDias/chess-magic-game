@@ -28,11 +28,13 @@ export function mountMap(ctx: Ctx, draft: Draft): Mounted {
     h('div', { class: 'mapdesc' }, h('b', null, 'Plays well for: '), M.favors),
     legend(s),
     h('div', { class: 'scout-ready' }, h('button', { class: 'btn primary', id: 'mp-go', onclick: () => ctx.go({ kind: 'picks', draft }) }, 'Form your parties →')));
+
   const hint = h('div', { id: 'hintbar' }, HINT[M.rule.kind], ' Hover a tile to read it.');
   ctx.ui.append(panel, hint);
 
   function tile(input: TileInput): void {
     if (input.kind !== 'hover') return;
+
     if (input.tile) showTip(terrainTip(s, input.tile.x, input.tile.z)); else hideTip();
   }
 

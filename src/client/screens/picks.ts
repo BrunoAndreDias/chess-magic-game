@@ -14,8 +14,10 @@ const AI_MS = 500;
 /** What a turn-order seat means for the team that holds it: its label, a note, and the question its pick answers. */
 function seatMeaning(seats: readonly Team[], k: number): { label: string; note: string; ask: string } {
   if (k === 0) return { label: 'Opener', note: 'first each round', ask: 'Who acts first every round?' };
+
   if (k === seats.length - 1) return { label: 'Closer', note: 'last each round', ask: 'Who acts last every round?' };
   const t = seats[k], twice = seats[k - 1] === t || seats[k + 1] === t;
+
   return { label: `Turn ${k + 1}`, note: twice ? 'back to back' : '', ask: twice ? `Who takes turn ${k + 1}? It runs back to back with your other turn.` : `Who takes turn ${k + 1}?` };
 }
 
@@ -30,6 +32,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   const seats = steps(draft.starter), rnd = mulberry32(ctx.seed ^ 0x91c5);
   let p: PickState = newPicks(draft.starter);
+
   for (const t of humanTeams(draft)) draft.teams[t].forEach((m, i) => { p = must(p, { kind: 'hover', team: t, member: i, cls: m.cls }); });
   let disposed = false, aiTimer: ReturnType<typeof setTimeout> | null = null;
   /** The step that just locked, so only its seat plays the landing pulse. */
@@ -40,19 +43,24 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   const tabs = h('div', { class: 'su-tabs' }), plates = h('div', { class: 'su-plates' }), bonus = h('div', { class: 'bonuses su-bonus' });
   const canvas = h('canvas', { class: 'su-canvas' });
   const coin = h('div', { class: 'pk-coin', id: 'pk-coin' }), teamsBox = h('div', { class: 'pk-teams' }), track = h('ol', { class: 'pk-track', id: 'pk-track' });
+
   const root = h('div', { id: 'picks', class: 'screen' }, top, mapInfo,
     h('div', { class: 'pk-body' },
       sheet,
       h('div', { class: 'pk-mid' }, cta, h('div', { class: 'su-stage', id: 'su-teams' }, canvas, tabs, plates), bonus),
       h('aside', { class: 'pk-side' }, coin, teamsBox, track)));
+
   ctx.ui.append(root);
   const lineup = new Lineup(canvas, plates, slot => select(draft.sel.team, slot));
 
   function must(s: PickState, cmd: PickCmd): PickState {
     const r = applyPick(s, cmd);
+
     if (!r.ok) throw new Error(`${JSON.stringify(cmd)} rejected: ${r.error}`);
+
     return r.state;
   }
+
   const humans = () => humanTeams(draft);
   const lockedAt = (t: Team, i: number) => p.locks.findIndex(l => l.team === t && l.member === i);
   const firstOpen = (t: Team) => [0, 1, 2].find(i => lockedAt(t, i) < 0) ?? 0;
@@ -62,6 +70,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   function follow(): void {
     const c = onClock(p), hs = humans();
     const t = c !== null && hs.includes(c) ? c : done() ? draft.sel.team : hs[0] ?? c ?? draft.sel.team;
+
     if (t !== draft.sel.team) draft.sel = { team: t, slot: firstOpen(t) };
   }
 
@@ -72,9 +81,12 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function act(cmd: PickCmd): void {
     const r = applyPick(p, cmd);
+
     if (!r.ok) return;
     p = r.state;
+
     if (cmd.kind === 'lock') landed = p.locks.length - 1;
+
     if (cmd.kind === 'lock' && cmd.team === draft.sel.team) draft.sel = { team: cmd.team, slot: firstOpen(cmd.team) };
     follow();
     render();
@@ -83,6 +95,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function driveAi(): void {
     const c = onClock(p);
+
     if (c === null || humans().includes(c) || aiTimer) return;
     aiTimer = setTimeout(() => { aiTimer = null; if (!disposed) act(aiLock(p, c, rnd)); }, AI_MS);
   }
@@ -98,6 +111,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   /** A class change starts the member from that class's recommended build and tells the draft it is considering it. */
   function choose(cls: ClassId): void {
     const { team, slot } = draft.sel;
+
     if (selected(draft).cls !== cls) draft.teams[team][slot] = recommended(selected(draft), cls);
     act({ kind: 'hover', team, member: slot, cls });
   }
@@ -105,6 +119,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   function setTeamHuman(t: Team, human: boolean): void {
     if (p.locks.some(l => l.team === t)) return;
     draft.teams[t] = draft.teams[t].map(m => ({ ...m, human }));
+
     if (human) for (const [i, m] of draft.teams[t].entries()) p = must(p, { kind: 'hover', team: t, member: i, cls: m.cls });
     follow();
     render();
@@ -115,6 +130,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
     const t = seats[k] ?? draft.starter, lock = p.locks[k], now = k === p.locks.length, s = seatMeaning(seats, k);
     const m = lock ? draft.teams[t][lock.member] : null, C = lock ? CLASSES[lock.cls] : null, mine = now && humans().includes(t);
     const state = lock ? 'locked' : now ? 'now' : 'wait';
+
     return h('li', { class: `pk-seat ${state}${k === landed ? ' fresh' : ''}`, style: { '--tc': TEAM_COLOR[t], ...(C ? { '--cc': C.color } : {}) }, data: { step: String(k), team: String(t) } },
       h('div', { class: 'pos' }, h('span', { class: 'k' }, s.label), s.note ? h('span', { class: 'mean' }, s.note) : null),
       h('span', { class: 'ic' }, C ? C.icon : now ? '⏳' : ''),
@@ -126,6 +142,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   function teamRow(t: Team): HTMLElement {
     const isHuman = humans().includes(t), locked = p.locks.some(l => l.team === t);
     const ctrl = (human: boolean, text: string) => h('button', { class: isHuman === human ? 'on' : '', disabled: locked, onclick: () => setTeamHuman(t, human) }, text);
+
     return h('div', { class: 'pk-tr', style: { '--tc': TEAM_COLOR[t] }, data: { team: String(t) } },
       h('b', { style: { color: TEAM_TEXT[t] } }, TEAM_NAME[t]),
       h('div', { class: 'seg pk-ctrl', data: { team: String(t) }, title: locked ? 'Set before the team’s first lock' : '' }, ctrl(true, '👤 Human'), ctrl(false, '🤖 AI')));
@@ -133,6 +150,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function plate(m: Member, t: Team, i: number): HTMLElement {
     const C = CLASSES[m.cls], at = lockedAt(t, i);
+
     return h('button', { class: `pslot${draft.sel.slot === i ? ' on' : ''}${at >= 0 ? ' locked' : ''}`, style: { '--cc': C.color, '--tc': TEAM_COLOR[t] }, data: { team: String(t), slot: String(i) }, onclick: () => select(t, i) },
       h('b', { class: 'nm' }, m.name),
       h('span', { class: 'c' }, `${C.icon} ${C.name} · ${roleLabel(roleOf(m.cls, m.tree))}`),
@@ -141,21 +159,27 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function renderCta(): void {
     const c = onClock(p), v = draft.sel.team, m = selected(draft), C = CLASSES[m.cls];
+
     if (c === null) {
       cta.className = 'pk-cta done';
       cta.replaceChildren(h('div', { class: 'say' }, h('div', { class: 'ey' }, 'Draft complete'), h('h2', null, 'Every turn is locked.'),
         h('div', { class: 'sub' }, 'Tune skills and passives, then scout the battlefield.')));
+
       return;
     }
+
     const s = seatMeaning(seats, p.locks.length);
+
     if (c !== v || !humans().includes(c)) {
       cta.className = 'pk-cta wait';
       cta.style.setProperty('--tc', TEAM_COLOR[c]);
       cta.replaceChildren(h('div', { class: 'say' }, h('div', { class: 'ey' }, `${s.label} pick`),
         h('h2', null, h('span', { style: { color: TEAM_TEXT[c] } }, TEAM_NAME[c]), humans().includes(c) ? ' is picking…' : ' (AI) is picking…'),
         h('div', { class: 'sub' }, 'Pre-select classes and tune builds meanwhile.')));
+
       return;
     }
+
     const open = lockedAt(v, draft.sel.slot) < 0;
     cta.className = 'pk-cta mine';
     cta.style.setProperty('--tc', TEAM_COLOR[v]);
@@ -168,8 +192,10 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function render(): void {
     const t = draft.sel.team, slot = draft.sel.slot, m = selected(draft), M = MAPS[draft.map], fin = done(), at = lockedAt(t, slot);
+
     const timer = h('select', { id: 'su-timer', onchange: () => { const v = Number(timer.value); draft.timer = TIMERS.find(x => x === v) ?? 30; } },
       TIMERS.map(v => h('option', { value: v, selected: draft.timer === v }, v ? `${v} s` : 'No timer')));
+
     top.replaceChildren(
       h('div', null, h('div', { class: 'tag' }, 'Party tactics · 3 v 3'), h('h1', null, 'Draft your parties')),
       h('div', { class: 'su-act' },
@@ -188,6 +214,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
       rename: name => {
         selected(draft).name = name;
         const label = plates.querySelector('.pslot.on .nm');
+
         if (label) label.textContent = name;
       },
     }));
@@ -217,6 +244,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function key(ev: KeyboardEvent): void {
     const n = Number(ev.key), { team, slot } = draft.sel;
+
     if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') select(team, (slot + (ev.key === 'ArrowRight' ? 1 : 2)) % 3);
     else if (n >= 1 && n <= 3) select(team, n - 1);
     else return;
@@ -227,6 +255,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   draft.sel = { team: draft.sel.team, slot: 0 };
   render();
   driveAi();
+
   return {
     phase: () => 'picks',
     state: () => null,

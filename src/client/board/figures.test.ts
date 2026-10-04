@@ -11,6 +11,7 @@ interface Gltf {
 
 function gltf(path: string): Gltf {
   const b = readFileSync(path);
+
   return JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString('utf8'));
 }
 
@@ -18,8 +19,10 @@ test('every class figure carries what buildModel reads: main and team materials 
   const missing = CLASS_ORDER.flatMap(cls => {
     const j = gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
     const mats = new Set(j.materials?.map(m => m.name)), nodes = new Set(j.nodes?.map(n => n.name));
+
     return [...['main', 'team'].filter(m => !mats.has(m)), ...(nodes.has('weapon') ? [] : ['weapon'])].map(x => `${cls}: ${x}`);
   });
+
   expect(missing).toEqual([]);
 });
 
