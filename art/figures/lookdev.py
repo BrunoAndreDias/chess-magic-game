@@ -1,6 +1,9 @@
-"""Hand-painted look: each `paint()` material computes its colour in Cycles nodes (a soft top-down light, cavity
-darkening from ambient occlusion, convex edges picked out, painterly mottle and brush streaks), then `bake()` flattens
-every painted surface into one atlas and swaps the bake graphs for plain textured materials the game can read.
+"""Hand-painted look baked from a high-poly twin. Each `paint()` material computes its colour in Cycles nodes (a soft
+top-down light, cavity darkening from ambient occlusion, convex edges picked out, painterly mottle and brush streaks).
+`bake()` builds a high-poly twin of every game mesh (more subdivision, plus each material's `relief`: creases, grain),
+adds the `hi()` objects that exist only for the bake (stitches, embroidery, seams), and bakes that twin onto the game
+meshes: its painted colour into one albedo atlas and its surface into one tangent-space normal atlas. The bake graphs
+are then swapped for plain textured materials the game can read.
 
 A float vertex attribute named `mask` (see `mark()`) paints a material's accent: a hem trim, a blade's honed edge,
 a wisp's fading tail. It is dropped after the bake, so it never reaches the glb as a vertex colour.
@@ -61,9 +64,10 @@ def scaled(col, k):
 
 
 def paint(name, base, shade, light, rough=0.8, cavity=0.75, edge=0.5, mottle=0.12, streak=0.0, grime=0.0,
-          accent=None, metal=False, glow=0.0, keep=False):
+          accent=None, metal=False, glow=0.0, keep=False, relief=None):
     """A material whose colour is painted by nodes and baked. `keep` keeps it as its own material in the glb (the game
-    reads `main` and `team` by name; `glow` materials emit their atlas colour); every other one merges into `paint`."""
+    reads `main` and `team` by name; `glow` materials emit their atlas colour); every other one merges into `paint`.
+    `relief(co, normal, mask)` pushes the high-poly twin's surface out along its normal, in metres, at world point `co`."""
     base, shade, light = rgb(base), rgb(shade), rgb(light)
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     m.use_nodes = True
@@ -91,7 +95,8 @@ def paint(name, base, shade, light, rough=0.8, cavity=0.75, edge=0.5, mottle=0.1
     hue = g.math('MULTIPLY_ADD', g.math('SUBTRACT', tint, 0.5), 0.06 * (mottle > 0), 0.5)
     col = g.node('ShaderNodeHueSaturation', [(0, hue), (1, 1.0), (2, value), (3, 1.0), (4, col)]).outputs[0]
 
-    ao = g.node('ShaderNodeAmbientOcclusion', [(1, 0.14)], samples=16).outputs['AO']
+    # Local only: the game meshes sit inside the high-poly twin during the bake and must not shadow it.
+    ao = g.node('ShaderNodeAmbientOcclusion', [(1, 0.14)], samples=16, only_local=True).outputs['AO']
     cav = g.math('MULTIPLY', g.math('SUBTRACT', 1.0, ao), cavity * 1.6, clamp=True)
     col = g.mix(cav, col, (*scaled(shade, 0.3), 1))
     # Pointiness flags every thin part as an edge; the bevel normal only bends where the surface turns sharply.
@@ -108,7 +113,7 @@ def paint(name, base, shade, light, rough=0.8, cavity=0.75, edge=0.5, mottle=0.1
     emit = g.node('ShaderNodeEmission', [(0, col), (1, 1.0)])
     out = g.node('ShaderNodeOutputMaterial')
     nt.links.new(emit.outputs[0], out.inputs['Surface'])
-    SPECS[name] = dict(rough=rough, glow=glow, keep=keep or glow > 0)
+    SPECS[name] = dict(rough=rough, glow=glow, keep=keep or glow > 0, relief=relief)
     return m
 
 
@@ -121,47 +126,148 @@ def mark(ob, value):
     return ob
 
 
-def bake(size=1024, margin=16, samples=64, fill='#1c3229'):
-    """`fill` paints the gaps between islands: distant mipmaps blend them into the seams, so they should match the body."""
+def hi(ob):
+    """Marks `ob` as bake-only detail: it is painted into the atlases and never exported."""
+    ob['hi'] = True
+    return ob
+
+
+def _select(obs, active):
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in obs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = active
+
+
+def _apply(obs):
+    """Applies every modifier, so each mesh is what the exporter would write."""
+    _select(obs, obs[0])
+    bpy.ops.object.convert(target='MESH')
+
+
+def _twin(ob, extra):
+    """A copy of `ob` with `extra` more subdivision levels, its modifiers applied and its materials' relief pushed out."""
+    t = ob.copy()
+    t.data = ob.data.copy()
+    bpy.context.collection.objects.link(t)
+    subs = [m for m in t.modifiers if m.type == 'SUBSURF']
+    for m in subs:
+        m.levels = m.render_levels = m.levels + extra
+    if not subs and any(m.name in SPECS and SPECS[m.name]['relief'] for m in t.data.materials):
+        m = t.modifiers.new('hi', 'SUBSURF')
+        m.subdivision_type = 'SIMPLE'
+        m.levels = m.render_levels = extra
+    return t
+
+
+def _relieve(t):
+    me = t.data
+    reliefs = [SPECS.get(m.name, {}).get('relief') if m else None for m in me.materials]
+    if not any(reliefs):
+        return
+    owner = {}
+    for p in me.polygons:
+        for v in p.vertices:
+            owner.setdefault(v, reliefs[p.material_index])
+    mask = me.attributes.get('mask')
+    w, n3 = t.matrix_world, t.matrix_world.to_3x3()
+    moves = []
+    for v in me.vertices:
+        f = owner.get(v.index)
+        if f:
+            n = (n3 @ v.normal).normalized()
+            moves.append((v, v.normal * f(w @ v.co, n, mask.data[v.index].value if mask else 0.0)))
+    for v, d in moves:
+        v.co += d
+
+
+def bake(size=2048, margin=16, samples=48, fill='#1c3229', extra=2, cage=0.02, reach=0.06):
+    """Joins the game meshes that share a parent (one draw call per moving part and material), then bakes the
+    high-poly twin onto them. `fill` paints the gaps between islands: distant mipmaps blend them into the seams, so it
+    should match the body. `cage` and `reach` bound how far a bake ray may travel to find the twin's surface."""
     scn = bpy.context.scene
-    meshes = [o for o in bpy.data.objects if o.type == 'MESH']
+    scn.frame_set(1)
+    details = [o for o in bpy.data.objects if o.type == 'MESH' and o.get('hi')]
+    meshes = [o for o in bpy.data.objects if o.type == 'MESH' and not o.get('hi')]
+    twins = [_twin(o, extra) for o in meshes]
+    _apply(twins + details + meshes)
+    for t in twins:
+        _relieve(t)
+    groups = {}
+    for ob in meshes:
+        groups.setdefault(ob.parent, []).append(ob)
+    meshes = []
+    for par, obs in groups.items():
+        _select(obs, obs[0])
+        bpy.ops.object.join()
+        obs[0].name = f'{par.name}_mesh' if par else 'body'
+        meshes.append(obs[0])
+    _select(twins + details, twins[0])
+    bpy.ops.object.join()
+    high = twins[0]
+    high.name = 'high'
+
     for o in meshes:
         me = o.data
         if not me.uv_layers:
             me.uv_layers.new(name='UVMap')
         for poly in me.polygons:
             poly.select = bool(me.materials) and me.materials[poly.material_index].name in SPECS
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in meshes:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = meshes[0]
+    _select(meshes, meshes[0])
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004, scale_to_bounds=False)
-    bpy.ops.uv.pack_islands(rotate=True, margin=0.01)
+    bpy.ops.uv.pack_islands(rotate=True, margin=0.006)
     bpy.ops.object.mode_set(mode='OBJECT')
 
-    img = bpy.data.images.new('atlas', size, size, alpha=False)
-    img.generated_color = (*hexrgb(fill), 1)
+    scn.render.engine = 'CYCLES'
+    prefs = bpy.context.preferences.addons['cycles'].preferences
+    try:
+        prefs.compute_device_type = 'METAL'
+        prefs.get_devices()
+        for d in prefs.devices:
+            d.use = True
+        scn.cycles.device = 'GPU'
+    except TypeError:
+        pass
+    scn.cycles.samples = samples
+    bk = scn.render.bake
+    bk.margin = margin
+    bk.use_selected_to_active = True
+    bk.cage_extrusion = cage
+    bk.max_ray_distance = reach
+
+    albedo = bpy.data.images.new('albedo', size, size, alpha=False)
+    albedo.generated_color = (*hexrgb(fill), 1)
+    normal = bpy.data.images.new('normal', size, size, alpha=False, is_data=True)
+    normal.generated_color = (0.5, 0.5, 1.0, 1)
+    texs = []
     for name in SPECS:
         nt = bpy.data.materials[name].node_tree
-        tex = nt.nodes.new('ShaderNodeTexImage')
-        tex.image = img
-        nt.nodes.active = tex
-    scn.render.engine = 'CYCLES'
-    scn.cycles.samples = samples
-    scn.render.bake.margin = margin
-    bpy.ops.object.bake(type='EMIT', use_clear=False)
+        texs.append(nt.nodes.new('ShaderNodeTexImage'))
+        nt.nodes.active = texs[-1]
+    for img, kind in ((albedo, 'EMIT'), (normal, 'NORMAL')):
+        for tex in texs:
+            tex.image = img
+        for o in meshes:
+            _select([high, o], o)
+            bpy.ops.object.bake(type=kind, use_clear=False, normal_space='TANGENT')
+    bpy.data.objects.remove(high)
 
     # AUTO image format keeps a JPEG source a JPEG in the glb, which is what keeps the file small.
-    path = os.path.join(tempfile.mkdtemp(), 'atlas.jpg')
-    img.file_format = 'JPEG'
-    img.save(filepath=path, quality=90)
-    atlas = bpy.data.images.load(path)
-    atlas.pack()
-    swap(meshes, atlas)
+    atlases = []
+    for img, quality in ((albedo, 86), (normal, 86)):
+        path = os.path.join(tempfile.mkdtemp(), f'{img.name}.jpg')
+        img.file_format = 'JPEG'
+        img.save(filepath=path, quality=quality)
+        loaded = bpy.data.images.load(path)
+        loaded.pack()
+        atlases.append(loaded)
+    atlases[1].colorspace_settings.is_data = True
+    swap(meshes, *atlases)
+    return meshes
 
 
-def textured(name, atlas, rough, glow):
+def textured(name, atlas, normal, rough, glow):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
@@ -169,6 +275,11 @@ def textured(name, atlas, rough, glow):
     tex = nt.nodes.new('ShaderNodeTexImage')
     tex.image = atlas
     nt.links.new(tex.outputs['Color'], p.inputs['Base Color'])
+    bump = nt.nodes.new('ShaderNodeTexImage')
+    bump.image = normal
+    nm = nt.nodes.new('ShaderNodeNormalMap')
+    nt.links.new(bump.outputs['Color'], nm.inputs['Color'])
+    nt.links.new(nm.outputs['Normal'], p.inputs['Normal'])
     p.inputs['Roughness'].default_value = rough
     p.inputs['Metallic'].default_value = 0.0
     if glow:
@@ -177,7 +288,7 @@ def textured(name, atlas, rough, glow):
     return m
 
 
-def swap(meshes, atlas):
+def swap(meshes, atlas, normal):
     """Replaces the bake graphs with textured materials, merging the unkept ones, then drops duplicate slots."""
     final = {}
     for name, spec in SPECS.items():
@@ -185,7 +296,7 @@ def swap(meshes, atlas):
         old.name = f'{name}_bake'
         key = name if spec['keep'] else MERGED
         if key not in final:
-            final[key] = textured(key, atlas, 0.8 if key == MERGED else spec['rough'], spec['glow'])
+            final[key] = textured(key, atlas, normal, 0.8 if key == MERGED else spec['rough'], spec['glow'])
         final[name] = final[key]
     for o in meshes:
         me = o.data
@@ -200,8 +311,5 @@ def swap(meshes, atlas):
             me.materials[i] = m
         if 'mask' in me.attributes:
             me.attributes.remove(me.attributes['mask'])
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in meshes:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = meshes[0]
+    _select(meshes, meshes[0])
     bpy.ops.object.material_slot_remove_unused()

@@ -16,3 +16,8 @@ test('every class figure carries what buildModel reads: main and team materials 
   });
   expect(missing).toEqual([]);
 });
+
+test('the gravecaller face is the void material, not a painted surface the lights can shade', () => {
+  const j = gltf(new URL('../../../public/models/gravecaller.glb', import.meta.url).pathname);
+  expect(j.materials?.map(m => m.name)).toContain('void');
+});

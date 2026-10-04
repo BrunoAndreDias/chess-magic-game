@@ -1,6 +1,7 @@
-"""The Gravecaller: a hooded bone priest in a long green robe, team scarf at the throat, scythe in the right hand,
-a soul lantern in the left, and two ghost skulls circling it. Smooth subdivided forms, painted by lookdev and baked
-into one atlas."""
+"""The Gravecaller: a hooded bone priest whose face is a black void with two glowing eyes. A long green coat open down
+the front over a dark under-robe and boots, a team scarf wrapped at the throat with a long tail streaming out, a wide
+belt with a pale buckle and hanging charms, a tall scythe in the right hand, a soul bell in the left, and two ghost
+skulls burning around it. Smooth subdivided forms, painted by lookdev and baked from a high-poly twin."""
 import math
 import os
 import sys
@@ -8,28 +9,49 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Vector, noise
 from common import *
-from lookdev import bake, mark, paint
+from lookdev import bake, hi, mark, paint
 
 reset()
 
-MAIN = paint('main', '#275f48', '#0a2024', '#5c9a76', rough=0.85, edge=0.8, mottle=0.16, streak=0.6, grime=0.5,
-             accent='#a88a4c', keep=True)
-TEAM = paint('team', '#d8d8d8', '#6c6c6c', '#ffffff', rough=0.9, streak=0.5, mottle=0.08, accent='#8e8e8e', keep=True)
-DARK = paint('robe_dark', '#1a2e25', '#070f0d', '#3a5a48', rough=0.9, streak=0.5, grime=0.5)
-VOID = paint('void', '#020403', '#000000', '#04100c', cavity=0, edge=0, mottle=0)
-LEATHER = paint('leather', '#5e3b22', '#24130b', '#a8784a', edge=0.8, mottle=0.18)
+
+def creases(stretch, depth):
+    """Ridged noise stretched by `stretch`: long folds and creases that read as cloth, not as felt."""
+    def relief(co, n, mask):
+        v = noise.noise(Vector((co.x * stretch[0], co.y * stretch[1], co.z * stretch[2])))
+        return depth * (0.5 - abs(v)) * 2
+    return relief
+
+
+def grain(scale, depth):
+    def relief(co, n, mask):
+        return depth * noise.noise(co * scale)
+    return relief
+
+
+CLOTH = creases((9, 9, 1.6), 0.004)
+MAIN = paint('main', '#275f48', '#0a2024', '#5c9a76', rough=0.85, edge=0.8, mottle=0.12, streak=0.6, grime=0.45,
+             accent='#b8954e', keep=True, relief=CLOTH)
+TEAM = paint('team', '#d8d8d8', '#6c6c6c', '#ffffff', rough=0.9, streak=0.5, mottle=0.06, accent='#9a9a9a', keep=True,
+             relief=creases((3, 3, 26), 0.004))
+DARK = paint('robe_dark', '#1a2a24', '#060c0b', '#34514a', rough=0.9, streak=0.5, grime=0.4, relief=CLOTH)
+LINING = paint('lining', '#0c1513', '#000000', '#1d2e29', rough=0.95, cavity=1.0, edge=0.2, mottle=0.05)
+LEATHER = paint('leather', '#5e3b22', '#24130b', '#a8784a', edge=0.9, mottle=0.14, relief=grain(45, 0.0012))
 GOLD = paint('gold', '#c99a3e', '#4a2a0e', '#ffe9a6', metal=True, cavity=0.35, edge=1.0, mottle=0.06)
-WOOD = paint('wood', '#6f4426', '#2a160b', '#a87548', streak=1.0, mottle=0.22, edge=0.6)
+SILVER = paint('silver', '#cfc9b4', '#4a4a44', '#fffdf0', metal=True, cavity=0.4, edge=1.0, mottle=0.05)
+WOOD = paint('wood', '#6f4426', '#2a160b', '#a87548', streak=1.0, mottle=0.2, edge=0.6,
+             relief=creases((70, 70, 5), 0.0015))
+WRAP = paint('wrap', '#b49a6a', '#4e3c22', '#e8d6a8', edge=0.7, mottle=0.1, relief=creases((3, 3, 90), 0.0015))
 STEEL = paint('steel', '#7f9a98', '#26363b', '#e4f4f0', metal=True, edge=0.15, mottle=0.05, accent='#f6fffc')
-BONE = paint('bone', '#ddd0b0', '#6e5a3e', '#fffbea', mottle=0.1, edge=0.6)
-SOUL = paint('soul', '#3fd9a0', '#0a5446', '#c8ffe8', cavity=0.6, edge=0.3, mottle=0.08, accent='#06382f', glow=1.6)
+BONE = paint('bone', '#ddd0b0', '#6e5a3e', '#fffbea', mottle=0.08, edge=0.6, relief=grain(70, 0.0006))
+TASSEL = paint('tassel', '#2c7a70', '#0b2a28', '#7cd4c0', edge=0.4, mottle=0.08)
+SOCKET = paint('socket', '#061411', '#000000', '#0c241e', cavity=0, edge=0, mottle=0)
+SOUL = paint('soul', '#3fd9a0', '#0a5446', '#c8ffe8', cavity=0.25, edge=0.3, mottle=0.06, accent='#06382f', glow=1.6)
+VOID = void()
 EYES = material('eyes', '#d8fff2', rough=0.5, emit='#a8ffe6', strength=6.0)
 
 GREEN_GLOW = '#5dffc0'
-RIGHT_HAND = Vector((-0.34, -0.15, 0.66))
-LEFT_HAND = Vector((0.33, -0.13, 0.62))
 
 
 def build(name, verts, faces, mat, levels=0):
@@ -63,29 +85,44 @@ def solidify(ob, thickness, offset=-1.0, inner=None):
     return ob
 
 
+def grid(name, rows, cols, at, mat, levels=1, mask=None, wrap=False):
+    """A sheet of `rows` x `cols` vertices placed by `at(i, j)`; `wrap` closes it into a tube."""
+    verts, faces, marks = [], [], []
+    for i in range(rows):
+        for j in range(cols):
+            verts.append(at(i, j))
+            marks.append(mask(i, j) if mask else 0.0)
+    span = cols if wrap else cols - 1
+    for i in range(rows - 1):
+        for j in range(span):
+            k = (j + 1) % cols
+            faces.append((i * cols + j, i * cols + k, (i + 1) * cols + k, (i + 1) * cols + j))
+    ob = build(name, verts, faces, mat, levels)
+    if mask:
+        mark(ob, lambda co, it=iter(marks): next(it))
+    return ob
+
+
 def lathe(name, rings, sides, mat, sy=1.0, phase=0.0, close_top=False, close_bottom=False, shape=None, mask=None, levels=0):
     """Rings of (radius, z) swept about z. `shape(i, j, x, y, z)` may move each vertex (ring i, side j);
     `mask(i, j)` writes the accent attribute."""
-    verts, faces, marks = [], [], []
-    for i, (r, z) in enumerate(rings):
-        for j in range(sides):
-            a = phase + 2 * math.pi * j / sides
-            x, y = r * math.sin(a), -r * math.cos(a) * sy
-            verts.append(Vector(shape(i, j, x, y, z) if shape else (x, y, z)))
-            marks.append(mask(i, j) if mask else 0.0)
-    for i in range(len(rings) - 1):
-        for j in range(sides):
-            k = (j + 1) % sides
-            faces.append((i * sides + j, i * sides + k, (i + 1) * sides + k, (i + 1) * sides + j))
-    if close_bottom:
-        faces.append(tuple(reversed(range(sides))))
-    if close_top:
-        n = len(rings) - 1
-        faces.append(tuple(n * sides + j for j in range(sides)))
-    ob = build(name, verts, faces, mat, levels)
-    if mask:
-        it = iter(marks)
-        mark(ob, lambda co: next(it))
+    def at(i, j):
+        r, z = rings[i]
+        a = phase + 2 * math.pi * j / sides
+        x, y = r * math.sin(a), -r * math.cos(a) * sy
+        return Vector(shape(i, j, x, y, z) if shape else (x, y, z))
+    ob = grid(name, len(rings), sides, at, mat, levels, mask, wrap=True)
+    n = len(rings) - 1
+    if close_bottom or close_top:
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bm.verts.ensure_lookup_table()
+        if close_bottom:
+            bm.faces.new([bm.verts[j] for j in reversed(range(sides))])
+        if close_top:
+            bm.faces.new([bm.verts[n * sides + j] for j in range(sides)])
+        bm.to_mesh(ob.data)
+        bm.free()
     # A ring of radius 0 leaves degenerate quads that bake to a black dot; welding them makes a clean pole.
     bm = bmesh.new()
     bm.from_mesh(ob.data)
@@ -121,6 +158,8 @@ def frames(path):
 def sweep(name, path, radii, sides, mat, caps=True, levels=0, squash=1.0, mask=None):
     """A tube along `path`, radius `radii[i]` at point i. `mask(i)` writes the accent attribute per ring."""
     path, fr = frames(path)
+    if not hasattr(radii, '__len__'):
+        radii = [radii] * len(path)
     verts, faces = [], []
     for p, r, (s, u) in zip(path, radii, fr):
         for j in range(sides):
@@ -167,7 +206,15 @@ def box(name, loc, size, mat, rot=(0, 0, 0), bevel=0.0, segments=2):
     return assign(smooth(ob), mat)
 
 
-def ribbon(name, path, widths, side, mat, thickness=0.022, belly=0.012, notch=0.0, mask=None):
+def link(name, loc, rot, mat, size=0.011):
+    bpy.ops.mesh.primitive_torus_add(major_radius=size, minor_radius=size * 0.28, major_segments=8, minor_segments=4,
+                                     location=loc, rotation=rot)
+    ob = bpy.context.object
+    ob.name = name
+    return assign(smooth(ob), mat)
+
+
+def ribbon(name, path, widths, side, mat, thickness=0.022, belly=0.012, notch=0.0, mask=None, levels=1):
     """A cloth strip along `path`, widened by `widths` along `side`, its middle bowed out by `belly` so it reads as
     cloth with body; `notch` cuts a swallowtail into its end."""
     side = Vector(side).normalized()
@@ -182,7 +229,7 @@ def ribbon(name, path, widths, side, mat, thickness=0.022, belly=0.012, notch=0.
     for i in range(n - 1):
         a = 3 * i
         faces += [(a, a + 1, a + 4, a + 3), (a + 1, a + 2, a + 5, a + 4)]
-    ob = solidify(build(name, verts, faces, mat, 1), thickness, 0)
+    ob = solidify(build(name, verts, faces, mat, levels), thickness, 0)
     if mask:
         vals = [mask(i) for i in range(n) for _ in range(3)]
         mark(ob, lambda co, it=iter(vals): next(it))
@@ -203,78 +250,149 @@ def smoothstep(e0, e1, x):
     return t * t * (3 - 2 * t)
 
 
-# A slow breath lifts everything the figure holds, so the hands never leave the scythe and the lantern.
-breath = empty('breath')
-loop(breath, 'scale', 2, [1.0, 1.018], 84)
+def interp(table, z):
+    """Linear lookup in a list of (value, z) pairs ordered by z, either way."""
+    pts = sorted(table, key=lambda p: p[1])
+    if z <= pts[0][1]:
+        return pts[0][0]
+    for (r0, z0), (r1, z1) in zip(pts, pts[1:]):
+        if z <= z1:
+            return r0 + (r1 - r0) * (z - z0) / (z1 - z0)
+    return pts[-1][0]
 
-# Robe: a long flared cone hanging in deep folds that widen toward a ragged hem, slit up the front onto the under-robe.
-ROBE = [(0.45, 0.0), (0.445, 0.025), (0.43, 0.06), (0.39, 0.2), (0.34, 0.38), (0.29, 0.56), (0.255, 0.72), (0.228, 0.88),
-        (0.21, 1.03)]
-SIDES = 28
+
+def stitches(path, normal, mat=LEATHER, length=0.012, gap=0.008, radius=0.0022):
+    """Bake-only running stitches along `path`, raised along `normal(p)`."""
+    pts, marks, d = [Vector(p) for p in path], [], 0.0
+    for a, b in zip(pts, pts[1:]):
+        seg = (b - a).length
+        while d < seg:
+            p = a.lerp(b, d / seg)
+            q = a.lerp(b, min(1.0, (d + length) / seg))
+            n = normal(p) * 0.002
+            marks.append(hi(sweep('stitch', [p + n, q + n], radius, 4, mat, squash=0.6)))
+            d += length + gap
+        d -= seg
+    return marks
+
+
+# A slow breath lifts everything the figure holds, so the hands never leave the scythe and the bell.
+breath = loop(empty('breath'), 'scale', 2, [1.0, 1.018], 84)
+
+# Coat: long, flaring to a frayed hem, open down the front below the belt onto the dark under-robe.
+COAT = [(0.165, 1.04), (0.195, 0.99), (0.212, 0.9), (0.205, 0.8), (0.208, 0.72), (0.232, 0.62), (0.275, 0.45),
+        (0.325, 0.27), (0.37, 0.1), (0.385, 0.035)]
+SY = 0.82
+ROWS, COLS = 15, 34
+
+
+def gap(z):
+    return 0.06 + 0.52 * smoothstep(0.7, 0.05, z)
 
 
 def folds(a):
     return 0.55 * math.sin(7 * a + 0.4) + 0.3 * math.sin(12 * a + 1.7) + 0.15 * math.sin(3 * a + 0.9)
 
 
-def robe_shape(i, j, x, y, z):
-    a = 2 * math.pi * j / SIDES
-    hang = smoothstep(0.75, 0.0, z)
-    f = folds(a)
-    k = 1 + 0.17 * hang ** 1.1 * f
-    tear = (0.0, 0.05, 0.015, 0.0, 0.07, 0.02, 0.0, 0.035)[j % 8] if i <= 2 else 0.0
-    return (x * k, y * k, z + tear - 0.035 * f * hang)
+def coat_at(u, z, out=0.0):
+    th = gap(z)
+    a = th + (2 * math.pi - 2 * th) * u
+    hang = smoothstep(0.62, 0.0, z)
+    lapel = 0.018 * hang * max(smoothstep(0.08, 0.0, u), smoothstep(0.92, 1.0, u))
+    r = interp(COAT, z) * (1 + 0.15 * hang * folds(a)) + lapel + out
+    return Vector((r * math.sin(a), -r * math.cos(a) * SY, z - 0.025 * folds(a) * hang))
 
 
-robe = lathe('robe', ROBE, SIDES, MAIN, sy=0.86, shape=robe_shape, mask=lambda i, j: 1.0 if i <= 1 else 0.0, levels=1)
-drop_faces(robe, lambda c: not (c.y < -0.2 and abs(c.x) < 0.075 and c.z < 0.5))
-solidify(robe, 0.022, inner=DARK)
-lathe('underrobe', [(0.3, 0.07), (0.27, 0.3), (0.24, 0.5), (0.2, 0.75)], 16, DARK, sy=0.86, close_bottom=True,
-      shape=lambda i, j, x, y, z: (x * (1 + 0.05 * math.sin(5 * j)), y, z))
-for sx in (-0.09, 0.09):
-    box('boot', (sx, -0.2, 0.05), (0.11, 0.18, 0.1), LEATHER, bevel=0.035, segments=2)
-    box('boot_cuff', (sx, -0.18, 0.11), (0.12, 0.15, 0.035), DARK, bevel=0.012)
+def coat_normal(p):
+    return Vector((p.x, p.y / SY ** 2, 0)).normalized()
 
-# Capelet over the shoulders, its lower edge torn into long points like the sheet's tattered mantle.
-def tatter(i, j, x, y, z):
-    a = 2 * math.pi * j / 26
-    flare = 1 + 0.05 * math.sin(5 * a)
+
+# Rows climb from the hem, so the faces point outward like every lathe's.
+COAT_Z = [1.04 - (1.04 - 0.035) * ((ROWS - 1 - i) / (ROWS - 1)) ** 0.9 for i in range(ROWS)]
+TEAR = (0.0, 0.03, 0.008, 0.0, 0.045, 0.012, 0.0, 0.022, 0.035, 0.0)
+
+
+def coat_vert(i, j):
+    p = coat_at(j / (COLS - 1), COAT_Z[i])
     if i == 0:
-        drop = (0.09, 0.0, 0.06, 0.02, 0.11, 0.0, 0.04)[j % 7] if j % 2 == 0 else 0.0
-        return (x * 1.07 * flare, y * 1.07 * flare, z - drop)
-    return (x * flare, y * flare, z)
+        p.z += TEAR[j % len(TEAR)]
+    return p
 
 
-cape = lathe('capelet', [(0.37, 0.8), (0.35, 0.87), (0.32, 0.94), (0.27, 1.02), (0.21, 1.08)], 26, MAIN, sy=0.88,
-             shape=tatter, mask=lambda i, j: 0.55 if i == 0 else 0.0)
-solidify(cape, 0.02, inner=DARK)
+def coat_mask(i, j):
+    z = COAT_Z[i]
+    edge = (j == 0 or j == COLS - 1) and z < 0.72
+    return 1.0 if i <= 1 or edge else 0.0
 
-# Hood: a big rounded cowl with a soft point falling back, its face cut open onto a black void with two eyes.
+
+coat = grid('coat', ROWS, COLS, coat_vert, MAIN, levels=1, mask=coat_mask)
+solidify(coat, 0.02, inner=DARK)
+# Gold embroidery climbing the open front edges and running round the hem: a scroll between two lines of piping,
+# a bead in each curl, and stitched seams beside it.
+zs = [0.06 + 0.64 * k / 80 for k in range(81)]
+for side in (0.03, 0.97):
+    inward = 1 if side < 0.5 else -1
+    hi(sweep('embroidery', [coat_at(side + 0.012 * math.sin(z * 70), z, 0.004) for z in zs], 0.0045, 6, GOLD))
+    for du in (-0.024, 0.026):
+        hi(sweep('piping', [coat_at(side + du * inward, z, 0.003) for z in zs], 0.003, 6, GOLD))
+    for k in range(1, 22):
+        z = (math.pi / 2 + math.pi * k) / 70
+        if z < 0.7:
+            hi(blob('embroidery_bead', coat_at(side - 0.012 * math.sin(z * 70), z, 0.004), 0.005, GOLD, subdiv=1))
+    stitches([coat_at(side + 0.045 * inward, z, 0.002) for z in zs], coat_normal)
+hem = [k / 160 for k in range(161)]
+hi(sweep('hem_scroll', [coat_at(u, 0.105 + 0.014 * math.sin(u * 2 * math.pi * 26), 0.004) for u in hem], 0.0045, 6, GOLD))
+for z in (0.083, 0.13):
+    hi(sweep('hem_piping', [coat_at(u, z, 0.003) for u in hem], 0.003, 6, GOLD))
+for k in range(52):
+    u = (k + 0.5) / 52
+    hi(blob('hem_bead', coat_at(u, 0.105 - 0.014 * math.sin(u * 2 * math.pi * 26), 0.004), 0.005, GOLD, subdiv=1))
+stitches([coat_at(u, 0.15, 0.002) for u in hem], coat_normal)
+for u in (0.25, 0.5, 0.75):
+    stitches([coat_at(u, z, 0.002) for z in [0.12 + 0.6 * k / 30 for k in range(31)]], coat_normal, mat=DARK)
+
+lathe('underrobe', [(0.27, 0.2), (0.25, 0.32), (0.22, 0.5), (0.2, 0.75)], 20, DARK, sy=0.82, levels=1,
+      shape=lambda i, j, x, y, z: (x * (1 + 0.06 * math.sin(6 * j)), y * (1 + 0.06 * math.sin(6 * j)), z))
+for sx in (-0.085, 0.085):
+    sweep('leg', [(sx, -0.02, 0.08), (sx, -0.02, 0.4)], [0.06, 0.07], 10, DARK)
+    box('boot', (sx, -0.08, 0.05), (0.11, 0.2, 0.1), LEATHER, bevel=0.035, segments=2)
+    box('boot_cuff', (sx, -0.04, 0.13), (0.125, 0.13, 0.04), LEATHER, bevel=0.012)
+    blob('boot_strap', (sx, -0.115, 0.1), 0.012, SILVER, subdiv=1)
+
+# Hood: fitted to the head with a soft peak, gathered creases, a thick rolled rim and a wide opening onto the void.
+HOOD = [(0.19, 0.99), (0.192, 1.05), (0.2, 1.11), (0.212, 1.17), (0.219, 1.23), (0.218, 1.29), (0.206, 1.35),
+        (0.182, 1.4), (0.146, 1.445), (0.104, 1.483), (0.062, 1.515), (0.026, 1.54), (0.0, 1.555)]
+HSY = 1.08
+FACE = (0.158, 1.255, 0.142)
+
+
+HOOD_SIDES = 32
+# Creases fall from the peak down the crown and sides: (angle from the front, depth), each a valley in the cloth.
+CREASES = ((1.0, 0.12), (2.0, 0.1), (2.75, 0.14), (3.55, 0.11), (4.3, 0.14), (5.3, 0.12))
+
+
 def cowl(i, j, x, y, z):
-    lift = max(0.0, (z - 1.0) / 0.66)
-    brow = 0.06 * max(0.0, 1 - abs(z - 1.43) / 0.12) if y < -0.2 else 0.0
-    a = 2 * math.pi * j / 22
-    neck = 0.03 * smoothstep(1.15, 1.0, z) * math.sin(9 * a)
-    drape = 0.06 * smoothstep(1.55, 1.12, z) * math.sin(6 * a + 0.8)
-    k = 1 + neck + drape
-    return (x * k, y * k + 0.34 * lift ** 3.4 - brow, z)
+    a = 2 * math.pi * (j + 0.5) / HOOD_SIDES
+    lift = smoothstep(1.2, 1.555, z)
+    gather = 0.035 * smoothstep(1.12, 1.0, z) * math.sin(9 * a)
+    band = smoothstep(1.12, 1.25, z) * smoothstep(1.56, 1.42, z)
+    dent = sum(d * math.exp(-abs(math.remainder(a - c - 0.5 * (z - 1.3), 2 * math.pi)) / 0.12) for c, d in CREASES)
+    k = 1 + gather - band * dent
+    return (x * k + 0.02 * lift ** 2, y * k + 0.1 * lift ** 2.4, z)
 
 
-HOOD = [(0.27, 1.0), (0.32, 1.05), (0.36, 1.11), (0.385, 1.18), (0.395, 1.25), (0.39, 1.32), (0.37, 1.39), (0.33, 1.46),
-        (0.27, 1.52), (0.19, 1.6), (0.11, 1.67), (0.045, 1.73), (0.0, 1.76)]
-hood = lathe('hood', HOOD, 22, MAIN, sy=0.95, phase=math.pi / 22, shape=cowl, levels=1)
-FACE = (0.235, 1.26, 0.18)
+hood = lathe('hood', HOOD, HOOD_SIDES, MAIN, sy=HSY, phase=math.pi / HOOD_SIDES, shape=cowl, levels=1)
 
 
 def in_face(c, grow=1.0):
-    return c.y < -0.1 and (c.x / (FACE[0] * grow)) ** 2 + ((c.z - FACE[1]) / (FACE[2] * grow)) ** 2 < 1
+    return c.y < -0.05 and (c.x / (FACE[0] * grow)) ** 2 + ((c.z - FACE[1]) / (FACE[2] * grow)) ** 2 < 1
 
 
 drop_faces(hood, lambda c: not in_face(c))
 bm = bmesh.new()
 bm.from_mesh(hood.data)
 for v in bm.verts:
-    if v.is_boundary and in_face(v.co, 1.6):
+    if v.is_boundary and in_face(v.co, 1.7):
         k = 1 / math.hypot(v.co.x / FACE[0], (v.co.z - FACE[1]) / FACE[2])
         v.co.x *= k
         v.co.z = FACE[1] + (v.co.z - FACE[1]) * k
@@ -283,126 +401,218 @@ bm.free()
 # The tip is narrower than the cloth is thick, so the lining would poke through it; thin the shell toward the point.
 thick = hood.vertex_groups.new(name='thick')
 for v in hood.data.vertices:
-    thick.add([v.index], 1 - 0.9 * smoothstep(1.5, 1.72, v.co.z), 'REPLACE')
-mod = solidify(hood, 0.05, inner=DARK).modifiers['solid']
+    thick.add([v.index], 1 - 0.9 * smoothstep(1.42, 1.52, v.co.z), 'REPLACE')
+mod = solidify(hood, 0.04, inner=LINING).modifiers['solid']
 mod.use_even_offset = False
 mod.vertex_group = 'thick'
-blob('void', (0, -0.04, 1.25), 0.31, VOID, scale=(0.95, 0.9, 0.85))
-for sx in (-0.075, 0.075):
-    eye = blob('eye', (sx, -0.3, 1.23), 0.036, EYES, scale=(1.2, 0.5, 0.65))
-    eye.rotation_euler.y = -math.copysign(0.35, sx)
-glow((0, -0.33, 1.24), '#9dffe0', 0.3, name='glow_eyes')
-
-# Team scarf: a thick twisted wrap at the throat, a knot, a tail down the chest and a tail down the back.
-def drape(i, j, x, y, z):
-    a = 2 * math.pi * j / 20
-    front = max(0.0, -y / 0.3)
-    twist = 1 + 0.1 * math.sin(5 * a + i * 1.3)
-    return (x * twist, y * twist, z - (0.09 * front ** 3 if i < 2 else 0.03 * front ** 3))
 
 
-lathe('scarf', [(0.27, 0.92), (0.35, 0.95), (0.375, 1.0), (0.37, 1.05), (0.33, 1.09), (0.25, 1.12)], 20, TEAM, sy=0.9,
-      shape=drape, levels=1)
-blob('scarf_knot', (-0.13, -0.31, 0.88), 0.065, TEAM, scale=(1.1, 0.8, 0.9))
-# Both tails sway together about the neck, so the scarf costs one extra draw call, not two.
-tails = empty('scarf_tails', (0, 0, 0.95))
+def hood_front(x, z, out=0.0):
+    r = interp(HOOD, z)
+    return Vector((x, -math.sqrt(max(r * r - x * x, 0.0)) * HSY - out, z))
+
+
+# The rim rolls back over the opening's edge, thick and uneven like folded wool; its seam hides under the scarf.
+RIM = [-math.pi / 2 + (2 * math.pi + 0.3) * k / 42 for k in range(43)]
+rim_path = [hood_front(FACE[0] * 1.06 * math.cos(t), FACE[1] + FACE[2] * 1.06 * math.sin(t), 0.008) for t in RIM]
+sweep('hood_rim', rim_path, [0.03 * (1 + 0.22 * math.sin(5 * t + 0.6) + 0.1 * math.sin(11 * t)) for t in RIM], 8, MAIN,
+      caps=False, levels=1)
+stitches([hood_front(FACE[0] * 1.42 * math.cos(t), FACE[1] + FACE[2] * 1.38 * math.sin(t), 0.004) for t in RIM[3:-3]],
+         lambda p: Vector((p.x, p.y, 0)).normalized())
+# Behind the opening: a void the lights cannot touch, set back so the rim and lining frame it like a cave mouth.
+blob('void', (0, 0.025, 1.25), 0.17, VOID, scale=(0.95, 0.9, 0.95))
+for sx in (-0.052, 0.052):
+    eye = blob('eye', (sx, -0.13, 1.238), 0.022, EYES, scale=(1.15, 0.45, 0.8))
+    eye.rotation_euler.y = -math.copysign(0.3, sx)
+glow((0, -0.16, 1.24), '#9dffe0', 0.07, name='glow_eyes')
+
+# Team scarf: a fat wrap at the throat, a knot, and a long tail streaming out past the scythe arm.
+def wrap_shape(i, j, x, y, z):
+    a = 2 * math.pi * j / 24
+    front = max(0.0, -y / 0.25)
+    puff = 1 + 0.1 * math.sin(4 * a + i * 1.4) + 0.05 * math.sin(9 * a)
+    return (x * puff, y * puff, z - 0.035 * front ** 2)
+
+
+lathe('scarf', [(0.2, 0.975), (0.245, 0.99), (0.262, 1.03), (0.255, 1.075), (0.228, 1.11), (0.2, 1.13)], 24, TEAM,
+      sy=0.95, shape=wrap_shape, levels=1)
+blob('scarf_knot', (-0.12, -0.235, 0.99), 0.06, TEAM, scale=(1.15, 0.85, 0.95))
+tails = empty('scarf_tails', (-0.12, -0.24, 0.99))
+TAIL = bezier((-0.13, -0.24, 0.98), (-0.3, -0.28, 0.94), (-0.4, -0.2, 0.76), (-0.56, -0.1, 0.58), 9)
+TAIL_SIDE = (TAIL[-1] - TAIL[0]).cross(Vector((0, 1, 0))).normalized()
 for ob in (
-    ribbon('scarf_front', bezier((-0.13, -0.33, 0.87), (-0.17, -0.38, 0.78), (-0.13, -0.38, 0.68), (-0.2, -0.35, 0.55), 6),
-           [0.13, 0.14, 0.14, 0.13, 0.12, 0.12, 0.12], (1, 0, 0.2), TEAM, notch=0.04, mask=lambda i: 1.0 if i == 4 else 0.0),
-    ribbon('scarf_back', bezier((0.06, 0.3, 1.0), (0.08, 0.36, 0.86), (0.1, 0.38, 0.72), (0.14, 0.4, 0.56), 6),
-           [0.15, 0.15, 0.145, 0.14, 0.13, 0.13, 0.12], (1, 0, 0), TEAM, notch=0.045, mask=lambda i: 1.0 if i == 4 else 0.0),
+    ribbon('scarf_tail', TAIL, [0.12, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.21], TAIL_SIDE, TEAM,
+           notch=0.05, mask=lambda i: 1.0 if i == 8 else 0.0),
+    ribbon('scarf_drop', bezier((-0.1, -0.25, 0.97), (-0.08, -0.28, 0.9), (-0.12, -0.27, 0.83), (-0.1, -0.25, 0.76), 6),
+           [0.1, 0.105, 0.11, 0.11, 0.11, 0.11, 0.11], (1, 0, 0.1), TEAM, notch=0.035, mask=lambda i: 1.0 if i == 5 else 0.0),
 ):
     parent(ob, tails)
-loop(tails, 'rotation_euler', 2, [0.0, 0.07, 0.0, -0.07], 96)
-loop(tails, 'rotation_euler', 0, [0.0, -0.04, 0.0, 0.03], 64)
+for edge in (-1, 1):
+    stitches([p + TAIL_SIDE * (0.075 * edge) for p in TAIL[1:-1]],
+             lambda p: Vector((0, -1, 0.2)).normalized(), mat=TEAM)
+loop(tails, 'rotation_euler', 1, [0.0, 0.06, 0.0, -0.05], 72)
+loop(tails, 'rotation_euler', 2, [0.0, 0.05, 0.0, -0.05], 96)
 
-# Leather shoulder guard, riveted, with bone spikes on the left shoulder.
-guard = blob('pauldron', (0.27, 0.0, 0.98), 0.12, LEATHER, scale=(1.0, 1.1, 0.6))
-blob('pauldron_rim', (0.27, 0.0, 0.955), 0.125, LEATHER, scale=(1.02, 1.12, 0.32))
-for k in range(5):
-    a = -0.9 + k * 0.45
-    blob('rivet', (0.27 + 0.11 * math.sin(a), -0.12 * math.cos(a), 0.99), 0.012, GOLD, subdiv=1)
-for k, (dx, dy, dz, tilt) in enumerate(((0.0, 0.03, 0.05, 0.2), (0.07, 0.0, 0.0, 0.9), (0.04, 0.07, 0.06, 0.5))):
-    root = Vector((0.3 + dx, dy, 1.02 + dz))
-    tip = root + Vector((math.sin(tilt), 0.03, math.cos(tilt))) * 0.15
-    sweep('spike', [root, root.lerp(tip, 0.5), tip], [0.03, 0.017, 0.002], 8, BONE)
+# Layered leather pauldron on the left shoulder, gold-rimmed and riveted, with short bone spikes.
+for k, (dx, dz, r, sz) in enumerate(((0.0, 0.0, 0.105, 0.55), (0.035, -0.045, 0.1, 0.45), (0.065, -0.085, 0.09, 0.4))):
+    c = Vector((0.2 + dx, 0.0, 1.0 + dz))
+    plate = blob('pauldron', c, r, LEATHER, scale=(1.0, 1.15, sz), subdiv=3)
+    plate.rotation_euler.y = 0.35 + 0.15 * k
+    rim = blob('pauldron_rim', c - Vector((0, 0, 0.012)), r * 1.04, GOLD, scale=(1.0, 1.15, sz * 0.4), subdiv=3)
+    rim.rotation_euler.y = plate.rotation_euler.y
+    for m in range(5):
+        a = -1.0 + m * 0.5
+        hi(blob('rivet', c + Vector((0.09 * math.sin(a) * r / 0.1, -0.11 * math.cos(a) * r / 0.1, 0.035)), 0.006, GOLD, subdiv=1))
+for dx, dy, tilt in ((0.03, -0.03, 0.35), (0.09, 0.02, 0.75)):
+    root = Vector((0.2 + dx, dy, 1.04))
+    tip = root + Vector((math.sin(tilt), 0.02, math.cos(tilt))) * 0.09
+    sweep('spike', [root, root.lerp(tip, 0.5), tip], [0.02, 0.012, 0.002], 8, BONE)
 
-# Belt with a gold buckle, rivets, pouches, and brass bells and a bone charm hanging from it.
-belt = lathe('belt', [(0.3, 0.6), (0.307, 0.63), (0.307, 0.68), (0.293, 0.71)], 28, LEATHER, sy=0.88)
-for x, z, w, h in ((0, 0.69, 0.11, 0.022), (0, 0.62, 0.11, 0.022), (-0.045, 0.655, 0.022, 0.09), (0.045, 0.655, 0.022, 0.09)):
-    box('buckle', (x, -0.272, z), (w, 0.025, h), GOLD, bevel=0.007, segments=1)
-box('buckle_pin', (0, -0.28, 0.655), (0.012, 0.02, 0.06), GOLD, bevel=0.004)
-for k in range(8):
-    a = math.pi * (0.25 + k * 0.21)
-    blob('belt_stud', (0.31 * math.sin(a), -0.31 * 0.88 * math.cos(a), 0.655), 0.011, GOLD, subdiv=1)
-for sx, rot, w, h in ((0.2, 0.6, 0.11, 0.11), (-0.2, -0.6, 0.085, 0.09)):
-    box('pouch', (sx, -0.2, 0.57), (w, 0.065, h), LEATHER, rot=(0, 0, rot), bevel=0.02, segments=2)
-    box('pouch_flap', (sx * 1.02, -0.2 - 0.03, 0.605), (w * 1.05, 0.02, h * 0.45), LEATHER, rot=(0.15, 0, rot), bevel=0.008)
-    blob('pouch_stud', (sx * 1.05, -0.245, 0.585), 0.012, GOLD, subdiv=1)
+# Silver frog clasps close the coat between the scarf and the belt.
+for z in (0.8, 0.88):
+    for sx in (-1, 1):
+        box('clasp', (sx * 0.022, -0.212 * SY - 0.006 + 0.004 * (z - 0.8), z), (0.03, 0.012, 0.016), SILVER, bevel=0.005)
+    blob('clasp_knot', (0.0, -0.212 * SY - 0.01, z), 0.011, SILVER, subdiv=1)
+
+# Wide leather belt: stitched edges, a big pale buckle, studs, a pouch, and chains of charms.
+BELT_R = 0.224
+lathe('belt', [(BELT_R - 0.004, 0.665), (BELT_R, 0.672), (BELT_R, 0.758), (BELT_R - 0.004, 0.765)], 32, LEATHER, sy=SY)
+for z in (0.674, 0.756):
+    ring = [Vector((BELT_R * 1.01 * math.sin(a), -BELT_R * 1.01 * SY * math.cos(a), z))
+            for a in [2 * math.pi * k / 120 for k in range(121)]]
+    stitches(ring, lambda p: Vector((p.x, p.y, 0)).normalized(), mat=GOLD, length=0.009, gap=0.006, radius=0.0018)
+FRONT = -BELT_R * SY - 0.012
+for x, z, w, h in ((0, 0.765, 0.13, 0.026), (0, 0.665, 0.13, 0.026), (-0.052, 0.715, 0.026, 0.12), (0.052, 0.715, 0.026, 0.12)):
+    box('buckle', (x, FRONT, z), (w, 0.022, h), SILVER, bevel=0.008, segments=2)
+box('buckle_pin', (-0.01, FRONT - 0.004, 0.715), (0.075, 0.014, 0.014), SILVER, bevel=0.005)
+box('buckle_tongue', (0.0, FRONT + 0.004, 0.715), (0.08, 0.008, 0.06), LEATHER, bevel=0.004)
+for k in range(10):
+    a = math.pi * (0.28 + k * 0.16)
+    blob('belt_stud', (BELT_R * math.sin(a), -BELT_R * SY * math.cos(a), 0.715), 0.01, SILVER, subdiv=1)
+box('pouch', (0.17, -0.15, 0.62), (0.1, 0.06, 0.1), LEATHER, rot=(0, 0, 0.75), bevel=0.02)
+box('pouch_flap', (0.175, -0.175, 0.65), (0.105, 0.02, 0.05), LEATHER, rot=(0.15, 0, 0.75), bevel=0.008)
+blob('pouch_stud', (0.18, -0.19, 0.635), 0.01, SILVER, subdiv=1)
 
 
-def bell(name, top, size):
+def chain(top, drop, sway, count):
+    """Links hanging from `top` along a shallow curve; returns the point under the last link."""
+    pts = bezier(top, top + Vector((sway * 0.3, -0.01, -drop * 0.4)), top + Vector((sway, -0.01, -drop * 0.75)),
+                 top + Vector((sway, 0, -drop)), count)
+    for k, p in enumerate(pts[:-1]):
+        d = (pts[k + 1] - p).normalized()
+        yaw = 0.0 if k % 2 else math.pi / 2
+        ob = link('chain_link', p.lerp(pts[k + 1], 0.5), (0, 0, yaw), SILVER)
+        ob.rotation_euler = d.to_track_quat('Y', 'Z').to_euler()
+        ob.rotation_euler.rotate_axis('Y', yaw)
+    return pts[-1]
+
+
+def crystal(name, tip, size, mat=SOUL):
+    return lathe(name, [(0.0, tip.z), (size * 0.5, tip.z - size * 0.9), (size * 0.32, tip.z - size * 1.8), (0.0, tip.z - size * 2.4)],
+                 6, mat, shape=lambda i, j, x, y, z: (x + tip.x, y + tip.y, z))
+
+
+def skull_charm(at, size):
+    blob('charm_skull', at, size, BONE, scale=(1, 0.95, 1.1))
+    for sx in (-0.4, 0.4):
+        blob('charm_eye', at + Vector((sx * size, -0.85 * size, 0)), size * 0.28, SOCKET, subdiv=1)
+
+
+def bell(name, top, size, mat=GOLD):
     prof = [(0.0, 0.02), (0.35, 0.0), (0.55, -0.25), (0.65, -0.6), (0.95, -0.95), (1.0, -1.0)]
-    return lathe(name, [(r * size, top.z + z * size * 1.3) for r, z in prof], 10, GOLD,
+    return lathe(name, [(r * size, top.z + z * size * 1.3) for r, z in prof], 12, mat,
                  shape=lambda i, j, x, y, z: (x + top.x, y + top.y, z), close_top=True)
 
 
-for tx, ty, drop, size in ((0.09, -0.29, 0.07, 0.045), (-0.1, -0.29, 0.1, 0.035), (0.15, -0.26, 0.05, 0.03)):
-    knot = Vector((tx, ty, 0.62))
-    limb('bell_cord', knot, knot - Vector((0, 0, drop)), 0.005, 0.005, LEATHER, sides=4)
-    bell('bell', knot - Vector((0, 0, drop)), size)
-charm = Vector((-0.26, -0.15, 0.62))
-limb('charm_cord', charm, charm - Vector((0, 0, 0.08)), 0.005, 0.005, LEATHER, sides=4)
-blob('charm_skull', charm - Vector((0, 0, 0.11)), 0.03, BONE, scale=(1, 0.95, 1.1))
-for sx in (-0.011, 0.011):
-    blob('charm_eye', charm - Vector((-sx, 0.027, 0.11)), 0.008, VOID, subdiv=1)
+end = chain(Vector((-0.04, FRONT, 0.655)), 0.12, -0.02, 6)
+skull_charm(end - Vector((0, 0, 0.022)), 0.022)
+end = chain(Vector((0.03, FRONT, 0.655)), 0.16, 0.015, 8)
+crystal('charm_crystal', end, 0.018)
+end = chain(Vector((-0.12, -0.17, 0.66)), 0.09, -0.01, 5)
+bell('charm_bell', end, 0.022)
+end = chain(Vector((0.1, -0.17, 0.66)), 0.07, 0.01, 4)
+blob('charm_bead', end - Vector((0, 0, 0.012)), 0.013, GOLD, subdiv=1)
 
-# Bell sleeves, open at the wrist onto bony hands.
-for name, shoulder, wrist in (('sleeve_r', (-0.23, -0.02, 0.99), (-0.335, -0.14, 0.7)), ('sleeve_l', (0.24, -0.02, 0.97), (0.33, -0.12, 0.68))):
-    s, w = Vector(shoulder), Vector(wrist)
-    path = [s.lerp(w, t) for t in (0, 0.35, 0.7, 1.0, 1.06)]
-    sl = sweep(name, path, [0.075, 0.085, 0.1, 0.122, 0.124], 14, MAIN, caps=False, levels=1,
-               mask=lambda i: 1.0 if i >= 3 else 0.0)
-    solidify(sl, 0.016, inner=DARK)
-for hand, r in ((RIGHT_HAND, 0.056), (LEFT_HAND, 0.05)):
-    blob('hand', hand, r, BONE, scale=(1, 1, 1.1), subdiv=3)
-    for k in range(3):
-        blob('knuckle', hand + Vector((-0.03 + 0.03 * k, -0.045, 0.02 - 0.025 * k)), 0.017, BONE, scale=(1, 1, 1.3), subdiv=1)
+# Long bell sleeves on bony hands: the right raised to the scythe, the left hanging with the soul bell.
+ARMS = {
+    'r': (Vector((-0.17, 0.0, 0.975)), Vector((-0.28, 0.01, 0.8)), Vector((-0.27, -0.13, 0.875))),
+    'l': (Vector((0.17, 0.0, 0.975)), Vector((0.265, 0.0, 0.8)), Vector((0.29, -0.06, 0.66))),
+}
+for side, (s, e, w) in ARMS.items():
+    path = bezier(s, s.lerp(e, 0.8), e.lerp(w, 0.3), w + (w - e) * 0.08, 6)
+    radii = [0.068, 0.072, 0.078, 0.088, 0.1, 0.115, 0.122]
+    sl = sweep(f'sleeve_{side}', path, radii, 14, MAIN, caps=False, levels=1, mask=lambda i: 1.0 if i >= 5 else 0.0)
+    solidify(sl, 0.014, inner=DARK)
+    _, fr = frames(path)
+    cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * 0.116
+            for a in [2 * math.pi * k / 48 for k in range(49)]]
+    hi(sweep('cuff_braid', cuff, 0.004, 6, GOLD))
 
-# Scythe: the weapon pivots at the right-hand grip.
+RIGHT_HAND = Vector((-0.27, -0.19, 0.885))
+LEFT_HAND = Vector((0.3, -0.085, 0.61))
+POLE = Vector((0.09, 0.0, 1.0)).normalized()
+
+
+def hand(center, around, wrap):
+    """A bony hand: a palm and four knuckled fingers curling about `around` (a direction), closing on a grip of
+    radius `wrap`."""
+    side = around.cross(Vector((0, -1, 0))).normalized()
+    blob('palm', center + side * (wrap + 0.016), 0.027, BONE, scale=(0.7, 1.0, 1.15), subdiv=3)
+    for k in range(4):
+        h = (k - 1.5) * 0.017
+        arc = [center + around * h + (side * math.cos(a) + around.cross(side) * math.sin(a)) * (wrap + 0.008)
+               for a in [math.radians(d) for d in (10, 70, 130, 185)]]
+        sweep('finger', arc, [0.0105, 0.0095, 0.009, 0.007], 6, BONE)
+        blob('knuckle', arc[1], 0.011, BONE, subdiv=1)
+    thumb = [center + side * (wrap + 0.012) + Vector((0, -0.02, 0.02)), center + Vector((0, -wrap - 0.012, 0.022))]
+    sweep('thumb', thumb, [0.011, 0.008], 6, BONE)
+
+
+hand(RIGHT_HAND, POLE, 0.024)
+
+# Scythe: the weapon pivots at the right-hand grip; the pole leans in so the great crescent hangs over the hood.
 weapon = empty('weapon', RIGHT_HAND)
-TOP = 1.8
 
 
 def part(ob):
     return parent(ob, weapon)
 
 
-g = RIGHT_HAND
-part(sweep('shaft', [(g.x, g.y, 0.06), (g.x + 0.004, g.y, 0.9), (g.x, g.y, TOP + 0.06)], [0.022, 0.025, 0.023], 10, WOOD))
-part(sweep('butt', [(g.x, g.y, 0.0), (g.x, g.y, 0.03), (g.x, g.y, 0.08)], [0.006, 0.03, 0.032], 10, GOLD))
-for z, h in ((0.08, 0.035), (0.86, 0.03), (TOP - 0.07, 0.09)):
-    part(sweep('ferrule', [(g.x, g.y, z), (g.x, g.y, z + h / 2), (g.x, g.y, z + h)], [0.03, 0.034, 0.03], 12, GOLD))
-for z0, z1, turns in ((0.5, 0.84, 7), (0.2, 0.36, 3)):
-    n = turns * 6
-    helix = [Vector((g.x + 0.027 * math.cos(2 * math.pi * t / 6), g.y + 0.027 * math.sin(2 * math.pi * t / 6), z0 + (z1 - z0) * t / n))
+def pole_at(z):
+    return RIGHT_HAND + POLE * ((z - RIGHT_HAND.z) / POLE.z)
+
+
+TOP_Z = 1.86
+T = pole_at(TOP_Z)
+part(sweep('shaft', [pole_at(0.05), pole_at(0.9), pole_at(TOP_Z + 0.05)], [0.021, 0.024, 0.022], 10, WOOD))
+part(sweep('butt', [pole_at(0.0), pole_at(0.03), pole_at(0.07)], [0.008, 0.03, 0.03], 10, GOLD))
+for z, h in ((0.07, 0.03), (0.37, 0.025), (TOP_Z - 0.05, 0.07)):
+    part(sweep('ferrule', [pole_at(z), pole_at(z + h / 2), pole_at(z + h)], [0.029, 0.033, 0.029], 12, GOLD))
+for z0, z1, turns in ((0.12, 0.36, 13), (TOP_Z - 0.3, TOP_Z - 0.06, 13), (0.78, 1.0, 12)):
+    n = turns * 8
+    side = POLE.cross(Vector((0, 1, 0))).normalized()
+    up = POLE.cross(side)
+    helix = [pole_at(z0 + (z1 - z0) * t / n) + (side * math.cos(2 * math.pi * t / 8) + up * math.sin(2 * math.pi * t / 8)) * 0.026
              for t in range(n + 1)]
-    part(sweep('grip_wrap', helix, [0.009] * (n + 1), 4, LEATHER, squash=0.6))
-part(box('collar', (g.x - 0.03, g.y, TOP), (0.13, 0.065, 0.075), GOLD, bevel=0.018, segments=2))
-spine = bezier((g.x - 0.04, g.y, TOP + 0.03), (g.x - 0.3, g.y, TOP + 0.17), (g.x - 0.57, g.y, TOP + 0.03),
-               (g.x - 0.66, g.y, TOP - 0.28), 14)
-widths = [0.14 * (1 - i / 14) ** 0.75 + 0.004 for i in range(15)]
+    part(sweep('grip_wrap', [pole_at(z0), pole_at(z1)], 0.03, 10, WRAP))
+    part(hi(sweep('grip_turn', helix, 0.0085, 6, WRAP, squash=0.6)))
+part(box('collar', T + Vector((-0.025, 0, 0.0)), (0.12, 0.062, 0.08), GOLD, bevel=0.018, segments=2))
+part(blob('finial', T + Vector((0.0, 0, 0.09)), 0.03, GOLD, scale=(1, 1, 1.3)))
+spine = bezier(T + Vector((-0.04, 0, 0.035)), T + Vector((-0.32, 0, 0.17)), T + Vector((-0.64, 0, 0.06)),
+               T + Vector((-0.68, 0, -0.52)), 18)
+N = len(spine) - 1
+widths = [0.24 * (1 - i / N) ** 0.75 + 0.004 for i in range(N + 1)]
 verts, faces, edge = [], [], []
 for i, p in enumerate(spine):
-    tangent = (spine[min(i + 1, 14)] - spine[max(i - 1, 0)]).normalized()
+    tangent = (spine[min(i + 1, N)] - spine[max(i - 1, 0)]).normalized()
     inward = Vector((tangent.z, 0, -tangent.x))
-    if inward.z > 0:
+    if inward.dot(Vector((1, 0, -1))) < 0:
         inward = -inward
-    t = 0.014 * (1 - i / 16)
+    t = 0.014 * (1 - i / (N + 2))
     verts += [p + Vector((0, -t, 0)), p + inward * widths[i] * 0.45 + Vector((0, -t * 0.6, 0)), p + inward * widths[i],
               p + inward * widths[i] * 0.45 + Vector((0, t * 0.6, 0)), p + Vector((0, t, 0))]
     edge += [0.0, 0.0, 1.0, 0.0, 0.0]
-for i in range(14):
+for i in range(N):
     a = 5 * i
     for k in range(4):
         faces.append((a + k, a + 5 + k, a + 6 + k, a + k + 1))
@@ -410,54 +620,78 @@ for i in range(14):
 blade = build('blade', verts, faces, STEEL)
 mark(blade, lambda co, it=iter(edge): next(it))
 part(blade)
-for k, (dx, drop) in enumerate(((0.08, 0.26), (0.16, 0.18))):
-    top = Vector((g.x - dx, g.y, TOP - 0.03))
-    part(limb('cord', top, top - Vector((0, 0, drop)), 0.005, 0.005, LEATHER, sides=4))
-    part(blob('charm_bead', top - Vector((0, 0, drop * 0.5)), 0.022, GOLD, subdiv=1))
-    part(sweep('charm_drop', [top - Vector((0, 0, drop)), top - Vector((0, 0, drop + 0.04)), top - Vector((0, 0, drop + 0.09))],
-               [0.012, 0.03, 0.002], 8, SOUL))
+part(sweep('blade_spine', spine[:12], [0.016 * (1 - i / 14) for i in range(12)], 6, STEEL))
+# Tassels hang from the collar: cords, beads, a green crystal each, and a fringe of strands.
+for k, (dx, drop, mat) in enumerate(((-0.05, 0.2, TASSEL), (-0.12, 0.3, TASSEL), (0.03, 0.16, GOLD))):
+    top = T + Vector((dx, -0.005, -0.04))
+    knot = top - Vector((0, 0, drop))
+    part(limb('cord', top, knot, 0.004, 0.004, LEATHER, sides=4))
+    part(blob('tassel_bead', top - Vector((0, 0, drop * 0.45)), 0.017, GOLD, subdiv=1))
+    part(crystal('tassel_crystal', top - Vector((0, 0, drop * 0.55)), 0.016))
+    part(blob('tassel_knot', knot, 0.016, mat, scale=(1, 1, 1.2), subdiv=1))
+    for s in range(7):
+        a = 2 * math.pi * s / 7
+        spread = Vector((math.cos(a), math.sin(a), 0)) * 0.012
+        part(sweep('tassel_strand', [knot, knot + spread - Vector((0, 0, 0.04)), knot + spread * 1.6 - Vector((0, 0, 0.085))],
+                   [0.005, 0.004, 0.002], 4, mat))
 
-# Soul lantern swinging under the left hand.
-swing = empty('lantern_swing', LEFT_HAND)
-L = LEFT_HAND - Vector((0, 0, 0.21))
-at = lambda i, j, x, y, z: (x + L.x, y + L.y, z)
+# The soul bell hangs from the left hand by a short chain and swings.
+hand(LEFT_HAND, Vector((0, 0, 1)), 0.012)
+swing = empty('bell_swing', LEFT_HAND)
+B = LEFT_HAND - Vector((0, 0, 0.1))
 for ob in (
-    limb('lantern_cord', LEFT_HAND, L + Vector((0, 0, 0.13)), 0.006, 0.006, LEATHER, sides=4),
-    lathe('lantern_cap', [(0.068, L.z + 0.06), (0.07, L.z + 0.075), (0.045, L.z + 0.1), (0.018, L.z + 0.125), (0.0, L.z + 0.13)],
-          12, GOLD, shape=at),
-    lathe('lantern_base', [(0.0, L.z - 0.11), (0.05, L.z - 0.105), (0.066, L.z - 0.085), (0.066, L.z - 0.065), (0.0, L.z - 0.065)],
-          12, GOLD, shape=at),
-    lathe('lantern_core', [(0.0, L.z - 0.07), (0.04, L.z - 0.06), (0.052, L.z), (0.04, L.z + 0.05), (0.0, L.z + 0.062)], 10, SOUL,
-          shape=at),
+    link('bell_ring', LEFT_HAND + Vector((0, 0, -0.015)), (math.pi / 2, 0, 0), GOLD, size=0.018),
+    limb('bell_chain', LEFT_HAND - Vector((0, 0, 0.03)), B + Vector((0, 0, 0.01)), 0.004, 0.004, SILVER, sides=4),
+    lathe('bell_cap', [(0.0, B.z + 0.02), (0.022, B.z + 0.012), (0.034, B.z - 0.004), (0.036, B.z - 0.012)], 12, GOLD,
+          shape=lambda i, j, x, y, z: (x + B.x, y + B.y, z)),
+    lathe('bell_body', [(0.0, B.z - 0.002), (0.034, B.z - 0.008), (0.042, B.z - 0.045), (0.052, B.z - 0.09), (0.072, B.z - 0.125),
+                        (0.075, B.z - 0.138), (0.035, B.z - 0.134), (0.0, B.z - 0.13)], 14, SOUL,
+          shape=lambda i, j, x, y, z: (x + B.x, y + B.y, z)),
+    lathe('bell_band', [(0.077, B.z - 0.114), (0.08, B.z - 0.125), (0.077, B.z - 0.14)], 14, GOLD,
+          shape=lambda i, j, x, y, z: (x + B.x, y + B.y, z)),
+    blob('bell_clapper', B - Vector((0, 0, 0.142)), 0.016, GOLD, subdiv=1),
 ):
     parent(ob, swing)
-for k in range(4):
-    a = k * math.pi / 2 + math.pi / 4
-    c = Vector((0.058 * math.cos(a), 0.058 * math.sin(a), 0))
-    parent(limb('lantern_bar', L + c + Vector((0, 0, -0.07)), L + c + Vector((0, 0, 0.065)), 0.008, 0.008, GOLD, sides=6), swing)
-glow(L, GREEN_GLOW, 0.4, swing, name='glow_lantern')
+glow(B - Vector((0, 0, 0.07)), GREEN_GLOW, 0.4, swing, name='glow_bell')
 loop(swing, 'rotation_euler', 0, [0.0, 0.12, 0.0, -0.12], 64)
 loop(swing, 'rotation_euler', 1, [0.0, -0.05, 0.0, 0.05], 96)
 
-# Two ghost skulls circling the Gravecaller, each bobbing on its own beat, trailing a curled wisp of soul fire.
+# Two ghost skulls drift around the Gravecaller, each wreathed in a curling tongue of soul fire.
 orbit = empty('orbit', (0, 0, 0))
-for k, (ang, z, period) in enumerate(((0.35, 0.95, 48), (math.pi + 0.5, 0.55, 64))):
-    pos = Vector((0.48 * math.cos(ang), 0.48 * math.sin(ang), z))
+for k, (ang, z, period, s) in enumerate(((0.3, 1.2, 48, 1.0), (math.pi + 0.45, 0.42, 64, 0.85))):
+    pos = Vector((0.52 * math.cos(ang), 0.52 * math.sin(ang), z))
     bob = empty('skull_bob', pos, orbit)
+    # Turning back against the orbit keeps the skull's face toward the front, as in the concept.
+    face = spin(empty('skull_face', pos, bob), period=192, turns=-1)
+
+    def flame(i, j, x, y, z, s=s, pos=pos):
+        t = (z - pos.z + 0.1 * s) / (0.4 * s)
+        a = 2 * math.pi * j / 18 + 1.2 * t
+        crown = abs(math.sin(1.5 * a)) - 0.5
+        r = math.hypot(x, y) * (1 + 1.1 * smoothstep(0.3, 1.0, t) * crown)
+        lick = 0.16 * s * t * t * crown
+        return (pos.x + r * math.sin(a) + 0.05 * s * t * t, pos.y - r * math.cos(a) + 0.07 * s * t * t + 0.02 * s, z + lick)
+
+    prof = [(0.0, -0.1), (0.08, -0.085), (0.112, -0.03), (0.11, 0.04), (0.09, 0.11), (0.064, 0.18), (0.036, 0.25), (0.014, 0.31),
+            (0.0, 0.35)]
     parts = [
-        blob('skull', pos, 0.08, SOUL, scale=(1, 0.95, 0.92), subdiv=3),
-        blob('skull_cheek', pos + Vector((0, -0.025, -0.045)), 0.06, SOUL, scale=(1.1, 0.9, 0.7)),
-        box('skull_jaw', pos + Vector((0, -0.02, -0.08)), (0.075, 0.07, 0.04), SOUL, bevel=0.015),
-        sweep('skull_wisp', [pos + Vector((0, 0.03, -0.04)), pos + Vector((0, 0.1, -0.12)), pos + Vector((0, 0.13, -0.22)),
-                             pos + Vector((0, 0.08, -0.3)), pos + Vector((0, 0.02, -0.31))],
-              [0.07, 0.05, 0.03, 0.014, 0.002], 8, SOUL, mask=lambda i: min(1.0, i / 4) ** 1.5),
+        lathe('flame', [(r * s, pos.z + h * s) for r, h in prof], 18, SOUL, shape=flame,
+              mask=lambda i, j: (i / 8) ** 1.6),
+        blob('skull', pos + Vector((0, -0.02 * s, 0)), 0.075 * s, SOUL, scale=(1, 0.95, 0.92), subdiv=3),
+        blob('skull_cheek', pos + Vector((0, -0.045 * s, -0.045 * s)), 0.055 * s, SOUL, scale=(1.1, 0.9, 0.7)),
+        box('skull_jaw', pos + Vector((0, -0.04 * s, -0.078 * s)), (0.07 * s, 0.06 * s, 0.035 * s), SOUL, bevel=0.012),
     ]
-    for sx in (-0.03, 0.03):
-        parts.append(blob('skull_eye', pos + Vector((sx, -0.065, 0.0)), 0.024, VOID, scale=(1, 0.5, 1.15)))
-    parts.append(blob('skull_nose', pos + Vector((0, -0.078, -0.035)), 0.01, VOID, scale=(1, 0.5, 1.4), subdiv=1))
+    for sx in (-0.028, 0.028):
+        parts.append(blob('skull_eye', pos + Vector((sx * s, -0.083 * s, 0.0)), 0.022 * s, SOCKET, scale=(1, 0.5, 1.15)))
+    parts.append(blob('skull_nose', pos + Vector((0, -0.095 * s, -0.033 * s)), 0.009 * s, SOCKET, scale=(1, 0.5, 1.4), subdiv=1))
+    for w in (-1, 1):
+        curl = [pos + Vector((w * 0.07, 0.03, -0.05)) * s, pos + Vector((w * 0.105, 0.05, 0.04)) * s,
+                pos + Vector((w * 0.08, 0.08, 0.13)) * s, pos + Vector((w * 0.035, 0.1, 0.2)) * s]
+        parts.append(sweep('wisp', curl, [0.03 * s, 0.022 * s, 0.012 * s, 0.001], 6, SOUL, levels=1,
+                           mask=lambda i: (i / 3) ** 1.5))
     for ob in parts:
-        parent(ob, bob)
-    glow(pos, GREEN_GLOW, 0.5, bob, name='glow_skull')
+        parent(ob, face)
+    glow(pos, GREEN_GLOW, 0.55 * s, bob, name='glow_skull')
     loop(bob, 'location', 2, [z, z + 0.06, z, z - 0.04], period)
     loop(bob, 'rotation_euler', 2, [0.0, 0.25, 0.0, -0.25], period * 2)
 spin(orbit, period=192)
@@ -466,26 +700,7 @@ for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, orbit):
         parent(ob, breath)
 
-# One mesh per moving part keeps the draw calls down: bake modifiers, then join the meshes that share a parent.
-bpy.ops.object.select_all(action='DESELECT')
-for ob in bpy.data.objects:
-    if ob.type == 'MESH':
-        ob.select_set(True)
-bpy.context.view_layer.objects.active = next(o for o in bpy.data.objects if o.type == 'MESH')
-bpy.ops.object.convert(target='MESH')
-groups = {}
-for ob in bpy.data.objects:
-    if ob.type == 'MESH':
-        groups.setdefault(ob.parent, []).append(ob)
-for par, obs in groups.items():
-    bpy.ops.object.select_all(action='DESELECT')
-    for ob in obs:
-        ob.select_set(True)
-    bpy.context.view_layer.objects.active = obs[0]
-    bpy.ops.object.join()
-    obs[0].name = f'{par.name}_mesh' if par else 'body'
-
-bake()
-tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in bpy.data.objects if o.type == 'MESH')
-print(f'gravecaller: {tris} triangles, {len(bpy.data.objects)} objects')
+meshes = bake()
+tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
+print(f'gravecaller: {tris} triangles, {len(meshes)} meshes')
 finish()

@@ -3,6 +3,7 @@
 What the game reads from a figure (src/client/board/models.ts):
 - a material named `team`, recoloured blue or red per unit; author it in any colour;
 - a material named `main`, the class body; a hit flashes its emission, so give it none;
+- a material named `void` (see `void()`), drawn unlit pure black whatever the lights: a face lost in shadow;
 - an object named `weapon`, tilted on its local x and lifted when the unit casts; put its origin at the grip and keep its own x rotation 0 (the cast overwrites it), rotating its children instead;
 - every animation clip loops as idle motion;
 - an Empty named `glow...` with custom props `color` ("#rrggbb") and `size` (metres) becomes a soft additive halo.
@@ -39,6 +40,18 @@ def material(name, color, rough=0.75, metal=0.0, emit=None, strength=1.0):
     if emit:
         p.inputs['Emission Color'].default_value = (*hexrgb(emit), 1)
         p.inputs['Emission Strength'].default_value = strength
+    return m
+
+
+def void():
+    """The `void` material. Blender shows it as black emission; the game swaps in an unlit black, so its shape never shades."""
+    m = bpy.data.materials.get('void') or bpy.data.materials.new('void')
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    e = nt.nodes.new('ShaderNodeEmission')
+    e.inputs['Color'].default_value = (0, 0, 0, 1)
+    nt.links.new(e.outputs[0], nt.nodes.new('ShaderNodeOutputMaterial').inputs['Surface'])
     return m
 
 
@@ -95,10 +108,10 @@ def loop(obj, path, index, values, period):
     return obj
 
 
-def spin(obj, axis=2, period=96):
-    """A full turn about `axis` every `period` frames, at constant speed."""
+def spin(obj, axis=2, period=96, turns=1):
+    """`turns` full turns about `axis` every `period` frames, at constant speed; negative turns spin the other way."""
     start = obj.rotation_euler[axis]
-    for frame, v in ((1, start), (1 + period, start + 2 * math.pi)):
+    for frame, v in ((1, start), (1 + period, start + 2 * math.pi * turns)):
         obj.rotation_euler[axis] = v
         obj.keyframe_insert('rotation_euler', index=axis, frame=frame)
     for fc in _fcurves(obj.animation_data.action):

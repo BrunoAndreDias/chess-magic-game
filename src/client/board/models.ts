@@ -16,6 +16,8 @@ export interface Figure {
 /** A class's loaded .glb, built by art/build.sh from art/figures/<class>.py. Its conventions are documented in art/figures/common.py. */
 interface Source { scene: THREE.Group; clips: THREE.AnimationClip[]; height: number }
 const SOURCES = new Map<ClassId, Source>();
+/** Stands in for every `void` material: black that no light, fog or tone mapping can shade. */
+const VOID = keep(new THREE.MeshBasicMaterial({ name: 'void', color: 0x000000, fog: false }));
 
 /** Fetches every class figure once; call before the first `buildModel`. */
 export async function loadFigures(): Promise<void> {
@@ -26,6 +28,7 @@ export async function loadFigures(): Promise<void> {
       if (!(o instanceof THREE.Mesh)) return;
       o.castShadow = true;
       o.geometry.userData.shared = true;
+      if ((o.material as THREE.Material).name === 'void') o.material = VOID;
       keep(o.material as THREE.Material);
     });
     SOURCES.set(cls, { scene: g.scene, clips: g.animations, height: new THREE.Box3().setFromObject(g.scene).max.y });
