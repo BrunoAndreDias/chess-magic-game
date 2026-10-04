@@ -1,4 +1,6 @@
-import { CLASSES, DEPLOY_ROWS, DIR4, DIR8, N, SKILLS, STATUS, TERRAIN, isCall } from './tables';
+import {
+  CLASSES, DEPLOY_ROWS, DIR4, DIR8, GRASS_SIGHT, HARVEST_RANGE, HASTE_MOVE, HIGH_GROUND, N, PAIR_N, SKILLS, SKILL_N, SOULS, STATUS, TERRAIN, THREADS, UNDYING_MOVE, isCall,
+} from './tables';
 import type { BasicSkillId, BattleState, Phase, Pos, SkillId, Soul, StatusKey, Statuses, Team, TerrainChar, Thread, Unit, UnitId } from './types';
 
 export interface Target extends Pos { id?: UnitId }
@@ -74,10 +76,10 @@ export function los(s: BattleState, ax: number, az: number, bx: number, bz: numb
 }
 export function onHigh(s: BattleState, u: Unit): boolean { return terrAt(s, u.x, u.z) === '^'; }
 
-/** In tall grass and not seen up close (2 tiles), nor next to one of the viewer's allies. */
+/** In tall grass and not seen up close (GRASS_SIGHT tiles), nor next to one of the viewer's allies. */
 export function concealed(s: BattleState, src: Unit, o: Unit, px: number, pz: number): boolean {
   if (terrAt(s, o.x, o.z) !== 'G' || isDowned(o)) return false;
-  if (cheb(px, pz, o.x, o.z) <= 2) return false;
+  if (cheb(px, pz, o.x, o.z) <= GRASS_SIGHT) return false;
   for (const a of s.units) if (a.team === src.team && standing(a) && a !== src && cheb(a.x, a.z, o.x, o.z) <= 1) return false;
   return true;
 }
@@ -95,15 +97,15 @@ export function holders(s: BattleState, o: Unit, team?: Team): Thread[] {
   return s.threads.filter(t => t.to === o.id && (team === undefined || getUnit(s, t.by)?.team === team));
 }
 export function threadCap(s: BattleState, w: Unit): number {
-  return 3 + (w.mods.threads || 0) + (s.party[w.team].has('greatweb') ? 1 : 0);
+  return THREADS + (w.mods.threads || 0) + (s.party[w.team].has('greatweb') ? PAIR_N.greatweb.threads : 0);
 }
 
 // ---------- souls ----------
 /** How many Souls `u` can hold: 0 unless its class gathers them. */
 export function soulCap(s: BattleState, u: Unit): number {
-  return CLASSES[u.cls].innate === 'harvest' ? 3 + (u.mods.soulCap || 0) + (s.party[u.team].has('charnel') ? 1 : 0) : 0;
+  return CLASSES[u.cls].innate === 'harvest' ? SOULS + (u.mods.soulCap || 0) + (s.party[u.team].has('charnel') ? PAIR_N.charnel.souls : 0) : 0;
 }
-export function harvestRange(u: Unit): number { return 3 + (u.mods.harvestRange || 0); }
+export function harvestRange(u: Unit): number { return HARVEST_RANGE + (u.mods.harvestRange || 0); }
 /** The ground Souls Harvest would gather if `u` stood at (px, pz), nearest first. */
 export function soulsInReach(s: BattleState, u: Unit, px = u.x, pz = u.z): Soul[] {
   const r = harvestRange(u);
@@ -118,7 +120,7 @@ export function undying(u: Unit): boolean { return u.life.kind === 'downed' && !
 
 // ---------- movement ----------
 export function moveOf(u: Unit): number {
-  return undying(u) ? 1 : CLASSES[u.cls].move + (u.st.haste ? 2 : 0);
+  return undying(u) ? UNDYING_MOVE : CLASSES[u.cls].move + (u.st.haste ? HASTE_MOVE : 0);
 }
 
 function pathTo(prev: Map<number, number>, k: number): Pos[] {
@@ -191,7 +193,7 @@ export function actionsOf(u: Unit): SkillId[] {
 }
 export function cdOf(s: BattleState, u: Unit, id: SkillId): number {
   let c = SKILLS[id].cd;
-  if (id === 'toll' && s.party[u.team].has('pealofbells')) c -= 1;
+  if (id === 'toll' && s.party[u.team].has('pealofbells')) c -= PAIR_N.pealofbells.cd;
   if (id === 'prison') c -= u.mods.prisonCd || 0;
   if (id === 'cocoon') c -= u.mods.cocoonCd || 0;
   if (id === 'toll') c -= u.mods.tollCd || 0;
@@ -204,8 +206,8 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
   if (id === 'recall') r += u.mods.recallRange || 0;
   if (id === 'tether') r += u.mods.threadRange || 0;
   if (id === 'lastrites') r += u.mods.riteRange || 0;
-  if (id === 'toll') r += (u.mods.tollRange || 0) + (s.party[u.team].has('pealofbells') ? 1 : 0);
-  if (r > 1 && terrAt(s, px, pz) === '^') r += 1;
+  if (id === 'toll') r += (u.mods.tollRange || 0) + (s.party[u.team].has('pealofbells') ? PAIR_N.pealofbells.range : 0);
+  if (r > 1 && terrAt(s, px, pz) === '^') r += HIGH_GROUND.range;
   return r;
 }
 export function callsOf(s: BattleState, u: Unit): number {
@@ -244,14 +246,14 @@ export function nearestFree(s: BattleState, x: number, z: number, except: Unit |
   return null;
 }
 
-/** Puppet Strings: tile index → the first held enemy (in Thread order) that can walk there in 2 steps, and its path. */
+/** Puppet Strings: tile index → the first held enemy (in Thread order) that can walk there in its steps, and its path. */
 export function puppetMoves(s: BattleState, u: Unit): Map<number, { id: UnitId; path: Pos[] }> {
   const out = new Map<number, { id: UnitId; path: Pos[] }>();
   for (const t of s.threads) {
     if (t.by !== u.id) continue;
     const o = getUnit(s, t.to);
     if (!o || o.team === u.team || !standing(o) || o.st.encased) continue;
-    paths(s, o, 2, false).forEach((path, k) => { if (!out.has(k)) out.set(k, { id: o.id, path }); });
+    paths(s, o, SKILL_N.puppet.steps, false).forEach((path, k) => { if (!out.has(k)) out.set(k, { id: o.id, path }); });
   }
   return out;
 }

@@ -2,7 +2,9 @@ import {
   BAD_KEYS, actedCount, actedThisRound, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, heldBy, idx, inb, isAlive, isDowned, isSolid, landingNear, lastToAct, los, nextTurn,
   nearestFree, onHigh, puppetMoves, reachable, sign, soulAt, soulCap, soulsInReach, square, standing, terrAt, threadCap, unitAt, unitsIn,
 } from './board';
-import { BLEED, CLASSES, DARK_ROUND, DIR8, SKILLS, SOUL_HIT, SOUL_ROUNDS, isCall } from './tables';
+import {
+  BLEED, BURN, CLASSES, DARK_ROUND, DIR8, EXPOSE, HIGH_GROUND, NODE_N, PAIR_N, POISON, REAP_AT, SHARE, SKILLS, SKILL_N as K, SOUL_HIT, SOUL_ROUNDS, WET_SHOCK, WET_TURNS, isCall,
+} from './tables';
 import type { SkillDef } from './tables';
 import type {
   BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, SkillId, Soul, Statuses, StatusKey,
@@ -55,7 +57,7 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
   let v = 1;
   if (kind === 'fire') v *= 1 + (m.fireDmg || 0);
   if (kind === 'frost') v *= 1 + (m.frostDmg || 0);
-  if (onHigh(s, u) && terrAt(s, tgt.x, tgt.z) !== '^' && cheb(u.x, u.z, tgt.x, tgt.z) > 1) v *= 1.15;
+  if (onHigh(s, u) && terrAt(s, tgt.x, tgt.z) !== '^' && cheb(u.x, u.z, tgt.x, tgt.z) > 1) v *= 1 + HIGH_GROUND.dmg;
   if (m.lastDmg && lastToAct(s, u, false)) v *= 1 + m.lastDmg;
   if (m.finalHour && lastToAct(s, u, true)) v *= 1 + m.finalHour;
   for (const t of s.threads) {
@@ -89,7 +91,7 @@ function fateWeaver(s: BattleState, o: Unit): Unit | null {
 
 /**
  * Raw damage to one unit (no attacker scaling): Encased immunity, Shared Pain, shields, Fate Weaver, downing, finishing.
- * A hit of 20 or more drops a Soul; a unit's hit that leaves a Withered enemy (or a Reaper's target) at 20% HP or less Downs it (REAP).
+ * A hit of SOUL_HIT or more drops a Soul; a unit's hit that leaves a Withered enemy (or a Reaper's target) at REAP_AT of max HP or less Downs it (REAP).
  */
 export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], kind: DamageKind, src: Unit | null): number {
   if (!isAlive(o) || amt <= 0 || o.st.encased) return 0;
@@ -103,10 +105,10 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   amt = Math.round(amt);
   const w = kind === 'share' ? null : sharer(s, o);
   if (w) {
-    const half = Math.round(amt / 2);
-    amt -= half;
+    const taken = Math.round(amt * SHARE);
+    amt -= taken;
     ev.push({ type: 'shared', id: o.id, by: w.id });
-    damage(s, w, half, ev, 'share', null);
+    damage(s, w, taken, ev, 'share', null);
   }
   const ab = Math.min(o.shield, amt);
   o.shield -= ab;
@@ -120,7 +122,7 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   if (o.st.guard && src && src.team !== o.team && standing(src)) hush(s, src, o.id, ev);
   if (o.hp <= 0) { down(s, o, ev, src); return d; }
   if (d >= SOUL_HIT) dropSoul(s, o.x, o.z, ev);
-  if (src && src.team !== o.team && !o.st.encased && o.hp * 5 <= o.maxHp && (o.st.wither || src.mods.reap)) {
+  if (src && src.team !== o.team && !o.st.encased && o.hp <= o.maxHp * REAP_AT && (o.st.wither || src.mods.reap)) {
     emitCombo(s, ev, 'REAP', src, o.id, o.st.wither?.by ?? null);
     down(s, o, ev, src);
   }
@@ -156,7 +158,7 @@ function hit(c: Ctx, o: Unit | null, base: number, kind: DamageKind, combo?: Com
   const s = c.s, u = c.u;
   if (!o || !isAlive(o)) return 0;
   if (isDowned(o)) { damage(s, o, 1, c.ev, kind, u); return 0; }
-  let mult = srcMult(s, u, o, kind) * (o.st.expose ? 1.25 : 1) * c.power;
+  let mult = srcMult(s, u, o, kind) * (o.st.expose ? 1 + EXPOSE : 1) * c.power;
   if (combo) { mult *= combo.mult; emitCombo(s, c.ev, combo.name, u, o.id, combo.setup); }
   return damage(s, o, base * mult, c.ev, kind, u);
 }
@@ -195,9 +197,9 @@ function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
   o.shield = Math.max(o.shield, amt);
   ev.push({ type: 'shield', id: o.id, amount: amt });
 }
-/** Stands a Downed ally up at `frac` of its max HP, 60% while its party has a Ferryman; a Psychopomp's touch adds a shield. */
+/** Stands a Downed ally up at `frac` of its max HP, more while its party has a Ferryman; a Psychopomp's touch adds a shield. */
 function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
-  if (s.units.some(f => f.team === src.team && isAlive(f) && f.mods.ferryman)) frac = Math.max(frac, 0.6);
+  if (s.units.some(f => f.team === src.team && isAlive(f) && f.mods.ferryman)) frac = Math.max(frac, NODE_N.g_ferry.hp);
   o.life = { kind: 'up' };
   delete o.st.encased;
   o.hp = Math.max(1, Math.round(o.maxHp * frac));
@@ -207,10 +209,10 @@ function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: U
 }
 
 // ---------- souls ----------
-/** A Soul drops on (x, z), unless one already lies there. It lasts 2 rounds longer while either party is a Charnel House. */
+/** A Soul drops on (x, z), unless one already lies there. It lasts longer while either party is a Charnel House. */
 function dropSoul(s: BattleState, x: number, z: number, ev: BattleEvent[]): void {
   if (soulAt(s, x, z) || isSolid(s, x, z)) return;
-  s.souls.push({ x, z, t: SOUL_ROUNDS + (s.party.some(p => p.has('charnel')) ? 2 : 0) });
+  s.souls.push({ x, z, t: SOUL_ROUNDS + (s.party.some(p => p.has('charnel')) ? PAIR_N.charnel.soulTurns : 0) });
   ev.push({ type: 'soul', x, z });
 }
 /** A Downed Gravecaller's held Souls fall on its tile and the nearest free ones around it. */
@@ -294,14 +296,14 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   setFx(s, x, z, 'fire', turns);
   c.ev.push({ type: 'fire', x, z });
   const o = unitAt(s, x, z);
-  if (o && !isDowned(o) && !(o.team === c.u.team && c.u.mods.benevolent)) addStatus(o, 'burn', { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }, c.ev);
+  if (o && !isDowned(o) && !(o.team === c.u.team && c.u.mods.benevolent)) addStatus(o, 'burn', burn(c), c.ev);
 }
 /** Ending any move on a tile: water wets, fire burns, a web Roots a non-Weaver. */
 export function arrive(s: BattleState, o: Unit, ev: BattleEvent[]): void {
   if (!standing(o)) return;
   const t = terrAt(s, o.x, o.z), f = s.fx[idx(o.x, o.z)];
-  if (t === '~') addStatus(o, 'wet', { t: 2, by: null }, ev);
-  else if (f?.fire && !o.st.burn) addStatus(o, 'burn', { t: 2, dmg: 6, by: null }, ev);
+  if (t === '~') addStatus(o, 'wet', { t: WET_TURNS, by: null }, ev);
+  else if (f?.fire && !o.st.burn) addStatus(o, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, ev);
   if (f?.web && o.cls !== 'weaver') root(s, o, null, ev);
 }
 
@@ -327,16 +329,16 @@ export function breakThreads(s: BattleState, ev: BattleEvent[]): void {
     return ok;
   });
 }
-/** Web of Fate: an enemy held more than 2 away at the end of its turn is pulled back to 2 and takes 12. */
+/** Web of Fate: an enemy held beyond the leash at the end of its turn is pulled back to it and takes a hit. */
 export function webOfFate(s: BattleState, o: Unit, ev: BattleEvent[]): void {
   for (const t of s.threads.slice()) {
     const w = getUnit(s, t.by);
     if (t.to !== o.id || !w || w.team === o.team || !w.mods.webOfFate || !standing(w) || !standing(o)) continue;
     const d = cheb(w.x, w.z, o.x, o.z);
-    if (d <= 2) continue;
+    if (d <= NODE_N.w_fate.leash) continue;
     const c: Ctx = { s, u: w, ev, power: 1 };
-    pull(c, o, w.x, w.z, d - 2, 'full', 1);
-    hit(c, o, 12, 'phys');
+    pull(c, o, w.x, w.z, d - NODE_N.w_fate.leash, 'full', 1);
+    hit(c, o, NODE_N.w_fate.dmg, 'phys');
   }
 }
 
@@ -345,8 +347,8 @@ function tgt(c: CastCtx): Unit {
   if (!c.target) throw new Error(`${c.skill.name} needs a unit target`);
   return c.target;
 }
-function burn(c: Ctx): NonNullable<Statuses['burn']> { return { t: 2, dmg: 6 + (c.u.mods.burnDmg || 0), by: c.u.id }; }
-function poison(c: Ctx): NonNullable<Statuses['poison']> { return { t: 3, dmg: 6 + (c.u.mods.poisonDmg || 0), by: c.u.id }; }
+function burn(c: Ctx): NonNullable<Statuses['burn']> { return { t: BURN.turns, dmg: BURN.dmg + (c.u.mods.burnDmg || 0), by: c.u.id }; }
+function poison(c: Ctx): NonNullable<Statuses['poison']> { return { t: POISON.turns, dmg: POISON.dmg + (c.u.mods.poisonDmg || 0), by: c.u.id }; }
 function teleport(c: Ctx, o: Unit, at: Pos): void {
   c.ev.push({ type: 'teleport', id: o.id, x: at.x, z: at.z });
   o.x = at.x; o.z = at.z;
@@ -355,38 +357,38 @@ function teleport(c: Ctx, o: Unit, at: Pos): void {
 
 const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   basic(c) { hit(c, tgt(c), CLASSES[c.u.cls].basic.dmg + (c.u.mods.basicDmg || 0), 'phys'); },
-  helpup(c) { revive(c.s, tgt(c), 0.3, c.ev, c.u); },
+  helpup(c) { revive(c.s, tgt(c), K.helpup.hp, c.ev, c.u); },
 
   snap(c) {
     const call = c.s.calls.find(k => k.by === c.u.id);
     if (!call) return;
     c.s.calls = c.s.calls.filter(k => k !== call);
-    landCall(c.s, c.u, call, 0.5, c.ev);
+    landCall(c.s, c.u, call, K.snap.power, c.ev);
   },
   frostbolt(c) {
     const s = c.s, o = tgt(c), wet = o.st.wet;
-    hit(c, o, 12, 'frost', wet ? { name: 'FREEZE', mult: 1, setup: wet.by } : null);
+    hit(c, o, K.frostbolt.dmg, 'frost', wet ? { name: 'FREEZE', mult: 1, setup: wet.by } : null);
     if (standing(o)) {
       if (wet) { delete o.st.wet; addStatus(o, 'stun', { t: 1, by: c.u.id }, c.ev); }
       else root(s, o, c.u.id, c.ev);
     }
     const iced: Pos[] = [];
-    for (const t of square(o.x, o.z, 1)) if (terrAt(s, t.x, t.z) === '~') { setFx(s, t.x, t.z, 'ice', 3); iced.push(t); }
+    for (const t of square(o.x, o.z, 1)) if (terrAt(s, t.x, t.z) === '~') { setFx(s, t.x, t.z, 'ice', K.frostbolt.iceTurns); iced.push(t); }
     if (iced.length) c.ev.push({ type: 'terrain', tiles: iced, kind: 'ice' });
   },
   firebolt(c) {
     const o = tgt(c), b = o.st.burn;
     if (b) {
       delete o.st.burn;
-      hit(c, o, 12 + b.dmg * b.t * 3, 'fire', { name: 'COMBUST', mult: 1, setup: b.by });
+      hit(c, o, K.firebolt.combust + b.dmg * b.t * K.firebolt.combustMult, 'fire', { name: 'COMBUST', mult: 1, setup: b.by });
       return;
     }
-    hit(c, o, 14, 'fire');
+    hit(c, o, K.firebolt.dmg, 'fire');
     if (standing(o)) addStatus(o, 'burn', burn(c), c.ev);
   },
   prison(c) {
     const o = tgt(c);
-    encase(o, o.team !== c.u.team && c.u.mods.absZero ? 2 : 1, c.u.id, true, c.ev);
+    encase(o, o.team !== c.u.team && c.u.mods.absZero ? NODE_N.a_zero.turns : K.prison.turns, c.u.id, true, c.ev);
   },
 
   tether(c) { tie(c.s, c.u, tgt(c), c.ev); },
@@ -396,26 +398,26 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     held.sort((a, b) => cheb(a.x, a.z, u.x, u.z) - cheb(b.x, b.z, u.x, u.z));
     for (const o of held) {
       const d = cheb(o.x, o.z, u.x, u.z), foe = o.team !== u.team, from = { x: o.x, z: o.z };
-      pull(c, o, u.x, u.z, foe && feast ? d - 1 : Math.min(2, d - 1), physicsOf(c, o), 1);
+      pull(c, o, u.x, u.z, foe && feast ? d - 1 : Math.min(K.reel.pull, d - 1), physicsOf(c, o), 1);
       if (!feast || !foe || !standing(o) || (o.x === from.x && o.z === from.z) || cheb(o.x, o.z, u.x, u.z) > 1) continue;
-      hit(c, o, 12, 'phys');
+      hit(c, o, NODE_N.w_feast.dmg, 'phys');
       if (standing(o)) addStatus(o, 'poison', poison(c), c.ev);
     }
   },
   web(c) {
-    const s = c.s, turns = 3 + (c.u.mods.webTurns || 0) + (s.party[c.u.team].has('greatweb') ? 1 : 0);
-    const tiles = square(c.tx, c.tz, 1).filter(t => !isSolid(s, t.x, t.z));
+    const s = c.s, turns = K.web.turns + (c.u.mods.webTurns || 0) + (s.party[c.u.team].has('greatweb') ? PAIR_N.greatweb.webTurns : 0);
+    const tiles = square(c.tx, c.tz, K.web.radius).filter(t => !isSolid(s, t.x, t.z));
     for (const t of tiles) setFx(s, t.x, t.z, 'web', turns);
     c.ev.push({ type: 'terrain', tiles, kind: 'web' });
   },
   cocoon(c) {
     const o = tgt(c);
-    if (o.team === c.u.team && standing(o)) shield(o, 40, c.ev);
-    else encase(o, 1, c.u.id, false, c.ev);
+    if (o.team === c.u.team && standing(o)) shield(o, K.cocoon.shield, c.ev);
+    else encase(o, K.cocoon.turns, c.u.id, false, c.ev);
   },
   venombite(c) {
     const o = tgt(c), u = c.u, st = o.st.stun || o.st.root;
-    hit(c, o, 12, 'phys', st && standing(o) ? { name: 'SHATTER', mult: 2, setup: st.by } : null);
+    hit(c, o, K.venombite.dmg, 'phys', st && standing(o) ? { name: 'SHATTER', mult: K.venombite.shatterMult, setup: st.by } : null);
     if (standing(o)) addStatus(o, 'poison', poison(c), c.ev);
     if (u.mods.biteHeal) heal(c.s, u, u.mods.biteHeal, c.ev, u);
   },
@@ -423,7 +425,7 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     const s = c.s, m = puppetMoves(s, c.u).get(idx(c.tx, c.tz)), o = m && getUnit(s, m.id);
     if (!m || !o) return;
     c.ev.push({ type: 'move', id: o.id, path: m.path });
-    for (const p of m.path.slice(1)) if (s.fx[idx(p.x, p.z)]?.fire && !o.st.burn) addStatus(o, 'burn', { t: 2, dmg: 6, by: null }, c.ev);
+    for (const p of m.path.slice(1)) if (s.fx[idx(p.x, p.z)]?.fire && !o.st.burn) addStatus(o, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, c.ev);
     o.x = c.tx; o.z = c.tz;
     arrive(s, o, c.ev);
   },
@@ -434,24 +436,24 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   },
 
   harvest(c) { gather(c.s, c.u, soulsInReach(c.s, c.u), c.ev); },
-  lastrites(c) { revive(c.s, tgt(c), 0.4, c.ev, c.u); },
+  lastrites(c) { revive(c.s, tgt(c), K.lastrites.hp, c.ev, c.u); },
   bonewall(c) {
     const tiles = boneTiles(c.s, c.u, c.tx, c.tz);
-    for (const t of tiles) setFx(c.s, t.x, t.z, 'bone', 2);
+    for (const t of tiles) setFx(c.s, t.x, t.z, 'bone', K.bonewall.turns);
     c.ev.push({ type: 'terrain', tiles, kind: 'bone' });
   },
-  wither(c) { addStatus(tgt(c), 'wither', { t: 2, by: c.u.id }, c.ev); },
-  soulbolt(c) { hit(c, tgt(c), 14 + 6 * c.u.souls + (c.u.mods.soulBoltDmg || 0), 'phys'); },
+  wither(c) { addStatus(tgt(c), 'wither', { t: K.wither.turns, by: c.u.id }, c.ev); },
+  soulbolt(c) { hit(c, tgt(c), K.soulbolt.dmg + K.soulbolt.perSoul * c.u.souls + (c.u.mods.soulBoltDmg || 0), 'phys'); },
   soulburst(c) {
     const s = c.s, u = c.u;
     s.souls = s.souls.filter(o => o.x !== c.tx || o.z !== c.tz);
-    for (const o of unitsIn(s, square(c.tx, c.tz, 1))) if (o.team !== u.team) hit(c, o, 18 + (u.mods.burstDmg || 0), 'phys');
+    for (const o of unitsIn(s, square(c.tx, c.tz, K.soulburst.radius))) if (o.team !== u.team) hit(c, o, K.soulburst.dmg + (u.mods.burstDmg || 0), 'phys');
   },
   siphon(c) {
-    const s = c.s, u = c.u, took = hit(c, tgt(c), 12, 'drain');
+    const s = c.s, u = c.u, took = hit(c, tgt(c), K.siphon.dmg, 'drain');
     const hurt = (a: Unit) => a.hp / a.maxHp;
     const silk = s.party[u.team].has('soulsilk');
-    const reach = (a: Unit) => cheb(a.x, a.z, u.x, u.z) <= 3 || (silk && heldBy(s, a, u.team));
+    const reach = (a: Unit) => cheb(a.x, a.z, u.x, u.z) <= K.siphon.reach || (silk && heldBy(s, a, u.team));
     const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && reach(a)).sort((a, b) => hurt(a) - hurt(b))[0];
     if (mend && took > 0) heal(s, mend, took, c.ev, u);
   },
@@ -468,20 +470,20 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
       if (o.team === u.team) ph.queue.splice(ph.qi + 1, 0, turn); else ph.queue.push(turn);
     }
     c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
-    if (o.team === u.team && o !== u && u.mods.accel) { addStatus(o, 'haste', { t: 1, by: u.id }, c.ev); shield(o, 15, c.ev); }
+    if (o.team === u.team && o !== u && u.mods.accel) { addStatus(o, 'haste', { t: 1, by: u.id }, c.ev); shield(o, NODE_N.b_accel.shield, c.ev); }
     if (o.team !== u.team && u.mods.tollHush) addStatus(o, 'hush', { t: 1, by: u.id }, c.ev);
     const called = s.calls.some(k => k.team === u.team && k.skill !== 'recall' && callTiles(k.skill, k.x, k.z).some(p => p.x === o.x && p.z === o.z));
     if (o.team !== u.team && called && s.party[u.team].has('appointedhour')) root(s, o, u.id, c.ev);
   },
   knell(c) {
     const s = c.s, o = tgt(c), late = actedThisRound(s, o.id);
-    hit(c, o, (12 + (c.u.mods.knellDmg || 0)) * (late ? 1.5 : 1), 'phys');
+    hit(c, o, (K.knell.dmg + (c.u.mods.knellDmg || 0)) * (late ? K.knell.lateMult : 1), 'phys');
     if (late && standing(o)) root(s, o, c.u.id, c.ev);
   },
   hush(c) { hush(c.s, tgt(c), c.u.id, c.ev); },
   peal(c) {
-    const s = c.s, u = c.u, dmg = 10 + 3 * actedCount(s) + (u.mods.pealDmg || 0);
-    for (const o of s.units) if (o.team !== u.team && standing(o) && cheb(o.x, o.z, u.x, u.z) <= 2) hit(c, o, dmg, 'phys');
+    const s = c.s, u = c.u, dmg = K.peal.dmg + K.peal.perActed * actedCount(s) + (u.mods.pealDmg || 0);
+    for (const o of s.units) if (o.team !== u.team && standing(o) && cheb(o.x, o.z, u.x, u.z) <= K.peal.radius) hit(c, o, dmg, 'phys');
   },
   encore(c) {
     const ph = c.s.phase;
@@ -511,20 +513,20 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     if (p && standing(o)) damage(s, o, p.dmg * p.t, c.ev, 'poison', u);
   },
   bellguard(c) {
-    shield(c.u, 25 + (c.u.mods.guardShield || 0), c.ev);
+    shield(c.u, K.bellguard.shield + (c.u.mods.guardShield || 0), c.ev);
     addStatus(c.u, 'guard', { t: 1, by: c.u.id }, c.ev);
   },
   equalize(c) {
     const s = c.s, u = c.u, o = tgt(c), mid = (u.hp / u.maxHp + o.hp / o.maxHp) / 2;
     if (o.team === u.team) {
-      const give = Math.min(30, Math.round((mid - o.hp / o.maxHp) * o.maxHp), u.hp - 1);
+      const give = Math.min(K.equalize.most, Math.round((mid - o.hp / o.maxHp) * o.maxHp), u.hp - 1);
       if (give <= 0) return;
       u.hp -= give;
       c.ev.push({ type: 'damage', id: u.id, amount: give, absorbed: 0, kind: 'drain' });
       heal(s, o, give, c.ev, u);
       return;
     }
-    const took = damage(s, o, Math.min(30, Math.round((o.hp / o.maxHp - mid) * o.maxHp)), c.ev, 'drain', u);
+    const took = damage(s, o, Math.min(K.equalize.most, Math.round((o.hp / o.maxHp - mid) * o.maxHp)), c.ev, 'drain', u);
     if (took > 0) heal(s, u, took, c.ev, u);
   },
 };
@@ -534,9 +536,9 @@ export function callTiles(skill: CallSkill, x: number, z: number): Pos[] {
   const r = SKILLS[skill].aoe;
   return r ? square(x, z, r) : [{ x, z }];
 }
-/** Hurts an enemy, or an ally when the caster lacks Benevolent Heavens; heals that ally for a quarter otherwise. True when it hurt. */
+/** Hurts an enemy, or an ally when the caster lacks Benevolent Heavens; heals that ally for a share of it otherwise. True when it hurt. */
 function strike(c: LandCtx, o: Unit, base: number, kind: DamageKind, combo?: Combo | null): boolean {
-  if (o.team === c.u.team && c.u.mods.benevolent) { heal(c.s, o, base * c.power * 0.25, c.ev, c.u); return false; }
+  if (o.team === c.u.team && c.u.mods.benevolent) { heal(c.s, o, base * c.power * NODE_N.a_benev.heal, c.ev, c.u); return false; }
   hit(c, o, base, kind, combo);
   return true;
 }
@@ -550,17 +552,17 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     }
     for (const o of c.victims) {
       const center = o.x === c.x && o.z === c.z;
-      if (strike(c, o, center ? 30 : 15, 'fire') && standing(o)) addStatus(o, 'burn', burn(c), c.ev);
+      if (strike(c, o, center ? K.meteor.center : K.meteor.edge, 'fire') && standing(o)) addStatus(o, 'burn', burn(c), c.ev);
     }
   },
   thunderhead(c) {
     for (const o of c.victims) {
       const wet = o.st.wet;
-      strike(c, o, 20, 'shock', wet && standing(o) ? { name: 'CONDUCT', mult: 1.5, setup: wet.by } : null);
+      strike(c, o, K.thunderhead.dmg, 'shock', wet && standing(o) ? { name: 'CONDUCT', mult: WET_SHOCK, setup: wet.by } : null);
     }
   },
   gravitywell(c) {
-    const dist = Math.max(1, Math.floor(2 * c.power));
+    const dist = Math.max(1, Math.floor(K.gravitywell.pull * c.power));
     const pulled = c.victims.slice();
     pulled.sort((a, b) => cheb(a.x, a.z, c.x, c.z) - cheb(b.x, b.z, c.x, c.z));
     for (const o of pulled) pull(c, o, c.x, c.z, dist, 'full', 1);
@@ -603,17 +605,17 @@ function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power
   for (const o of hurt) {
     if (!standing(o)) continue;
     if (u.mods.absZero && held.has(o)) addStatus(o, 'stun', { t: 1, by: u.id }, ev);
-    if (u.mods.callWet) addStatus(o, 'wet', { t: 2, by: u.id }, ev);
+    if (u.mods.callWet) addStatus(o, 'wet', { t: WET_TURNS, by: u.id }, ev);
     if (o.team !== u.team && s.party[u.team].has('startether') && s.threads.some(t => t.to === o.id && getUnit(s, t.by)?.team === u.team)) {
-      addStatus(o, 'expose', { t: 2, by: u.id }, ev);
+      addStatus(o, 'expose', { t: PAIR_N.startether.turns, by: u.id }, ev);
     }
   }
 }
 
-/** A Call lands, +25% with Conjunction when another of the party's Calls already landed this round. */
+/** A Call lands, stronger with Conjunction when another of the party's Calls already landed this round. */
 export function landCall(s: BattleState, u: Unit, call: Call, power: number, ev: BattleEvent[]): void {
   const team = call.team;
-  if (s.party[team].has('conjunction') && s.callRound[team] === s.round) power *= 1.25;
+  if (s.party[team].has('conjunction') && s.callRound[team] === s.round) power *= 1 + PAIR_N.conjunction.dmg;
   s.callRound[team] = s.round;
   landAt(s, u, call, call.x, call.z, power, ev);
 }
@@ -667,7 +669,7 @@ export function performMove(s: BattleState, x: number, z: number): BattleEvent[]
   if (!p) return null;
   const ev: BattleEvent[] = [{ type: 'move', id: u.id, path: p }];
   u.x = x; u.z = z; u.moved = true;
-  for (const b of p.slice(1)) if (s.fx[idx(b.x, b.z)]?.fire && !u.st.burn && !u.st.wet) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
+  for (const b of p.slice(1)) if (s.fx[idx(b.x, b.z)]?.fire && !u.st.burn && !u.st.wet) addStatus(u, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, ev);
   arrive(s, u, ev);
   const here = soulAt(s, x, z);
   if (here && soulCap(s, u)) gather(s, u, [here], ev);

@@ -1,5 +1,5 @@
 import type {
-  CallSkill, ClassId, ClassSkillId, ComboName, InnateSkillId, MapId, Mods, NodeId, PairId, Role, SkillId, SkillTarget, StatusKey, TerrainChar,
+  CallSkill, ClassId, ClassSkillId, ComboName, InnateSkillId, MapId, Mods, NodeId, PairId, PartyBonusId, Role, SkillId, SkillTarget, StatusKey, TerrainChar,
 } from './types';
 
 export const N = 12;
@@ -12,9 +12,66 @@ export const DARK_ROUND = 8;
 export const SOUL_ROUNDS = 3;
 /** One hit at least this big (after shields) drops a Soul. */
 export const SOUL_HIT = 20;
+/** Skills each member takes into battle, of its class's seven. */
+export const SKILL_PICKS = 3;
+
+// ---------- rule numbers: the engine reads these, and every text below that states one interpolates it ----------
+/** Exposed: damage taken × (1 + this). */
+export const EXPOSE = 0.25;
+/** Shock (Thunderhead's CONDUCT, a storm strike) on a Wet unit: × this. */
+export const WET_SHOCK = 1.5;
+/** A hit that leaves a Withered enemy (or a Reaper's target) at this share of max HP or less Downs it (REAP). */
+export const REAP_AT = 0.2;
+/** Shared Pain: the share of the blow its holder takes instead. */
+export const SHARE = 0.5;
+export const BURN = { turns: 2, dmg: 6 };
+export const POISON = { turns: 3, dmg: 6 };
+export const WET_TURNS = 2;
+/** Quickened: + this move on the next turn. */
+export const HASTE_MOVE = 2;
+/** An Undying Gravecaller's move while Downed. */
+export const UNDYING_MOVE = 1;
+/** Threads a Weaver holds, and Souls and Harvest's reach for a Gravecaller, before passives and resonances. */
+export const THREADS = 3;
+export const SOULS = 3;
+export const HARVEST_RANGE = 3;
+export const HIGH_GROUND = { range: 1, dmg: 0.15 };
+/** Tall grass: enemies see you from this many tiles. */
+export const GRASS_SIGHT = 2;
+export const WATER_COST = 2;
+export const SHRINE_HEAL = 12;
+
+/** `0.2` → `20%`. */
+export const pct = (f: number): string => `${Math.round(f * 100)}%`;
+/** A share of something as a word where English has one: `half`, `a quarter`; else a percentage. */
+export const part = (f: number): string => (f === 0.5 ? 'half' : f === 0.25 ? 'a quarter' : pct(f));
+/** An area of radius `r` as its side: `1` → `3×3`. */
+const side = (r: number): string => `${2 * r + 1}×${2 * r + 1}`;
 
 export const DIR4: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 export const DIR8: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+// ---------- map rules: declared before the tables whose texts quote them ----------
+/** One digit of a crumble layout: the round at whose end the tile falls. */
+function digit(round: number): string {
+  if (!Number.isInteger(round) || round < 1 || round > 9) throw new Error(`crumble round ${round} must be one digit`);
+  return String(round);
+}
+const SPAN_FALLS = { bridges: 3, back: [5, 7], plateaus: 9 } as const;
+const SPAN_RULE = {
+  kind: 'crumble',
+  rounds: [digit(SPAN_FALLS.back[0]).repeat(N), digit(SPAN_FALLS.back[1]).repeat(N), digit(SPAN_FALLS.plateaus).repeat(N),
+    ...Array.from({ length: 3 }, () => `.${digit(SPAN_FALLS.bridges)}........${digit(SPAN_FALLS.bridges)}.`)],
+  names: { [SPAN_FALLS.bridges]: 'The side bridges crumble', [SPAN_FALLS.back[0]]: 'The back rows crumble', [SPAN_FALLS.back[1]]: 'The back rows crumble', [SPAN_FALLS.plateaus]: 'The plateaus crumble' },
+} satisfies MapRule;
+const STORM_RULE = { kind: 'storm', dmg: 24, cycle: [
+  { name: 'The edges', cols: [0, 1, 10, 11] },
+  { name: 'The center', cols: [5, 6] },
+  { name: 'The midline', rows: [5, 6] },
+  { name: 'The backlines', rows: [0, 1, 10, 11] }] } satisfies MapRule;
+const ALTAR_RULE = { kind: 'altar', goal: 5 } satisfies MapRule;
+/** `a, b, then c`. */
+const thenList = (xs: readonly string[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')}, then ${xs[xs.length - 1]}`);
 
 export interface TerrainDef { name: string; solid?: true; sight?: true; pit?: true; cost?: number; text?: string }
 
@@ -23,13 +80,13 @@ const TERRAIN_TABLE = {
   '.': { name: 'Floor' },
   '#': { name: 'Wall', solid: true, sight: true, text: 'Blocks movement and line of sight.' },
   'o': { name: 'Chasm', solid: true, pit: true, text: 'Impassable. A character pushed in falls and is Downed, clinging to the nearest edge.' },
-  '~': { name: 'Water', cost: 2, text: 'Costs 2 move. Standing in it makes you Wet: Thunderhead Conducts (×1.5), Frostbolt Freezes (stun). Puts out burning.' },
-  'G': { name: 'Tall grass', text: 'Hides whoever stands in it: enemies can only target them from 2 tiles, or when one of their allies is next to them. Burns.' },
-  '^': { name: 'High ground', text: 'Ranged attacks from here get +1 range and +15% damage against targets below.' },
+  '~': { name: 'Water', cost: WATER_COST, text: `Costs ${WATER_COST} move. Standing in it makes you Wet: Thunderhead Conducts (×${WET_SHOCK}), Frostbolt Freezes (stun). Puts out burning.` },
+  'G': { name: 'Tall grass', text: `Hides whoever stands in it: enemies can only target them from ${GRASS_SIGHT} tiles, or when one of their allies is next to them. Burns.` },
+  '^': { name: 'High ground', text: `Ranged attacks from here get +${HIGH_GROUND.range} range and +${pct(HIGH_GROUND.dmg)} damage against targets below.` },
   'B': { name: 'Brazier', solid: true, text: 'Solid. Hit it with fire, or push someone into it, and it bursts: fire on the 8 tiles around.' },
-  '+': { name: 'Shrine', text: 'End your turn here to heal 12.' },
+  '+': { name: 'Shrine', text: `End your turn here to heal ${SHRINE_HEAL}.` },
   'I': { name: 'Ice', text: 'Frozen water: walk on it freely, no Wet.' },
-  'A': { name: 'Sun Altar', text: 'At the end of each round, the party with more characters standing here gains 1 favor. 5 favor wins the battle.' },
+  'A': { name: 'Sun Altar', text: `At the end of each round, the party with more characters standing here gains 1 favor. ${ALTAR_RULE.goal} favor wins the battle.` },
 } satisfies Record<TerrainChar, TerrainDef>;
 export const TERRAIN: Readonly<Record<TerrainChar, TerrainDef>> = TERRAIN_TABLE;
 
@@ -56,26 +113,21 @@ export interface MapDef {
 const MAP_TABLE = {
   span: { id: 'span', name: 'Shattered Span',
     rows: ['.....oo.....', '.#........#.', '...^....^...', 'o.oo....oo.o', 'o.o.#..B.o.o', 'o.o......o.o'],
-    rule: { kind: 'crumble', rounds: ['555555555555', '777777777777', '999999999999', '.3........3.', '.3........3.', '.3........3.'],
-      names: { 3: 'The side bridges crumble', 5: 'The back rows crumble', 7: 'The back rows crumble', 9: 'The plateaus crumble' } },
+    rule: SPAN_RULE,
     tagline: 'The edges fall away. Only the island lasts.',
-    ruleText: 'Crumble: at the end of round 3 the side bridges fall, then the back rows at the end of rounds 5, 7 and 9. Anyone standing on a falling tile drops and is Downed, clinging to the nearest solid ground; anyone already Downed there is lost.',
+    ruleText: `Crumble: at the end of round ${SPAN_FALLS.bridges} the side bridges fall, then the back rows at the end of rounds ${SPAN_FALLS.back.join(' and ')}, and the plateaus at the end of round ${SPAN_FALLS.plateaus}. Anyone standing on a falling tile drops and is Downed, clinging to the nearest solid ground; anyone already Downed there is lost.`,
     favors: 'Pullers and the patient: Reel and Gravity Well drop enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
   storm: { id: 'storm', name: 'Storm Court',
     rows: ['............', '..#......#..', '............', '.~~..^...~~.', '.~~.#..#.~~.', '.....~~....+'],
-    rule: { kind: 'storm', dmg: 24, cycle: [
-      { name: 'The edges', cols: [0, 1, 10, 11] },
-      { name: 'The center', cols: [5, 6] },
-      { name: 'The midline', rows: [5, 6] },
-      { name: 'The backlines', rows: [0, 1, 10, 11] }] },
+    rule: STORM_RULE,
     tagline: 'Lightning strikes known lines at the end of every round.',
-    ruleText: 'Storm: at the end of each round lightning strikes, in a fixed cycle, the edges (columns 1-2 and 11-12), the center columns, the midline, then the backlines. Anyone standing there takes 24, 36 if Wet, and the Downed are finished.',
-    favors: 'Control: Root, Stun or push an enemy into the next strike after it has moved. Wet targets take half again. Plan your turn order so nobody is caught.' },
+    ruleText: `Storm: at the end of each round lightning strikes, in a fixed cycle, ${thenList(STORM_RULE.cycle.map(l => l.name.toLowerCase()))}. Anyone standing there takes ${STORM_RULE.dmg}, ${Math.round(STORM_RULE.dmg * WET_SHOCK)} if Wet, and the Downed are finished.`,
+    favors: `Control: Root, Stun or push an enemy into the next strike after it has moved. Wet targets take ×${WET_SHOCK}. Plan your turn order so nobody is caught.` },
   altar: { id: 'altar', name: 'Sun Altar',
     rows: ['............', '.GG......GG.', '....#..#....', '.G........G.', '.GG.B^..^GG.', '#....AA....#'],
-    rule: { kind: 'altar', goal: 5 },
-    tagline: 'Hold the altar. Five rounds of favor wins.',
-    ruleText: 'Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to 5 favor wins at once.',
+    rule: ALTAR_RULE,
+    tagline: `Hold the altar. First to ${ALTAR_RULE.goal} favor wins.`,
+    ruleText: `Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to ${ALTAR_RULE.goal} favor wins at once.`,
     favors: 'Tanks and area control: a Meteor on the altar makes holders leave or eat it, Puppet Strings walks them off, and grass on the flanks hides the ambush.' },
 } satisfies Record<MapId, MapDef>;
 export const MAPS: Readonly<Record<MapId, MapDef>> = MAP_TABLE;
@@ -115,7 +167,7 @@ export const CLASSES = {
     skills: ['meteor', 'thunderhead', 'gravitywell', 'frostbolt', 'firebolt', 'prison', 'recall'], defaults: ['meteor', 'frostbolt', 'gravitywell'],
     tree: ['a_fire', 'a_range', 'a_burn', 'a_twin', 'a_frost', 'a_prison'] },
   weaver: { id: 'weaver', name: 'Weaver', icon: '🕸️', color: '#d06a9a', hp: 170, move: 3, innate: 'tether',
-    mechanic: 'Threads: tie up to 3 units, then pull, leash or share damage along them.',
+    mechanic: `Threads: tie up to ${THREADS} units, then pull, leash or share damage along them.`,
     plays: 'A spider-kin who ties the battlefield together with silk.', basic: { name: 'Fang', range: 1, dmg: 14 },
     skills: ['reel', 'web', 'cocoon', 'venombite', 'puppet', 'sharedpain', 'skitter'], defaults: ['reel', 'web', 'venombite'],
     tree: ['w_hp', 'w_leash', 'w_thread', 'w_fate', 'w_poison', 'w_fang'] },
@@ -136,71 +188,100 @@ export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver', 'gravec
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
 export interface BranchDef { name: string; role: Role; color: string; nodes: readonly [NodeDef, NodeDef, NodeDef, NodeDef] }
 
+/** Keystone numbers that aren't summed mods: the engine reads them here, the node texts quote them. */
+export const NODE_N = {
+  a_zero: { turns: 2 },
+  a_benev: { heal: 0.25 },
+  w_fate: { shield: 10, leash: 2, dmg: 12 },
+  w_feast: { dmg: 12 },
+  g_ferry: { range: 2, hp: 0.6 },
+  b_accel: { shield: 15 },
+};
+
+/** A node whose text is written from its own mods, so the number shown is the number applied. */
+function node<I extends NodeId, M extends Mods>(n: { id: I; name: string; key?: true; mods: M; text: (m: M) => string }): NodeDef & { id: I } {
+  const out: NodeDef & { id: I } = { id: n.id, name: n.name, mods: n.mods, text: n.text(n.mods) };
+  if (n.key) out.key = n.key;
+  return out;
+}
+const cd = (n: number): string => `cooldown −${n}`;
+
 const TREE_TABLE = {
   astromancer: [
     { name: 'Rime', role: 'tank', color: '#7fd8ff', nodes: [
-      { id: 'a_frost', name: 'Hoarfrost', text: 'Frost +20% damage.', mods: { frostDmg: 0.2 } },
-      { id: 'a_prison', name: 'Cold Cell', text: 'Glacial Prison cooldown −1.', mods: { prisonCd: 1 } },
-      { id: 'a_wet', name: 'Sleet', text: 'Your Calls make everyone they hit Wet.', mods: { callWet: 1 } },
-      { id: 'a_zero', name: 'Absolute Zero', key: true, text: 'Units Rooted or Encased when your Call lands are Stunned by it, and Glacial Prison holds an enemy 2 turns.', mods: { absZero: 1 } }] },
+      node({ id: 'a_frost', name: 'Hoarfrost', mods: { frostDmg: 0.2 }, text: m => `Frost +${pct(m.frostDmg)} damage.` }),
+      node({ id: 'a_prison', name: 'Cold Cell', mods: { prisonCd: 1 }, text: m => `Glacial Prison ${cd(m.prisonCd)}.` }),
+      node({ id: 'a_wet', name: 'Sleet', mods: { callWet: 1 }, text: () => 'Your Calls make everyone they hit Wet.' }),
+      node({ id: 'a_zero', name: 'Absolute Zero', key: true, mods: { absZero: 1 },
+        text: () => `Units Rooted or Encased when your Call lands are Stunned by it, and Glacial Prison holds an enemy ${NODE_N.a_zero.turns} turns.` })] },
     { name: 'Pyre', role: 'damage', color: '#ff6a2b', nodes: [
-      { id: 'a_fire', name: 'Kindling', text: 'Fire +20% damage.', mods: { fireDmg: 0.2 } },
-      { id: 'a_range', name: 'Far Sight', text: 'Call range +1.', mods: { callRange: 1 } },
-      { id: 'a_burn', name: 'Searing', text: 'Burning deals +3 a turn.', mods: { burnDmg: 3 } },
-      { id: 'a_twin', name: 'Twin Stars', key: true, text: 'You can hold two Calls at once.', mods: { twinStars: 1 } }] },
+      node({ id: 'a_fire', name: 'Kindling', mods: { fireDmg: 0.2 }, text: m => `Fire +${pct(m.fireDmg)} damage.` }),
+      node({ id: 'a_range', name: 'Far Sight', mods: { callRange: 1 }, text: m => `Call range +${m.callRange}.` }),
+      node({ id: 'a_burn', name: 'Searing', mods: { burnDmg: 3 }, text: m => `Burning deals +${m.burnDmg} a turn.` }),
+      node({ id: 'a_twin', name: 'Twin Stars', key: true, mods: { twinStars: 1 }, text: m => `You can hold ${1 + m.twinStars} Calls at once.` })] },
     { name: 'Orrery', role: 'support', color: '#ffe08a', nodes: [
-      { id: 'a_recall', name: 'Long Orbit', text: 'Recall range +2.', mods: { recallRange: 2 } },
-      { id: 'a_hp', name: 'Starward', text: '+25 max HP.', mods: { hp: 25 } },
-      { id: 'a_cleanse', name: 'Clean Return', text: 'Recall also cleanses debuffs.', mods: { recallCleanse: 1 } },
-      { id: 'a_benev', name: 'Benevolent Heavens', key: true, text: 'Your Calls heal allies in their area for a quarter of what they’d deal, instead of hurting them.', mods: { benevolent: 1 } }] }],
+      node({ id: 'a_recall', name: 'Long Orbit', mods: { recallRange: 2 }, text: m => `Recall range +${m.recallRange}.` }),
+      node({ id: 'a_hp', name: 'Starward', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'a_cleanse', name: 'Clean Return', mods: { recallCleanse: 1 }, text: () => 'Recall also cleanses debuffs.' }),
+      node({ id: 'a_benev', name: 'Benevolent Heavens', key: true, mods: { benevolent: 1 },
+        text: () => `Your Calls heal allies in their area for ${part(NODE_N.a_benev.heal)} of what they’d deal, instead of hurting them.` })] }],
   weaver: [
     { name: 'Matriarch', role: 'tank', color: '#d06a9a', nodes: [
-      { id: 'w_hp', name: 'Chitin', text: '+30 max HP.', mods: { hp: 30 } },
-      { id: 'w_leash', name: 'Short Leash', text: 'Enemies you hold deal 20% less damage to everyone but you.', mods: { leashDmg: 0.2 } },
-      { id: 'w_thread', name: 'Many Hands', text: '+1 Thread.', mods: { threads: 1 } },
-      { id: 'w_fate', name: 'Web of Fate', key: true, text: 'Start each turn with a 10 shield per Thread you hold. An enemy you hold that ends its turn more than 2 from you is pulled back to 2 and takes 12.', mods: { webOfFate: 1 } }] },
+      node({ id: 'w_hp', name: 'Chitin', mods: { hp: 30 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'w_leash', name: 'Short Leash', mods: { leashDmg: 0.2 }, text: m => `Enemies you hold deal ${pct(m.leashDmg)} less damage to everyone but you.` }),
+      node({ id: 'w_thread', name: 'Many Hands', mods: { threads: 1 }, text: m => `+${m.threads} Thread.` }),
+      node({ id: 'w_fate', name: 'Web of Fate', key: true, mods: { webOfFate: 1 },
+        text: () => `Start each turn with a ${NODE_N.w_fate.shield} shield per Thread you hold. An enemy you hold that ends its turn more than ${NODE_N.w_fate.leash} from you is pulled back to ${NODE_N.w_fate.leash} and takes ${NODE_N.w_fate.dmg}.` })] },
     { name: 'Widow', role: 'damage', color: '#8fe36b', nodes: [
-      { id: 'w_poison', name: 'Virulence', text: 'Poison +3 a turn.', mods: { poisonDmg: 3 } },
-      { id: 'w_fang', name: 'Long Fangs', text: 'Fang +10 damage.', mods: { basicDmg: 10 } },
-      { id: 'w_bite', name: 'Drink Deep', text: 'Venom Bite heals you 8.', mods: { biteHeal: 8 } },
-      { id: 'w_feast', name: 'Feast', key: true, text: 'Reel pulls enemies all the way to you, and you bite each one that arrives next to you for 12 and Poison.', mods: { feast: 1 } }] },
+      node({ id: 'w_poison', name: 'Virulence', mods: { poisonDmg: 3 }, text: m => `Poison +${m.poisonDmg} a turn.` }),
+      node({ id: 'w_fang', name: 'Long Fangs', mods: { basicDmg: 10 }, text: m => `Fang +${m.basicDmg} damage.` }),
+      node({ id: 'w_bite', name: 'Drink Deep', mods: { biteHeal: 8 }, text: m => `Venom Bite heals you ${m.biteHeal}.` }),
+      node({ id: 'w_feast', name: 'Feast', key: true, mods: { feast: 1 },
+        text: () => `Reel pulls enemies all the way to you, and you bite each one that arrives next to you for ${NODE_N.w_feast.dmg} and Poison.` })] },
     { name: 'Spinner', role: 'support', color: '#b8e0ff', nodes: [
-      { id: 'w_cocoon', name: 'Quick Silk', text: 'Cocoon cooldown −1.', mods: { cocoonCd: 1 } },
-      { id: 'w_reach', name: 'Long Line', text: 'Tether range +2 and +20 max HP.', mods: { threadRange: 2, hp: 20 } },
-      { id: 'w_silk', name: 'Strong Silk', text: 'Webs last 2 rounds longer.', mods: { webTurns: 2 } },
-      { id: 'w_spare', name: 'Fate Weaver', key: true, text: 'The first time you or an ally you hold would be Downed, it is Encased at 1 HP instead.', mods: { fateWeaver: 1 } }] }],
+      node({ id: 'w_cocoon', name: 'Quick Silk', mods: { cocoonCd: 1 }, text: m => `Cocoon ${cd(m.cocoonCd)}.` }),
+      node({ id: 'w_reach', name: 'Long Line', mods: { threadRange: 2, hp: 20 }, text: m => `Tether range +${m.threadRange} and +${m.hp} max HP.` }),
+      node({ id: 'w_silk', name: 'Strong Silk', mods: { webTurns: 2 }, text: m => `Webs last ${m.webTurns} rounds longer.` }),
+      node({ id: 'w_spare', name: 'Fate Weaver', key: true, mods: { fateWeaver: 1 },
+        text: () => 'The first time you or an ally you hold would be Downed, it is Encased at 1 HP instead.' })] }],
   gravecaller: [
     { name: 'Lich', role: 'tank', color: '#9fe0b8', nodes: [
-      { id: 'g_hp', name: 'Grave Flesh', text: '+25 max HP.', mods: { hp: 25 } },
-      { id: 'g_cap', name: 'Deep Pockets', text: 'Hold 1 more Soul.', mods: { soulCap: 1 } },
-      { id: 'g_ward', name: 'Soul Ward', text: 'Start your turn with a 6 shield for each Soul you hold.', mods: { soulShield: 6 } },
-      { id: 'g_undying', name: 'Undying', key: true, text: 'While Downed you still take turns: move 1, then one skill but not your basic. Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal.', mods: { undying: 1 } }] },
+      node({ id: 'g_hp', name: 'Grave Flesh', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_cap', name: 'Deep Pockets', mods: { soulCap: 1 }, text: m => `Hold ${m.soulCap} more Soul.` }),
+      node({ id: 'g_ward', name: 'Soul Ward', mods: { soulShield: 6 }, text: m => `Start your turn with a ${m.soulShield} shield for each Soul you hold.` }),
+      node({ id: 'g_undying', name: 'Undying', key: true, mods: { undying: 1 },
+        text: () => `While Downed you still take turns: move ${UNDYING_MOVE}, then one skill but not your basic. Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal.` })] },
     { name: 'Reaper', role: 'damage', color: '#c06aff', nodes: [
-      { id: 'g_bolt', name: 'Sharp Bones', text: 'Soul Bolt +4 damage.', mods: { soulBoltDmg: 4 } },
-      { id: 'g_reach', name: 'Long Scythe', text: 'Harvest range +2.', mods: { harvestRange: 2 } },
-      { id: 'g_burst', name: 'Overflow', text: 'Soul Burst +8 damage.', mods: { burstDmg: 8 } },
-      { id: 'g_reap', name: 'Reap', key: true, text: 'Enemies a hit of yours leaves at 20% HP or less are Downed at once (REAP), and every Down you cause hands you its Soul directly.', mods: { reap: 1 } }] },
+      node({ id: 'g_bolt', name: 'Sharp Bones', mods: { soulBoltDmg: 4 }, text: m => `Soul Bolt +${m.soulBoltDmg} damage.` }),
+      node({ id: 'g_reach', name: 'Long Scythe', mods: { harvestRange: 2 }, text: m => `Harvest range +${m.harvestRange}.` }),
+      node({ id: 'g_burst', name: 'Overflow', mods: { burstDmg: 8 }, text: m => `Soul Burst +${m.burstDmg} damage.` }),
+      node({ id: 'g_reap', name: 'Reap', key: true, mods: { reap: 1 },
+        text: () => `Enemies a hit of yours leaves at ${pct(REAP_AT)} HP or less are Downed at once (REAP), and every Down you cause hands you its Soul directly.` })] },
     { name: 'Psychopomp', role: 'support', color: '#fff3b0', nodes: [
-      { id: 'g_rites', name: 'Far Call', text: 'Last Rites range +2.', mods: { riteRange: 2 } },
-      { id: 'g_hp2', name: 'Pale Robes', text: '+20 max HP.', mods: { hp: 20 } },
-      { id: 'g_shield', name: 'Safe Passage', text: 'Allies you stand up get a 20 shield.', mods: { riteShield: 20 } },
-      { id: 'g_ferry', name: 'Ferryman', key: true, text: 'Downed allies within 2 of you don’t bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at 60% HP.', mods: { ferryman: 1 } }] }],
+      node({ id: 'g_rites', name: 'Far Call', mods: { riteRange: 2 }, text: m => `Last Rites range +${m.riteRange}.` }),
+      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 20 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
+      node({ id: 'g_ferry', name: 'Ferryman', key: true, mods: { ferryman: 1 },
+        text: () => `Downed allies within ${NODE_N.g_ferry.range} of you don’t bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at ${pct(NODE_N.g_ferry.hp)} HP.` })] }],
   bellringer: [
     { name: 'Carillon', role: 'tank', color: '#e0b04a', nodes: [
-      { id: 'b_hp', name: 'Bronze Frame', text: '+30 max HP.', mods: { hp: 30 } },
-      { id: 'b_clapper', name: 'Heavy Clapper', text: 'Clapper +6 damage.', mods: { basicDmg: 6 } },
-      { id: 'b_guard', name: 'Thick Bell', text: 'Bell Guard +15 shield.', mods: { guardShield: 15 } },
-      { id: 'b_thee', name: 'Toll for Thee', key: true, text: 'Enemies you Toll are Hushed on their moved turn, and Toll’s cooldown −1.', mods: { tollHush: 1, tollCd: 1 } }] },
+      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 30 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_clapper', name: 'Heavy Clapper', mods: { basicDmg: 6 }, text: m => `Clapper +${m.basicDmg} damage.` }),
+      node({ id: 'b_guard', name: 'Thick Bell', mods: { guardShield: 15 }, text: m => `Bell Guard +${m.guardShield} shield.` }),
+      node({ id: 'b_thee', name: 'Toll for Thee', key: true, mods: { tollHush: 1, tollCd: 1 },
+        text: m => `Enemies you Toll are Hushed on their moved turn, and Toll’s ${cd(m.tollCd)}.` })] },
     { name: 'Herald', role: 'damage', color: '#ff8a4a', nodes: [
-      { id: 'b_knell', name: 'Deep Knell', text: 'Knell +6 damage.', mods: { knellDmg: 6 } },
-      { id: 'b_last', name: 'Last Word', text: '+20% damage when you’re the last of your party to act this round.', mods: { lastDmg: 0.2 } },
-      { id: 'b_peal', name: 'Loud Peal', text: 'Peal +3 damage.', mods: { pealDmg: 3 } },
-      { id: 'b_final', name: 'Final Hour', key: true, text: 'Toll can target you before you move or act: your turn moves to the end of the round, and a turn you take last in the round deals +50% damage.', mods: { finalHour: 0.5 } }] },
+      node({ id: 'b_knell', name: 'Deep Knell', mods: { knellDmg: 6 }, text: m => `Knell +${m.knellDmg} damage.` }),
+      node({ id: 'b_last', name: 'Last Word', mods: { lastDmg: 0.2 }, text: m => `+${pct(m.lastDmg)} damage when you’re the last of your party to act this round.` }),
+      node({ id: 'b_peal', name: 'Loud Peal', mods: { pealDmg: 3 }, text: m => `Peal +${m.pealDmg} damage.` }),
+      node({ id: 'b_final', name: 'Final Hour', key: true, mods: { finalHour: 0.5 },
+        text: m => `Toll can target you before you move or act: your turn moves to the end of the round, and a turn you take last in the round deals +${pct(m.finalHour)} damage.` })] },
     { name: 'Conductor', role: 'support', color: '#8fd1ff', nodes: [
-      { id: 'b_reach', name: 'Far Toll', text: 'Toll range +2.', mods: { tollRange: 2 } },
-      { id: 'b_encore', name: 'Swift Encore', text: 'Encore cooldown −1.', mods: { encoreCd: 1 } },
-      { id: 'b_hp2', name: 'Steady Hands', text: '+20 max HP.', mods: { hp: 20 } },
-      { id: 'b_accel', name: 'Accelerando', key: true, text: 'Allies you Toll get +2 move and a 15 shield on that turn, and Toll’s cooldown −1.', mods: { accel: 1, tollCd: 1 } }] }],
+      node({ id: 'b_reach', name: 'Far Toll', mods: { tollRange: 2 }, text: m => `Toll range +${m.tollRange}.` }),
+      node({ id: 'b_encore', name: 'Swift Encore', mods: { encoreCd: 1 }, text: m => `Encore ${cd(m.encoreCd)}.` }),
+      node({ id: 'b_hp2', name: 'Steady Hands', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_accel', name: 'Accelerando', key: true, mods: { accel: 1, tollCd: 1 },
+        text: m => `Allies you Toll get +${HASTE_MOVE} move and a ${NODE_N.b_accel.shield} shield on that turn, and Toll’s ${cd(m.tollCd)}.` })] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
 
@@ -215,37 +296,51 @@ export const KEYSTONE_TIER = 3;
 
 // ---------- party resonances: every pair of classes in the party, and every class taken twice ----------
 export interface PairDef { id: PairId; a: ClassId; b: ClassId; name: string; text: string }
+/** The resonances' numbers: the engine reads them here, the pair texts quote them. */
+export const PAIR_N = {
+  startether: { turns: 2 },
+  deathknell: { bleed: 2 },
+  conjunction: { dmg: 0.25 },
+  greatweb: { threads: 1, webTurns: 1 },
+  charnel: { soulTurns: 2, souls: 1 },
+  pealofbells: { range: 1, cd: 1 },
+};
+const PN = PAIR_N;
 const PAIR_TABLE = [
-  { id: 'startether', a: 'astromancer', b: 'weaver', name: 'Star-Tether', text: 'An enemy held by your Weaver when your Call hits it is Exposed for 2 turns.' },
+  { id: 'startether', a: 'astromancer', b: 'weaver', name: 'Star-Tether', text: `An enemy held by your Weaver when your Call hits it is Exposed for ${PN.startether.turns} turns.` },
   { id: 'seconddawn', a: 'astromancer', b: 'gravecaller', name: 'Second Dawn', text: 'A Recall that lands on a Downed ally stands it back up at the HP it had when you cast.' },
   { id: 'appointedhour', a: 'astromancer', b: 'bellringer', name: 'Appointed Hour', text: 'An enemy Tolled while standing in one of your pending Calls’ areas is Rooted.' },
   { id: 'soulsilk', a: 'weaver', b: 'gravecaller', name: 'Soul Silk', text: 'Last Rites and Siphon reach any ally your Weaver holds, at any range.' },
   { id: 'clockworksilk', a: 'weaver', b: 'bellringer', name: 'Clockwork Silk', text: 'Toll reaches any unit your Weaver holds, at any range.' },
-  { id: 'deathknell', a: 'gravecaller', b: 'bellringer', name: 'Death Knell', text: 'Downed enemies lose 2 bleed a turn instead of 1.' },
-  { id: 'conjunction', a: 'astromancer', b: 'astromancer', name: 'Conjunction', text: 'A Call that lands in a round where another of your Calls already landed deals +25%.' },
-  { id: 'greatweb', a: 'weaver', b: 'weaver', name: 'Great Web', text: '+1 Thread each, and your webs last 1 round longer.' },
-  { id: 'charnel', a: 'gravecaller', b: 'gravecaller', name: 'Charnel House', text: 'Souls last 2 rounds longer, and each Gravecaller holds 1 more.' },
-  { id: 'pealofbells', a: 'bellringer', b: 'bellringer', name: 'Peal of Bells', text: 'Each Bellringer’s Toll gets +1 range and −1 cooldown. A unit still can’t be Tolled twice in a round.' },
+  { id: 'deathknell', a: 'gravecaller', b: 'bellringer', name: 'Death Knell', text: `Downed enemies lose ${PN.deathknell.bleed} bleed a turn instead of 1.` },
+  { id: 'conjunction', a: 'astromancer', b: 'astromancer', name: 'Conjunction', text: `A Call that lands in a round where another of your Calls already landed deals +${pct(PN.conjunction.dmg)}.` },
+  { id: 'greatweb', a: 'weaver', b: 'weaver', name: 'Great Web', text: `+${PN.greatweb.threads} Thread each, and your webs last ${PN.greatweb.webTurns} round longer.` },
+  { id: 'charnel', a: 'gravecaller', b: 'gravecaller', name: 'Charnel House', text: `Souls last ${PN.charnel.soulTurns} rounds longer, and each Gravecaller holds ${PN.charnel.souls} more.` },
+  { id: 'pealofbells', a: 'bellringer', b: 'bellringer', name: 'Peal of Bells', text: `Each Bellringer’s Toll gets +${PN.pealofbells.range} range and −${PN.pealofbells.cd} cooldown. A unit still can’t be Tolled twice in a round.` },
 ] satisfies readonly PairDef[];
 export const PAIRS: readonly PairDef[] = PAIR_TABLE;
 export type EveryPairListed = Assert<NoMissing<PairId, (typeof PAIR_TABLE)[number]['id']>>;
-export const COVERAGE: { id: 'coverage'; name: string; text: string } = { id: 'coverage', name: 'Role Coverage', text: 'A tank, a damage and a support path: +40 max HP for everyone.' };
+const COVERAGE_HP = 40;
+export const COVERAGE = {
+  id: 'coverage', name: 'Role Coverage', hp: COVERAGE_HP, text: `A tank, a damage and a support path: +${COVERAGE_HP} max HP for everyone.`,
+} satisfies { id: PartyBonusId; name: string; hp: number; text: string };
 
 // ---------- statuses: durations count the owner's turns and tick down at the end of each of them ----------
 export interface StatusDef { name: string; icon: string; color: string; bad?: true; text: string }
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 const STATUS_TABLE = {
   stun: { name: 'Stunned', icon: '💫', color: '#ffd36b', bad: true, text: 'Loses its next turn.' },
   root: { name: 'Rooted', icon: '🌿', color: '#8fe36b', bad: true, text: 'Can’t move on its next turn.' },
-  wet: { name: 'Wet', icon: '💧', color: '#4fb3ff', bad: true, text: 'Thunderhead Conducts (×1.5), Frostbolt Freezes (stun). Can’t burn.' },
+  wet: { name: 'Wet', icon: '💧', color: '#4fb3ff', bad: true, text: `Thunderhead Conducts (×${WET_SHOCK}), Frostbolt Freezes (stun). Can’t burn.` },
   burn: { name: 'Burning', icon: '🔥', color: '#ff7a3a', bad: true, text: 'Takes fire damage at the start of its turn. Breaks Threads.' },
   poison: { name: 'Poisoned', icon: '☠️', color: '#8fe36b', bad: true, text: 'Takes poison damage at the start of its turn.' },
-  expose: { name: 'Exposed', icon: '🩸', color: '#ff8a8a', bad: true, text: 'Takes +25% damage.' },
+  expose: { name: 'Exposed', icon: '🩸', color: '#ff8a8a', bad: true, text: `Takes +${pct(EXPOSE)} damage.` },
   encased: { name: 'Encased', icon: '🧊', color: '#b8e8ff', text: 'Skips its turn, can’t be damaged or moved.' },
-  share: { name: 'Shared Pain', icon: '🕸️', color: '#d06a9a', text: 'Half the damage to the allies it holds comes to it instead.' },
-  wither: { name: 'Withered', icon: '🥀', color: '#b89a6a', bad: true, text: 'Can’t be healed or shielded. A hit that leaves it at 20% HP or less Downs it (REAP).' },
+  share: { name: 'Shared Pain', icon: '🕸️', color: '#d06a9a', text: `${cap(part(SHARE))} the damage to the allies it holds comes to it instead.` },
+  wither: { name: 'Withered', icon: '🥀', color: '#b89a6a', bad: true, text: `Can’t be healed or shielded. A hit that leaves it at ${pct(REAP_AT)} HP or less Downs it (REAP).` },
   hush: { name: 'Hushed', icon: '🔇', color: '#c8b4ff', bad: true, text: 'Can move and use its basic attack, nothing else. Free skills included.' },
   guard: { name: 'Bell Guard', icon: '🛎️', color: '#e0b04a', text: 'Until its next turn, enemies that hit it are Hushed.' },
-  haste: { name: 'Quickened', icon: '💨', color: '#8fd1ff', text: '+2 move on its next turn.' },
+  haste: { name: 'Quickened', icon: '💨', color: '#8fd1ff', text: `+${HASTE_MOVE} move on its next turn.` },
 } satisfies Record<StatusKey, StatusDef>;
 export const STATUS: Readonly<Record<StatusKey, StatusDef>> = STATUS_TABLE;
 
@@ -267,77 +362,107 @@ function basicSkill(cls: ClassId): SkillDef {
     text: `${ranged ? 'Ranged attack' : 'Melee attack'} for ${b.dmg}. Finishes Downed enemies.` };
 }
 
+/** Each skill's numbers: its handler reads them here, its text quotes them. Fractions are of max HP; `mult`s multiply the hit. */
+export const SKILL_N = {
+  snap: { power: 0.5 },
+  meteor: { center: 30, edge: 15 },
+  thunderhead: { radius: 1, dmg: 20 },
+  gravitywell: { radius: 2, pull: 2 },
+  frostbolt: { dmg: 12, iceTurns: 3 },
+  firebolt: { dmg: 14, combust: 12, combustMult: 3 },
+  prison: { range: 3, turns: 1 },
+  reel: { pull: 2 },
+  web: { radius: 1, turns: 3 },
+  cocoon: { range: 1, shield: 40, turns: 1 },
+  venombite: { dmg: 12, shatterMult: 2 },
+  puppet: { steps: 2 },
+  lastrites: { range: 3, hp: 0.4 },
+  bonewall: { turns: 2 },
+  wither: { turns: 2 },
+  soulbolt: { dmg: 14, perSoul: 6 },
+  soulburst: { radius: 1, dmg: 18 },
+  siphon: { dmg: 12, reach: 3 },
+  equalize: { most: 30 },
+  toll: { range: 4 },
+  knell: { dmg: 12, lateMult: 1.5 },
+  peal: { radius: 2, dmg: 10, perActed: 3 },
+  encore: { range: 3 },
+  bellguard: { shield: 25 },
+  helpup: { hp: 0.3 },
+};
+const K = SKILL_N;
+
 const SKILL_TABLE = {
   snap: { name: 'Snap', icon: '✨', target: 'self', cd: 3, free: true, innate: true, cls: 'astromancer', color: '#9a8cff',
-    text: 'Free. Your oldest pending Call lands right now, at half power.' },
+    text: `Free. Your oldest pending Call lands right now, at ${part(K.snap.power)} power.` },
   meteor: { name: 'Meteor', icon: '☄️', target: 'tile', range: 6, cd: 3, aoe: 1, call: true, map: true, cls: 'astromancer', color: '#ff6a2b', sets: ['Burning'],
-    text: 'Call. 30 at the center, 15 around, and Burning. Ignites grass, bursts braziers, burns webs.' },
-  thunderhead: { name: 'Thunderhead', icon: '⛈️', target: 'tile', range: 5, cd: 2, aoe: 1, call: true, cls: 'astromancer', color: '#c9a7ff', pays: ['Wet → CONDUCT ×1.5'],
-    text: 'Call. 20 shock to everyone in a 3×3 area. Wet: CONDUCT, ×1.5.' },
-  gravitywell: { name: 'Gravity Well', icon: '🌀', target: 'tile', range: 5, cd: 3, aoe: 2, call: true, map: true, cls: 'astromancer', color: '#7a6aff', sets: ['Slam → Stun', 'Abyss → Downed'],
-    text: 'Call. Everyone within 2 of the center is pulled 2 toward it, nearest first. Into a wall or unit: SLAM. Into a chasm: ABYSS.' },
+    text: `Call. ${K.meteor.center} at the center, ${K.meteor.edge} around, and Burning. Ignites grass, bursts braziers, burns webs.` },
+  thunderhead: { name: 'Thunderhead', icon: '⛈️', target: 'tile', range: 5, cd: 2, aoe: K.thunderhead.radius, call: true, cls: 'astromancer', color: '#c9a7ff', pays: [`Wet → CONDUCT ×${WET_SHOCK}`],
+    text: `Call. ${K.thunderhead.dmg} shock to everyone in a ${side(K.thunderhead.radius)} area. Wet: CONDUCT, ×${WET_SHOCK}.` },
+  gravitywell: { name: 'Gravity Well', icon: '🌀', target: 'tile', range: 5, cd: 3, aoe: K.gravitywell.radius, call: true, map: true, cls: 'astromancer', color: '#7a6aff', sets: ['Slam → Stun', 'Abyss → Downed'],
+    text: `Call. Everyone within ${K.gravitywell.radius} of the center is pulled ${K.gravitywell.pull} toward it, nearest first. Into a wall or unit: SLAM. Into a chasm: ABYSS.` },
   frostbolt: { name: 'Frostbolt', icon: '❄️', target: 'enemy', range: 4, los: true, cd: 2, cls: 'astromancer', color: '#7fd8ff', sets: ['Rooted'], pays: ['Wet → FREEZE (stun)'], map: true,
-    text: '12 and Rooted. Against Wet: FREEZE, stunned instead. Freezes water within 1.' },
+    text: `${K.frostbolt.dmg} and Rooted. Against Wet: FREEZE, stunned instead. Freezes water within 1.` },
   firebolt: { name: 'Firebolt', icon: '🔥', target: 'enemy', range: 4, los: true, cd: 2, cls: 'astromancer', color: '#ff9a4a', sets: ['Burning'], pays: ['Burning → COMBUST'],
-    text: '14 and Burning. Against a Burning target: COMBUST, 12 plus triple its remaining burn, at once.' },
-  prison: { name: 'Glacial Prison', icon: '🧊', target: 'any', range: 3, cd: 3, cls: 'astromancer', color: '#b8e8ff',
-    text: 'Any other unit is Encased for 1 turn: it skips its turn and can’t be damaged or moved. Then it’s Wet.' },
+    text: `${K.firebolt.dmg} and Burning. Against a Burning target: COMBUST, ${K.firebolt.combust} plus its remaining burn ×${K.firebolt.combustMult}, at once.` },
+  prison: { name: 'Glacial Prison', icon: '🧊', target: 'any', range: K.prison.range, cd: 3, cls: 'astromancer', color: '#b8e8ff',
+    text: `Any other unit is Encased for ${K.prison.turns} turn: it skips its turn and can’t be damaged or moved. Then it’s Wet.` },
   recall: { name: 'Recall', icon: '⏪', target: 'ally', range: 4, cd: 3, call: true, cls: 'astromancer', color: '#ffe08a',
     text: 'Call. When it lands, the ally snaps back to where it stood when you cast, if that’s free, and gets back the HP it lost since.' },
 
   tether: { name: 'Tether', icon: '🧵', target: 'any', range: 4, los: true, cd: 2, free: true, innate: true, cls: 'weaver', color: '#d06a9a',
-    text: 'Free. Tie a Thread to any other unit you can see. An enemy can’t end a move farther from you than it was. You hold 3; a 4th replaces the oldest.' },
+    text: `Free. Tie a Thread to any other unit you can see. An enemy can’t end a move farther from you than it was. You hold ${THREADS}; one more replaces the oldest.` },
   reel: { name: 'Reel', icon: '🎣', target: 'self', cd: 2, cls: 'weaver', sets: ['Slam → Stun', 'Abyss → Downed'],
-    text: 'Pull everyone you hold 2 toward you. An enemy pulled into a wall or unit: SLAM; into a chasm: ABYSS. Allies stop short.' },
-  web: { name: 'Web', icon: '🕸️', target: 'tile', range: 4, cd: 3, aoe: 1, map: true, cls: 'weaver', sets: ['Rooted'],
-    text: 'Webs on a 3×3 area for 3 rounds. Stepping onto a web stops you and Roots you. Fire burns webs.' },
-  cocoon: { name: 'Cocoon', icon: '🥚', target: 'any', range: 1, cd: 3, cls: 'weaver',
-    text: 'Range 1, or anyone you hold. An ally gets a 40 shield; a Downed ally or an enemy is Encased for 1 turn.' },
-  venombite: { name: 'Venom Bite', icon: '🕷️', target: 'enemy', range: 1, cd: 2, cls: 'weaver', color: '#8fe36b', sets: ['Poisoned'], pays: ['Rooted / Stunned → SHATTER ×2'],
-    text: '12 and Poisoned (6 a turn for 3 turns). On a Rooted or Stunned target: SHATTER, ×2.' },
+    text: `Pull everyone you hold ${K.reel.pull} toward you. An enemy pulled into a wall or unit: SLAM; into a chasm: ABYSS. Allies stop short.` },
+  web: { name: 'Web', icon: '🕸️', target: 'tile', range: 4, cd: 3, aoe: K.web.radius, map: true, cls: 'weaver', sets: ['Rooted'],
+    text: `Webs on a ${side(K.web.radius)} area for ${K.web.turns} rounds. Stepping onto a web stops you and Roots you. Fire burns webs.` },
+  cocoon: { name: 'Cocoon', icon: '🥚', target: 'any', range: K.cocoon.range, cd: 3, cls: 'weaver',
+    text: `Range ${K.cocoon.range}, or anyone you hold. An ally gets a ${K.cocoon.shield} shield; a Downed ally or an enemy is Encased for ${K.cocoon.turns} turn.` },
+  venombite: { name: 'Venom Bite', icon: '🕷️', target: 'enemy', range: 1, cd: 2, cls: 'weaver', color: '#8fe36b', sets: ['Poisoned'], pays: [`Rooted / Stunned → SHATTER ×${K.venombite.shatterMult}`],
+    text: `${K.venombite.dmg} and Poisoned (${POISON.dmg} a turn for ${POISON.turns} turns). On a Rooted or Stunned target: SHATTER, ×${K.venombite.shatterMult}.` },
   puppet: { name: 'Puppet Strings', icon: '🪢', target: 'tile', cd: 3, map: true, cls: 'weaver',
-    text: 'An enemy you hold walks to an empty tile within 2 steps of it: into the storm, off the altar, onto a web.' },
+    text: `An enemy you hold walks to an empty tile within ${K.puppet.steps} steps of it: into the storm, off the altar, onto a web.` },
   sharedpain: { name: 'Shared Pain', icon: '💞', target: 'self', cd: 3, cls: 'weaver',
-    text: 'Until your next turn, half the damage allies you hold would take hits you instead.' },
+    text: `Until your next turn, ${part(SHARE)} the damage allies you hold would take hits you instead.` },
   skitter: { name: 'Skitter', icon: '🦗', target: 'any', range: 5, cd: 3, free: true, cls: 'weaver',
     text: 'Free. Leap next to a unit you hold.' },
 
   harvest: { name: 'Harvest', icon: '🌾', target: 'self', cd: 2, free: true, innate: true, cls: 'gravecaller', color: '#9fe0b8',
-    text: 'Free. Gather every Soul within 3. You also gather a Soul by ending a move on it. You hold 3.' },
-  lastrites: { name: 'Last Rites', icon: '🕯️', target: 'downed', range: 3, cd: 3, rite: true, cls: 'gravecaller', color: '#fff3b0',
-    text: 'Rite. A Downed ally within 3 stands up at 40% HP.' },
+    text: `Free. Gather every Soul within ${HARVEST_RANGE}. You also gather a Soul by ending a move on it. You hold ${SOULS}.` },
+  lastrites: { name: 'Last Rites', icon: '🕯️', target: 'downed', range: K.lastrites.range, cd: 3, rite: true, cls: 'gravecaller', color: '#fff3b0',
+    text: `Rite. A Downed ally within ${K.lastrites.range} stands up at ${pct(K.lastrites.hp)} HP.` },
   bonewall: { name: 'Bone Wall', icon: '🦴', target: 'tile', range: 3, cd: 2, empty: true, map: true, rite: true, cls: 'gravecaller', color: '#e8e2d0',
-    text: 'Rite. A wall of 3 tiles across your line, for 2 rounds. It blocks moves and sight, and breaks Threads. Tiles with units are skipped.' },
+    text: `Rite. A wall of 3 tiles across your line, for ${K.bonewall.turns} rounds. It blocks moves and sight, and breaks Threads. Tiles with units are skipped.` },
   wither: { name: 'Wither', icon: '🥀', target: 'enemy', range: 3, cd: 3, rite: true, cls: 'gravecaller', color: '#b89a6a', sets: ['Withered → REAP'],
-    text: 'Rite. Withered for 2 turns: no healing or shields, and a hit that leaves it at 20% HP or less Downs it (REAP).' },
+    text: `Rite. Withered for ${K.wither.turns} turns: no healing or shields, and a hit that leaves it at ${pct(REAP_AT)} HP or less Downs it (REAP).` },
   soulbolt: { name: 'Soul Bolt', icon: '👻', target: 'enemy', range: 4, los: true, cd: 2, cls: 'gravecaller', color: '#9fe0b8',
-    text: '14, plus 6 for each Soul you hold. Spends none.' },
-  soulburst: { name: 'Soul Burst', icon: '💥', target: 'tile', range: 4, cd: 2, aoe: 1, map: true, cls: 'gravecaller', color: '#c06aff',
-    text: 'A Soul on the ground bursts: 18 to every enemy within 1 of it.' },
+    text: `${K.soulbolt.dmg}, plus ${K.soulbolt.perSoul} for each Soul you hold. Spends none.` },
+  soulburst: { name: 'Soul Burst', icon: '💥', target: 'tile', range: 4, cd: 2, aoe: K.soulburst.radius, map: true, cls: 'gravecaller', color: '#c06aff',
+    text: `A Soul on the ground bursts: ${K.soulburst.dmg} to every enemy within ${K.soulburst.radius} of it.` },
   siphon: { name: 'Siphon', icon: '🩸', target: 'enemy', range: 3, cd: 2, cls: 'gravecaller', color: '#ff8a8a',
-    text: '12, and the most wounded ally within 3 of you (yourself included) heals what it took.' },
+    text: `${K.siphon.dmg}, and the most wounded ally within ${K.siphon.reach} of you (yourself included) heals what it took.` },
   equalize: { name: 'Equalize', icon: '⚖️', target: 'any', range: 3, cd: 3, cls: 'gravecaller',
-    text: 'Your HP % and its HP % even out, moving at most 30 HP. Take from an enemy healthier than you, give to an ally hurt worse.' },
+    text: `Your HP % and its HP % even out, moving at most ${K.equalize.most} HP. Take from an enemy healthier than you, give to an ally hurt worse.` },
 
-  toll: { name: 'Toll', icon: '🔔', target: 'any', range: 4, cd: 2, free: true, innate: true, cls: 'bellringer', color: '#e0b04a',
-    text: 'Free. A unit within 4 that hasn’t acted this round: an enemy moves to the end of the round, an ally to right after you. Once per unit per round.' },
-  knell: { name: 'Knell', icon: '🔕', target: 'enemy', range: 4, los: true, cd: 2, cls: 'bellringer', color: '#e0b04a', pays: ['Late → ×1.5, Rooted'],
-    text: '12. Late (it already acted this round): ×1.5 and Rooted.' },
+  toll: { name: 'Toll', icon: '🔔', target: 'any', range: K.toll.range, cd: 2, free: true, innate: true, cls: 'bellringer', color: '#e0b04a',
+    text: `Free. A unit within ${K.toll.range} that hasn’t acted this round: an enemy moves to the end of the round, an ally to right after you. Once per unit per round.` },
+  knell: { name: 'Knell', icon: '🔕', target: 'enemy', range: 4, los: true, cd: 2, cls: 'bellringer', color: '#e0b04a', pays: [`Late → ×${K.knell.lateMult}, Rooted`],
+    text: `${K.knell.dmg}. Late (it already acted this round): ×${K.knell.lateMult} and Rooted.` },
   hush: { name: 'Hush', icon: '🔇', target: 'enemy', range: 3, cd: 3, cls: 'bellringer', color: '#c8b4ff', sets: ['Hushed'],
     text: 'Hushed for its next turn: it can move and use its basic attack, nothing else. Free innates included.' },
-  peal: { name: 'Peal', icon: '📯', target: 'self', aoe: 2, cd: 2, cls: 'bellringer', color: '#ffd36b',
-    text: 'Every enemy within 2 takes 10, plus 3 for each unit that already acted this round.' },
-  encore: { name: 'Encore', icon: '🎭', target: 'ally', range: 3, cd: 4, noSelf: true, cls: 'bellringer', color: '#8fd1ff',
-    text: 'An ally within 3 that already acted this round takes an extra turn at the end of the round. Cooldowns don’t tick on that turn.' },
+  peal: { name: 'Peal', icon: '📯', target: 'self', aoe: K.peal.radius, cd: 2, cls: 'bellringer', color: '#ffd36b',
+    text: `Every enemy within ${K.peal.radius} takes ${K.peal.dmg}, plus ${K.peal.perActed} for each unit that already acted this round.` },
+  encore: { name: 'Encore', icon: '🎭', target: 'ally', range: K.encore.range, cd: 4, noSelf: true, cls: 'bellringer', color: '#8fd1ff',
+    text: `An ally within ${K.encore.range} that already acted this round takes an extra turn at the end of the round. Cooldowns don’t tick on that turn.` },
   overture: { name: 'Overture', icon: '🎼', target: 'self', cd: 4, free: true, cls: 'bellringer', color: '#8fd1ff',
     text: 'Free. Every ally that hasn’t acted this round moves to right after you, in its current order. Not a Toll.' },
   hourglass: { name: 'Hourglass', icon: '⏳', target: 'any', range: 3, cd: 3, cls: 'bellringer',
     text: 'Its timed statuses run out now. An enemy takes its remaining Burn and Poison at once and loses its shield; an ally only loses its debuffs.' },
   bellguard: { name: 'Bell Guard', icon: '🛎️', target: 'self', cd: 3, cls: 'bellringer', color: '#e0b04a',
-    text: 'A 25 shield. Until your next turn, enemies that hit you are Hushed.' },
+    text: `A ${K.bellguard.shield} shield. Until your next turn, enemies that hit you are Hushed.` },
 
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
-    text: 'Pull a Downed ally next to you back up at 30% HP.' },
+    text: `Pull a Downed ally next to you back up at ${pct(K.helpup.hp)} HP.` },
 
   basic_astromancer: basicSkill('astromancer'),
   basic_weaver: basicSkill('weaver'),
@@ -349,7 +474,7 @@ export function isCall(id: SkillId): id is CallSkill { return !!SKILLS[id].call;
 
 export const COMBO_INFO = {
   SLAM: 'Forced into an obstacle: stunned.', ABYSS: 'Forced into a chasm or pit: Downed at its edge.', FREEZE: 'Frostbolt on a Wet enemy: stunned.',
-  CONDUCT: 'Thunderhead on a Wet enemy: ×1.5.', COMBUST: 'Firebolt on a Burning enemy: the whole burn at once, tripled.',
-  SHATTER: 'Venom Bite on a Stunned or Rooted enemy: ×2.', EXECUTE: 'Any hit on a Downed enemy finishes it.', IGNITE: 'Fire on a brazier: it bursts into flames.',
-  REAP: 'A hit leaves a Withered enemy (or a Reaper’s target) at 20% HP or less: Downed at once.',
+  CONDUCT: `Thunderhead on a Wet enemy: ×${WET_SHOCK}.`, COMBUST: `Firebolt on a Burning enemy: the whole burn at once, ×${K.firebolt.combustMult}.`,
+  SHATTER: `Venom Bite on a Stunned or Rooted enemy: ×${K.venombite.shatterMult}.`, EXECUTE: 'Any hit on a Downed enemy finishes it.', IGNITE: 'Fire on a brazier: it bursts into flames.',
+  REAP: `A hit leaves a Withered enemy (or a Reaper’s target) at ${pct(REAP_AT)} HP or less: Downed at once.`,
 } satisfies Record<ComboName, string>;

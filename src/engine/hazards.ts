@@ -1,6 +1,6 @@
 import { idx, isAlive, standing } from './board';
 import { checkWinner, damage, fall } from './combat';
-import { MAPS, N, TERRAIN, mirrored } from './tables';
+import { MAPS, N, TERRAIN, WET_SHOCK, mirrored } from './tables';
 import type { MapRule } from './tables';
 import type { BattleEvent, BattleState, MapId, Pos, Unit } from './types';
 
@@ -61,7 +61,7 @@ const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
       return !!(line?.cols?.includes(p.x) || line?.rows?.includes(p.z));
     },
     name: (r, round) => strikeOf(r, round)?.name ?? null,
-    toll: (r, u) => Math.round(r.dmg * (u.st.wet ? 1.5 : 1)),
+    toll: (r, u) => Math.round(r.dmg * (u.st.wet ? WET_SHOCK : 1)),
     end(s, r, ev) {
       const line = strikeOf(r, s.round);
       if (!line) return;
