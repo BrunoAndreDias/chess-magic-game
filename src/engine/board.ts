@@ -387,7 +387,6 @@ function cloneStatuses(st: Statuses): Statuses {
   return o;
 }
 function clonePhase(p: Phase): Phase {
-  if (p.kind === 'order') return { kind: 'order', orders: [p.orders[0]?.slice() ?? null, p.orders[1]?.slice() ?? null] };
   if (p.kind === 'act') return { kind: 'act', queue: p.queue.map(t => ({ ...t })), qi: p.qi, tolled: p.tolled.slice() };
   return p;
 }

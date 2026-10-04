@@ -1,4 +1,4 @@
-// Plays one battle through the real UI in headless Chromium: map reveal → setup → scout → order → every Blue turn by clicks and hotkeys → result → Rematch.
+// Plays one battle through the real UI in headless Chromium: map reveal → setup → scout → every Blue turn by clicks and hotkeys → result → Rematch.
 // Blue's moves are chosen by the engine AI (aiTurn) and performed through the HUD. Exits non-zero on any page error or if no result is reached.
 // ALL_AI=1 instead spectates an all-AI battle (?ai&quick) to the result screen, then draws a New battlefield.
 // Env: PLAYWRIGHT_CORE (module path), CHROME (browser binary), SHOTS (screenshot dir), MAP, SEED, PORT.
@@ -197,18 +197,11 @@ async function serve() {
   async function playBlue() {
     await setupAndScout();
     const watcher = watchRuleEvents();
-    let orderShot = false, battleShot = false, midShot = false, hazardShot = false, k = 0;
+    let battleShot = false, midShot = false, hazardShot = false, k = 0;
     const turns = new Set();
     for (let iter = 0; iter < 4000; iter++) {
       const ph = await phase();
       if (ph === 'result') break;
-      if (ph === 'order') {
-        if (!(await p.$('#orderpanel:not(.hidden) #op-ai'))) { await wait(100); continue; }
-        if (!orderShot) { await wait(400); await shot('04-order'); orderShot = true; }
-        await p.click('#op-ai');
-        await until(async () => (await phase()) !== 'order', 3000);
-        continue;
-      }
       if (!(await p.evaluate(() => !document.querySelector('#endturn')?.disabled))) { await wait(150); continue; }
       const plan = await p.evaluate(async seed => {
         const L = await import('/src/engine/index.ts');

@@ -136,7 +136,8 @@ export interface Thread { by: UnitId; to: UnitId; len: number }
 export interface Turn { id: UnitId; extra: boolean }
 
 export type Phase =
-  | { kind: 'order'; orders: [UnitId[] | null, UnitId[] | null] }
+  /** Before round 1: the battle waits for its `begin`, so the opening round's events reach whoever applies it. */
+  | { kind: 'ready' }
   /** `tolled`: the units Tolled this round; a second Toll on one is refused. */
   | { kind: 'act'; queue: Turn[]; qi: number; tolled: UnitId[] }
   | { kind: 'over'; winner: Team | 'draw'; reason: OverReason };
@@ -190,7 +191,7 @@ export interface BattleSetup {
 
 /** Every change to a battle goes through one of these. `unit` names the acting unit so a stale or replayed command is rejected. */
 export type Command =
-  | { kind: 'order'; team: Team; order: UnitId[] }
+  | { kind: 'begin' }
   | { kind: 'move'; unit: UnitId; to: Pos }
   | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos }
   | { kind: 'endTurn'; unit: UnitId };

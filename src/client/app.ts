@@ -8,7 +8,7 @@ import { mountResult } from './screens/result';
 import { mountScout } from './screens/scout';
 import { mountSetup } from './screens/setup';
 
-export type Phase = 'map' | 'setup' | 'scout' | 'order' | 'battle' | 'result';
+export type Phase = 'map' | 'setup' | 'scout' | 'battle' | 'result';
 
 /** The client state machine. The draft rides along every screen so Rematch and Change parties can rebuild from it. */
 export type Screen =

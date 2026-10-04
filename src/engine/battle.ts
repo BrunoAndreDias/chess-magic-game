@@ -4,7 +4,7 @@ import { partyBonuses, modsOf } from './builds';
 import { performCast, performMove } from './combat';
 import type { Rng } from './rng';
 import { CLASSES, N, mapTerrain } from './tables';
-import { endActivation, resumeQueue, setOrders } from './turns';
+import { endActivation, resumeQueue, startRound } from './turns';
 import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, SkillId, Team, TileFx, UnitId } from './types';
 
 const TEAMS: readonly Team[] = [0, 1];
@@ -17,7 +17,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     units: [],
     round: 1,
     starter: setup.starter,
-    phase: { kind: 'order', orders: [null, null] },
+    phase: { kind: 'ready' },
     party: [partyBonuses(setup.teams[0]), partyBonuses(setup.teams[1])],
     combos: [0, 0],
     favor: [0, 0],
@@ -47,12 +47,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
 
 function check(state: BattleState, cmd: Command): string | null {
   const ph = state.phase;
-  if (cmd.kind === 'order') {
-    if (ph.kind !== 'order') return `not the order phase (${ph.kind})`;
-    if (ph.orders[cmd.team]) return `team ${cmd.team} already submitted its order`;
-    if (new Set(cmd.order).size !== cmd.order.length) return 'an order lists a unit more than once';
-    return null;
-  }
+  if (cmd.kind === 'begin') return ph.kind === 'ready' ? null : `not the ready phase (${ph.kind})`;
   if (ph.kind !== 'act') return `not the act phase (${ph.kind})`;
   const u = current(state);
   if (!u || u.id !== cmd.unit) return `unit ${cmd.unit} is not the current unit`;
@@ -74,14 +69,7 @@ export function apply(state: BattleState, cmd: Command): ApplyResult {
   const s = cloneState(state);
   let events: BattleEvent[] | null = [];
   switch (cmd.kind) {
-    case 'order': {
-      if (s.phase.kind !== 'order') break;
-      const orders = s.phase.orders;
-      orders[cmd.team] = cmd.order.slice();
-      const [o0, o1] = orders;
-      if (o0 && o1) events = setOrders(s, o0, o1);
-      break;
-    }
+    case 'begin': startRound(s, events); break;
     case 'move': events = performMove(s, cmd.to.x, cmd.to.z); break;
     case 'cast': {
       events = performCast(s, cmd.skill, cmd.at.x, cmd.at.z);

@@ -17,22 +17,17 @@ export function buildQueue(sOrder: readonly UnitId[], oOrder: readonly UnitId[])
   return q;
 }
 
-export function orderable(s: BattleState, t: Team): Unit[] { return s.units.filter(u => isAlive(u) && u.team === t); }
+/** The round's turns: each team's living units in slot order, which the pick phase made their turn order. */
+export function roundQueue(s: BattleState): UnitId[] {
+  const ids = (t: Team) => s.units.filter(u => u.team === t && isAlive(u)).map(u => u.id);
+  return buildQueue(ids(s.starter), ids(s.starter === 0 ? 1 : 0));
+}
 
-/** Unknown ids are dropped and missing ones appended, then the round starts. */
-export function setOrders(s: BattleState, ord0: readonly UnitId[], ord1: readonly UnitId[]): BattleEvent[] {
-  if (s.phase.kind !== 'order') return [];
-  const fix = (t: Team, ord: readonly UnitId[]) => {
-    const ids = orderable(s, t).map(u => u.id), out = ord.filter(id => ids.includes(id));
-    for (const id of ids) if (!out.includes(id)) out.push(id);
-    return out;
-  };
-  const o: [UnitId[], UnitId[]] = [fix(0, ord0), fix(1, ord1)];
-  const queue = buildQueue(o[s.starter], o[s.starter === 0 ? 1 : 0]).map(id => ({ id, extra: false }));
+export function startRound(s: BattleState, ev: BattleEvent[]): void {
+  const queue = roundQueue(s).map(id => ({ id, extra: false }));
   s.phase = { kind: 'act', queue, qi: 0, tolled: [] };
-  const ev: BattleEvent[] = [{ type: 'round', round: s.round, starter: s.starter, queue: queue.map(t => ({ ...t })) }];
+  ev.push({ type: 'round', round: s.round, starter: s.starter, queue: queue.map(t => ({ ...t })) });
   beginActivation(s, ev);
-  return ev;
 }
 
 /** Read through a call so narrowing doesn't outlive the mutations in between. */
@@ -194,7 +189,6 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
   s.souls = s.souls.filter(o => o.t > 0);
   ev.push({ type: 'roundEnd', round: s.round, burnt });
   s.round++;
-  s.starter = s.starter === 0 ? 1 : 0;
   if (s.round > MAX_ROUNDS) {
     const hp = [0, 0];
     for (const u of s.units) if (standing(u)) hp[u.team] = (hp[u.team] ?? 0) + u.hp / u.maxHp;
@@ -202,5 +196,5 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
     s.phase = { kind: 'over', winner: h0 > h1 ? 0 : h1 > h0 ? 1 : 'draw', reason: 'rounds' };
     return;
   }
-  s.phase = { kind: 'order', orders: [null, null] };
+  startRound(s, ev);
 }

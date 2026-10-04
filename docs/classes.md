@@ -122,7 +122,7 @@ No class counters another outright, but each has a lever on another. The Bellrin
 ### Calls
 
 - A **Called** skill marks its area now and **lands at the start of your next turn**, before you move, even if you're Stunned. Both parties see the area and the counter.
-- The party orders its turns every round, and the starter alternates. Act last this round and first next round, and the Call lands after one or two enemy turns. Act first and last, and it lands after five.
+- Turn order is drafted before the battle and holds for all of it, so a Call lands after the five other turns between yours, unless a Toll, Overture or Encore moves someone.
 - A Call hits **every unit** in its area, allies included, unless the Orrery keystone says otherwise.
 - You hold **one** Call at a time. If you're Downed before it lands, it fizzles.
 - **Snap** (innate, free, cooldown 3) makes your oldest pending Call land right now at half power. A half-power Gravity Well pulls 1 tile.

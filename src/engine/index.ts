@@ -8,9 +8,9 @@ export {
   canDeploy, validDeploy, inDeploy, idx, inb, cheb, holders, threadCap, callsOf, puppetMoves, soulCap, soulAt, soulsInReach, actedThisRound, undying,
 } from './board';
 export type { Target } from './board';
-export { buildQueue } from './turns';
+export { roundQueue } from './turns';
 export { createBattle, apply, predict } from './battle';
 export { callTiles } from './combat';
-export { aiDeploy, aiOrder, aiTurn } from './ai';
+export { aiDeploy, aiTurn } from './ai';
 export type { AiOpts } from './ai';
 export { threat, threatened, threatName, toll, doomed } from './hazards';

@@ -1,4 +1,4 @@
-import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiOrder, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
+import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
 // npm run sim -- [battles] [--blind] [--dumb] [--from=K]
@@ -79,7 +79,7 @@ for (let i = from; i < from + battles; i++) {
     }
   };
   for (let guard = 0; s.phase.kind !== 'over' && guard < 500; guard++) {
-    if (s.phase.kind === 'order') run([{ kind: 'order', team: 0, order: aiOrder(s, 0, r) }, { kind: 'order', team: 1, order: aiOrder(s, 1, r) }]);
+    if (s.phase.kind === 'ready') run([{ kind: 'begin' }]);
     else run(aiTurn(s, r, opts(current(s)?.team ?? 0)));
   }
   ms += performance.now() - t0;

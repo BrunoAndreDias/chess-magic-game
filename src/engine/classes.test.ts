@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply } from './battle';
 import { idx, reachable } from './board';
-import { bare, cast, end, move, orders, run, stage, turns, unit } from './testkit';
+import { bare, begin, cast, end, move, run, stage, turns, unit } from './testkit';
 import type { BattleEvent } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
@@ -13,7 +13,7 @@ describe('souls', () => {
       const s0 = stage({ a: [bare('gravecaller')], b: [bare('weaver')], place: { 1: [5, 1], 2: [5, 4] } });
       unit(s0, 1).souls = 1;
       unit(s0, 2).shield = shield;
-      return run(s0, ...orders([1], [2]), cast(1, 'soulbolt', 5, 4));
+      return run(s0, begin, cast(1, 'soulbolt', 5, 4));
     };
     const hard = bolt(0);
     expect(after(hard.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 20, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 5, z: 4 }]);
@@ -26,7 +26,7 @@ describe('souls', () => {
   test('Harvest gathers the Souls within 3 and leaves the one 4 away', () => {
     const s0 = stage({ a: [bare('gravecaller')], b: [bare('weaver')], place: { 1: [5, 1], 2: [9, 9] } });
     s0.souls = [{ x: 5, z: 5, t: 3 }, { x: 5, z: 4, t: 2 }];
-    const r = run(s0, ...orders([1], [2]), cast(1, 'harvest', 5, 1));
+    const r = run(s0, begin, cast(1, 'harvest', 5, 1));
     expect(r.events.at(-1)).toEqual({ type: 'gather', id: 1, from: [{ x: 5, z: 4 }] });
     expect([unit(r.state, 1).souls, r.state.souls]).toEqual([1, [{ x: 5, z: 5, t: 3 }]]);
   });
@@ -34,7 +34,7 @@ describe('souls', () => {
   test('a Gravecaller gathers a Soul by ending its move on it', () => {
     const s0 = stage({ a: [bare('gravecaller')], b: [bare('weaver')], place: { 1: [5, 1], 2: [9, 9] } });
     s0.souls = [{ x: 5, z: 3, t: 3 }];
-    const r = run(s0, ...orders([1], [2]), move(1, 5, 3));
+    const r = run(s0, begin, move(1, 5, 3));
     expect(r.events.at(-1)).toEqual({ type: 'gather', id: 1, from: [{ x: 5, z: 3 }] });
     expect([unit(r.state, 1).souls, r.state.souls]).toEqual([1, []]);
   });
@@ -42,7 +42,7 @@ describe('souls', () => {
   test('Souls on the ground last 3 rounds', () => {
     const s0 = stage({ a: [bare('weaver')], b: [bare('weaver')], place: { 1: [5, 1], 2: [9, 9] } });
     s0.souls = [{ x: 3, z: 3, t: 1 }, { x: 4, z: 4, t: 3 }];
-    const r = run(s0, ...orders([1], [2]), end(1), end(2));
+    const r = run(s0, begin, end(1), end(2));
     expect(r.state.souls).toEqual([{ x: 4, z: 4, t: 2 }]);
   });
 });
@@ -52,7 +52,7 @@ describe('rites', () => {
     const scene = (souls: number) => {
       const s0 = stage({ a: [bare('gravecaller'), bare('weaver')], b: [bare('weaver')], place: { 1: [3, 1], 2: [5, 1], 3: [9, 9] }, life: { 2: { kind: 'downed', bleed: 2 } } });
       unit(s0, 1).souls = souls;
-      return run(s0, ...orders([1, 2], [3])).state;
+      return run(s0, begin).state;
     };
     expect(apply(scene(0), cast(1, 'lastrites', 5, 1))).toEqual({ ok: false, error: 'lastrites is not usable now' });
     const r = run(scene(1), cast(1, 'lastrites', 5, 1));
@@ -63,7 +63,7 @@ describe('rites', () => {
   test('Bone Wall raises 3 tiles across the caster\'s line, skipping the tile with a unit, and nobody walks through it', () => {
     const s0 = stage({ a: [bare('gravecaller', ['bonewall', 'soulbolt', 'siphon'])], b: [bare('weaver')], place: { 1: [5, 1], 2: [6, 6] } });
     unit(s0, 1).souls = 1;
-    const live = run(s0, ...orders([1], [2])).state;
+    const live = run(s0, begin).state;
     unit(live, 2).x = 6; unit(live, 2).z = 3;
     const r = run(live, cast(1, 'bonewall', 5, 3));
     expect(r.events.at(-1)).toEqual({ type: 'terrain', tiles: [{ x: 5, z: 3 }, { x: 4, z: 3 }], kind: 'bone' });
@@ -81,7 +81,7 @@ describe('reap', () => {
     });
     unit(s0, 1).souls = 1;
     unit(s0, 3).maxHp = 100;
-    return run(s0, ...orders([1, 2], [3]), cast(1, 'wither', 5, 3), end(1), end(3), cast(2, 'basic_weaver', 5, 3));
+    return run(s0, begin, cast(1, 'wither', 5, 3), end(1), end(3), cast(2, 'basic_weaver', 5, 3));
   };
 
   test('a hit that leaves a Withered enemy at 20% HP Downs it (REAP); at 21% it stands', () => {
@@ -101,7 +101,7 @@ describe('reap', () => {
     const shrine = (wither: boolean) => {
       const s0 = stage({ a: [bare('gravecaller', ['wither', 'soulbolt', 'siphon'])], b: [bare('astromancer')], place: { 1: [3, 1], 2: [3, 3] }, hp: { 2: 50 }, terr: [[3, 3, '+']] });
       unit(s0, 1).souls = 1;
-      const live = run(s0, ...orders([1], [2])).state;
+      const live = run(s0, begin).state;
       return run(wither ? run(live, cast(1, 'wither', 3, 3)).state : live, end(1), end(2)).state;
     };
     expect([unit(shrine(true), 2).hp, unit(shrine(false), 2).hp]).toEqual([50, 62]);
@@ -112,7 +112,7 @@ describe('undying', () => {
   const downedLich = (souls: number) => {
     const s0 = stage({ a: [bare('gravecaller', undefined, [...lich])], b: [bare('weaver')], place: { 1: [5, 1], 2: [9, 9] }, life: { 1: { kind: 'downed', bleed: 2 } } });
     unit(s0, 1).souls = souls;
-    return run(s0, ...orders([1], [2]));
+    return run(s0, begin);
   };
 
   test('a Downed Undying Gravecaller spends a Soul instead of bleeding, and still takes its turn: move 1, no basic', () => {
@@ -133,12 +133,12 @@ describe('undying', () => {
 describe('psychopomp', () => {
   test('Ferryman: a Downed ally within 2 doesn\'t bleed, and Help Up brings it back at 60%', () => {
     const ferry = bare('gravecaller', undefined, ['g_rites', 'g_hp2', 'g_shield', 'g_ferry']);
-    const s0 = stage({ a: [ferry, bare('weaver'), bare('weaver')], b: [bare('weaver')], place: { 1: [3, 1], 2: [5, 1], 3: [6, 1], 4: [9, 9] }, life: { 2: { kind: 'downed', bleed: 2 } } });
-    const r = run(s0, ...orders([2, 3, 1], [4]));
-    expect(r.events.slice(1, 3)).toEqual([{ type: 'activate', id: 2, team: 0, qi: 0 }, { type: 'activate', id: 4, team: 1, qi: 1 }]);
-    const up = run(r.state, end(4), cast(3, 'helpup', 5, 1));
-    expect(up.events.at(-1)).toEqual({ type: 'revive', id: 2, by: 3 });
-    expect(unit(up.state, 2).hp).toBe(102);
+    const s0 = stage({ a: [bare('weaver'), bare('weaver'), ferry], b: [bare('weaver')], place: { 1: [5, 1], 2: [6, 1], 3: [3, 1], 4: [9, 9] }, life: { 1: { kind: 'downed', bleed: 2 } } });
+    const r = run(s0, begin);
+    expect(r.events.slice(1, 3)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'activate', id: 4, team: 1, qi: 1 }]);
+    const up = run(r.state, end(4), cast(2, 'helpup', 5, 1));
+    expect(up.events.at(-1)).toEqual({ type: 'revive', id: 1, by: 2 });
+    expect(unit(up.state, 1).hp).toBe(102);
   });
 });
 
@@ -148,7 +148,7 @@ describe('toll', () => {
       a: [bare('bellringer'), bare('bellringer'), bare('astromancer')], b: [bare('weaver'), bare('weaver'), bare('astromancer')],
       place: { 1: [5, 2], 2: [4, 2], 3: [6, 2], 4: [5, 5], 5: [6, 5], 6: [9, 9] },
     });
-    return run(s0, ...orders([1, 2, 3], [4, 5, 6])).state;
+    return run(s0, begin).state;
   };
 
   test('Toll sends an enemy to the end of the round and an ally to right after the caster', () => {
@@ -168,7 +168,7 @@ describe('toll', () => {
   test('Final Hour: the Herald Tolls itself to the end, and its last-in-round Clapper hits for +50% and +20%', () => {
     const herald = bare('bellringer', undefined, ['b_knell', 'b_last', 'b_peal', 'b_final']);
     const s0 = stage({ a: [herald], b: [bare('weaver')], place: { 1: [5, 1], 2: [5, 2] } });
-    const r = run(s0, ...orders([1], [2]), cast(1, 'toll', 5, 1));
+    const r = run(s0, begin, cast(1, 'toll', 5, 1));
     expect(r.events.slice(-2)).toEqual([{ type: 'queue', queue: turns(2, '+', 1) }, { type: 'activate', id: 2, team: 1, qi: 0 }]);
     const last = run(r.state, end(2), cast(1, 'basic_bellringer', 5, 2));
     expect(after(last.events, 'damage')[0]).toEqual({ type: 'damage', id: 2, amount: 27, absorbed: 0, kind: 'phys' });
@@ -177,28 +177,28 @@ describe('toll', () => {
 
 describe('bellringer skills', () => {
   test('Encore gives an ally that already acted an extra turn at the end of the round, and its cooldowns don\'t tick on it', () => {
-    const s0 = stage({ a: [bare('bellringer', ['encore', 'hush', 'peal']), bare('weaver')], b: [bare('weaver')], place: { 1: [4, 1], 2: [3, 1], 3: [9, 9] } });
-    const r = run(s0, ...orders([2, 1], [3]), cast(2, 'web', 3, 4), end(2), end(3), cast(1, 'encore', 3, 1));
-    expect(r.events.at(-1)).toEqual({ type: 'queue', queue: turns(2, 3, 1, '+', 2) });
-    const extra = run(r.state, end(1));
-    expect(extra.events.at(-1)).toEqual({ type: 'activate', id: 2, team: 0, qi: 3 });
-    expect(unit(extra.state, 2).cd.web).toBe(3);
-    const own = run(extra.state, end(2), ...orders([2, 1], [3]), end(3));
-    expect(unit(own.state, 2).cd.web).toBe(2);
+    const s0 = stage({ a: [bare('weaver'), bare('bellringer', ['encore', 'hush', 'peal'])], b: [bare('weaver')], place: { 1: [3, 1], 2: [4, 1], 3: [9, 9] } });
+    const r = run(s0, begin, cast(1, 'web', 3, 4), end(1), end(3), cast(2, 'encore', 3, 1));
+    expect(r.events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 3, 2, '+', 1) });
+    const extra = run(r.state, end(2));
+    expect(extra.events.at(-1)).toEqual({ type: 'activate', id: 1, team: 0, qi: 3 });
+    expect(unit(extra.state, 1).cd.web).toBe(3);
+    const own = run(extra.state, end(1));
+    expect(unit(own.state, 1).cd.web).toBe(2);
   });
 
   test('a Hushed enemy can use its basic attack but no skill on its next turn, and is free again after', () => {
     const s0 = stage({ a: [bare('bellringer')], b: [bare('astromancer')], place: { 1: [5, 1], 2: [5, 3] } });
-    const hushed = run(s0, ...orders([1], [2]), cast(1, 'hush', 5, 3), end(1)).state;
+    const hushed = run(s0, begin, cast(1, 'hush', 5, 3), end(1)).state;
     expect(apply(hushed, cast(2, 'frostbolt', 5, 1))).toEqual({ ok: false, error: 'frostbolt is not usable now' });
     expect(apply(hushed, cast(2, 'basic_astromancer', 5, 1)).ok).toBe(true);
-    const next = run(hushed, end(2), ...orders([1], [2])).state;
+    const next = run(hushed, end(2), end(1)).state;
     expect(apply(next, cast(2, 'frostbolt', 5, 1)).ok).toBe(true);
   });
 
   test('Knell on a unit that already acted this round hits ×1.5 and Roots; on one still to act it hits 12', () => {
     const s0 = stage({ a: [bare('bellringer')], b: [bare('weaver'), bare('weaver')], starter: 1, place: { 1: [5, 1], 2: [5, 4], 3: [6, 4] } });
-    const live = run(s0, ...orders([1], [2, 3]), end(2)).state;
+    const live = run(s0, begin, end(2)).state;
     expect(after(run(live, cast(1, 'knell', 5, 4)).events, 'damage')).toEqual([
       { type: 'damage', id: 2, amount: 18, absorbed: 0, kind: 'phys' },
       { type: 'status', id: 2, key: 'root' },
@@ -208,7 +208,7 @@ describe('bellringer skills', () => {
 
   test('an enemy that hits a Bell Guard is Hushed', () => {
     const s0 = stage({ a: [bare('bellringer', ['bellguard', 'hush', 'peal'])], b: [bare('weaver')], place: { 1: [5, 1], 2: [5, 2] } });
-    const r = run(s0, ...orders([1], [2]), cast(1, 'bellguard', 5, 1), end(1), cast(2, 'basic_weaver', 5, 1));
+    const r = run(s0, begin, cast(1, 'bellguard', 5, 1), end(1), cast(2, 'basic_weaver', 5, 1));
     expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 1, amount: 0, absorbed: 14, kind: 'phys' }, { type: 'status', id: 2, key: 'hush' }]);
     expect(unit(r.state, 2).st.hush).toEqual({ t: 2, by: 1 });
   });
@@ -218,7 +218,7 @@ describe('resonances', () => {
   test('Death Knell: a Downed enemy of a Gravecaller and Bellringer party loses 2 bleed a turn and is gone after one', () => {
     const bleedOut = (a: ReturnType<typeof bare>[]) => {
       const s0 = stage({ a, b: [bare('weaver'), bare('weaver')], place: { 1: [0, 0], 2: [1, 0], 3: [5, 9], 4: [9, 9] }, life: { 3: { kind: 'downed', bleed: 2 } } });
-      return run(run(s0, ...orders([1, 2], [3, 4])).state, end(1)).events.slice(1, 2);
+      return run(run(s0, begin).state, end(1)).events.slice(1, 2);
     };
     expect(bleedOut([bare('gravecaller'), bare('bellringer')])).toEqual([{ type: 'death', id: 3, team: 1, cause: 'bled' }]);
     expect(bleedOut([bare('gravecaller'), bare('weaver')])).toEqual([{ type: 'bleed', id: 3, left: 1 }]);
@@ -230,7 +230,7 @@ describe('resonances', () => {
         a: [bare('weaver'), bare('bellringer'), bare('astromancer')], b: [bare('astromancer'), bare('astromancer'), bare('astromancer')],
         place: { 1: [4, 1], 2: [0, 0], 3: [1, 1], 4: [11, 11], 5: [8, 4], 6: [10, 10] },
       });
-      const live = run(s0, ...orders([1, 2, 3], [4, 5, 6])).state;
+      const live = run(s0, begin).state;
       return run(tether ? run(live, cast(1, 'tether', 8, 4)).state : live, end(1), end(4)).state;
     };
     expect(apply(scene(false), cast(2, 'toll', 8, 4))).toEqual({ ok: false, error: '(8, 4) is not a target of toll' });

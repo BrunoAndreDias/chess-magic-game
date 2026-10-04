@@ -52,9 +52,7 @@ export function run(state: BattleState, ...cmds: Command[]): { state: BattleStat
   return { state: s, events };
 }
 
-export function orders(a: number[], b: number[]): Command[] {
-  return [{ kind: 'order', team: 0, order: a.map(uid) }, { kind: 'order', team: 1, order: b.map(uid) }];
-}
+export const begin: Command = { kind: 'begin' };
 export const end = (id: number): Command => ({ kind: 'endTurn', unit: uid(id) });
 export const cast = (id: number, skill: SkillId, x: number, z: number): Command =>
   ({ kind: 'cast', unit: uid(id), skill, at: { x, z } });

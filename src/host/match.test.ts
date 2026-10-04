@@ -15,13 +15,9 @@ describe('Match', () => {
   test('a player can only command the units and team they hold', () => {
     const seats: Seats = [[{ kind: 'player', player: 'ana' }, { kind: 'player', player: 'ana' }, { kind: 'player', player: 'ana' }], ai[1]];
     const m = new Match(setup, seats, 1);
+    expect(m.state.phase).toEqual({ kind: 'ready' });
     m.start();
-    expect(m.state.phase.kind === 'order' && m.state.phase.orders[0]).toBe(null);
-    expect(m.state.phase.kind === 'order' && m.state.phase.orders[1]).toEqual([6, 4, 5]);
-
-    expect(m.submit('bob', { kind: 'order', team: 0, order: [id(1), id(2), id(3)] })).toEqual({ ok: false, error: 'bob holds no seat on team 0' });
-    expect(m.submit('ana', { kind: 'order', team: 1, order: [id(4), id(5), id(6)] })).toEqual({ ok: false, error: 'ana holds no seat on team 1' });
-    expect(m.submit('ana', { kind: 'order', team: 0, order: [id(1), id(2), id(3)] }).ok).toBe(true);
+    expect(m.submit('ana', { kind: 'begin' })).toEqual({ ok: false, error: 'the match begins itself' });
 
     const ph = m.state.phase;
     expect(ph.kind === 'act' && ph.queue[ph.qi]).toEqual({ id: 1, extra: false });
@@ -31,7 +27,7 @@ describe('Match', () => {
     const seen: BattleEvent[] = [];
     m.subscribe(ev => seen.push(...ev));
     expect(m.submit('ana', { kind: 'endTurn', unit: id(1) }).ok).toBe(true);
-    expect(seen[0]).toEqual({ type: 'activate', id: 6, team: 1, qi: 1 });
+    expect(seen[0]).toEqual({ type: 'activate', id: 4, team: 1, qi: 1 });
     expect(seen.at(-1)).toEqual({ type: 'activate', id: 2, team: 0, qi: 2 });
     const after = m.state.phase;
     expect(after.kind === 'act' && after.queue[after.qi]).toEqual({ id: 2, extra: false });
@@ -46,7 +42,7 @@ describe('Match', () => {
       return { state: m.state, events };
     };
     const a = play(42), b = play(42), c = play(43);
-    expect(a.state.phase).toEqual({ kind: 'over', winner: 0, reason: 'wipe' });
+    expect(a.state.phase).toEqual({ kind: 'over', winner: 1, reason: 'wipe' });
     expect(a.state.round).toBe(7);
     expect(b).toEqual(a);
     expect(c.state).not.toEqual(a.state);

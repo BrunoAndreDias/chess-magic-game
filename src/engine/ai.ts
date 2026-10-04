@@ -5,8 +5,8 @@ import {
 import type { Target } from './board';
 import { landCall, performCast, performMove } from './combat';
 import { doomed, threatened, toll } from './hazards';
-import { orderable, endActivation } from './turns';
-import { CLASSES, DIR8, MAPS, N, SKILLS } from './tables';
+import { endActivation } from './turns';
+import { DIR8, MAPS, N, SKILLS } from './tables';
 import { callTiles } from './combat';
 import type { Rng } from './rng';
 import type { BattleState, Call, CallSkill, ClassId, Command, MemberBuild, Pos, SkillId, StatusKey, Team, Unit, UnitId } from './types';
@@ -359,21 +359,4 @@ export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command
   }
   if (current(s) === u && !over()) { endActivation(s); cmds.push({ kind: 'endTurn', unit: u.id }); }
   return cmds;
-}
-
-/** The unit with the best opening goes first; as starter, the next best closes the round. */
-export function aiOrder(s: BattleState, team: Team, rng: Rng): UnitId[] {
-  const sc = orderable(s, team).map(u => {
-    if (isDowned(u)) return { id: u.id, v: -100 };
-    const C = CLASSES[u.cls];
-    let dmin = 99;
-    for (const e of s.units) if (e.team !== team && standing(e)) dmin = Math.min(dmin, cheb(u.x, u.z, e.x, e.z));
-    const reach = C.move + (C.basic.range > 1 ? C.basic.range + 1 : 1);
-    let v = (dmin <= reach ? 6 : 0) - dmin * 0.3 + rng() * 0.5;
-    if (s.calls.some(c => c.by === u.id)) v += 8;
-    if (u.st.stun || u.st.encased) v -= 50;
-    return { id: u.id, v };
-  }).sort((a, b) => b.v - a.v).map(o => o.id);
-  if (s.starter === team && sc.length >= 3) { const [second] = sc.splice(1, 1); if (second !== undefined) sc.push(second); }
-  return sc;
 }

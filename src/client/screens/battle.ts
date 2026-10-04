@@ -1,8 +1,8 @@
 import {
-  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aiOrder, aoeTiles, buildQueue, callsOf, canUse, castTargets, current, getUnit, holders, idx, isCall,
-  moveOf, mulberry32, predict, puppetMoves, reachable, soulCap, soulsInReach, unitAt,
+  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aoeTiles, callsOf, canUse, castTargets, current, getUnit, holders, idx, isCall,
+  moveOf, predict, puppetMoves, reachable, roundQueue, soulCap, soulsInReach, unitAt,
 } from '../../engine/index';
-import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Unit, UnitId } from '../../engine/index';
+import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Turn, Unit, UnitId } from '../../engine/index';
 import type { Match } from '../../host/match';
 import type { Ctx, Mounted } from '../app';
 import type { Highlight, TileInput } from '../board';
@@ -13,7 +13,7 @@ import { callLines, comboCredit, comboInfo, describe, openingLines, previewLines
 import type { Line } from '../format';
 import { banner, clearBanners, comboBanner, reportError } from '../overlay';
 import { endChip, hazardLayer, roundHazard } from '../rules';
-import { TEAM_COLOR, TEAM_NAME, TEAM_TEXT, other, skillColor } from '../theme';
+import { TEAM_NAME, TEAM_TEXT, skillColor } from '../theme';
 import { statusChips, terrainTip, unitTip } from '../tips';
 import { hideTip, showTip, withTip } from '../tooltip';
 import { bonusChips, skillInfo } from './setup';
@@ -24,17 +24,13 @@ interface Aim { skill: SkillId; targets: Target[] }
 /** Who may act right now. Everything the HUD offers is derived from this and the shown state. */
 type Input =
   | { kind: 'locked'; why: 'playing' | 'ai' | 'over' }
-  | { kind: 'order'; team: Team; picks: UnitId[] }
   | { kind: 'turn'; unit: UnitId; aim: Aim | null };
 
 const same = (a: Pos, b: Pos) => a.x === b.x && a.z === b.z;
-const alive = (s: BattleState, t: Team) => s.units.filter(u => u.team === t && u.life.kind !== 'dead');
 
 export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   const { board } = ctx;
   const human = (u: Unit) => draft.teams[u.team][u.slot]?.human ?? false;
-  const teamHuman = (t: Team) => draft.teams[t].some(m => m.human);
-  const suggestRng = mulberry32(ctx.seed ^ 0x0de4);
 
   let shown = match.state;
   const pending: Batch[] = [];
@@ -53,8 +49,8 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   const actionbar = h('div', { id: 'actionbar' }, selinfo, actions, endBtn);
   const log = h('div', { id: 'log' });
   const hud = h('div', { id: 'hud' }, initbar, menu, rosters[0], rosters[1], actionbar, log);
-  const hint = h('div', { id: 'hintbar' }), orderPanel = h('div', { id: 'orderpanel', class: 'hidden' });
-  ctx.ui.append(hud, hint, orderPanel);
+  const hint = h('div', { id: 'hintbar' });
+  ctx.ui.append(hud, hint);
 
   const unsubscribe = match.subscribe((events, state) => { pending.push({ events, state }); void pump(); });
 
@@ -108,7 +104,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   function afterDrain(): void {
     if (shown.phase.kind === 'over') { later(1200, () => ctx.go({ kind: 'result', draft, final: shown })); return; }
-    if (input.kind === 'order') board.focus(null, input.team);
     if (input.kind === 'turn') {
       const u = getUnit(shown, input.unit), id = input.unit;
       if (u && !hasMoves(u)) later(450, () => { if (input.kind === 'turn' && input.unit === id && !playing) submit({ kind: 'endTurn', unit: id }); });
@@ -124,13 +119,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (playing || pending.length) return { kind: 'locked', why: 'playing' };
     const s = shown, ph = s.phase;
     if (ph.kind === 'over') return { kind: 'locked', why: 'over' };
-    if (ph.kind === 'order') {
-      for (const t of [s.starter, other(s.starter)]) {
-        if (ph.orders[t] || !teamHuman(t)) continue;
-        return { kind: 'order', team: t, picks: input.kind === 'order' && input.team === t ? input.picks : [] };
-      }
-      return { kind: 'locked', why: 'ai' };
-    }
     const u = current(s);
     if (!u || !human(u)) return { kind: 'locked', why: 'ai' };
     const aim = input.kind === 'turn' && input.unit === u.id ? input.aim : null;
@@ -143,7 +131,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   }
 
   function submit(cmd: Command): void {
-    if (input.kind === 'turn' || input.kind === 'order') input = { kind: 'locked', why: 'playing' };
+    if (input.kind === 'turn') input = { kind: 'locked', why: 'playing' };
     hideTip();
     const r = match.submit(LOCAL, cmd);
     if (!r.ok) { addLog({ tone: 'sys', text: `Rejected: ${r.error}` }); refresh(); }
@@ -265,7 +253,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     rosters.forEach((el, t) => renderRoster(el, t === 0 ? 0 : 1));
     renderActions();
     renderHint();
-    renderOrder();
     renderMenu();
     highlight();
   }
@@ -276,37 +263,25 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     return h('div', { class: `ichip t${team}${closes ? ' close' : ''}${extra}` }, h('span', { class: 'k' }, k + 1), ...body);
   }
 
-  /** The order slots for this round as teams, before anyone has picked: A1 B1 A2 B2 B3 A3. */
-  function slotTeams(s: BattleState): Team[] {
-    const st = s.starter, ids = buildQueue(alive(s, st).map(u => u.id), alive(s, other(st)).map(u => u.id));
-    return ids.map(id => getUnit(s, id)?.team ?? st);
-  }
-
   /** The order last drawn, so a chip whose turn moved can flash. */
   let drawn: string[] = [];
   function renderInitbar(): void {
     const s = shown, st = s.starter, ph = s.phase;
     const head = h('div', { class: 'rd' }, `Round ${s.round}`, h('small', { style: { color: TEAM_TEXT[st] } }, `${TEAM_NAME[st]} starts`));
-    let chips: HTMLElement[];
-    if (ph.kind === 'act') {
-      const order = ph.queue.map(t => `${t.id}${t.extra ? '+' : ''}`), was = drawn;
-      drawn = order;
-      const moved = (k: number) => was.length > 0 && was.length <= order.length && was.includes(order[k] ?? '') && was.indexOf(order[k] ?? '') !== k;
-      chips = ph.queue.map(({ id, extra }, k) => {
-        const u = getUnit(s, id);
-        if (!u) return h('div');
-        const C = CLASSES[u.cls], closes = k === ph.queue.length - 1 && u.team === st && ph.queue.length > 2;
-        const state = (k < ph.qi ? ' done' : k === ph.qi ? ' now' : '') + (extra ? ' extra' : '') + (moved(k) || (extra && !was.includes(order[k] ?? '') && was.length > 0) ? ' moved' : '');
-        const calls = s.calls.filter(c => c.by === u.id);
-        const star = calls.length ? withTip(h('span', { class: 'cstar' }, '☄'), () => calls.map(c => h('div', null, `${SKILLS[c.skill].icon} ${SKILLS[c.skill].name} lands at the start of ${u.name}'s turn.`))) : null;
-        const xtra = extra ? withTip(h('span', { class: 'xtra' }, '+1'), () => [h('div', null, `An extra turn for ${u.name}: cooldowns don't tick on it.`)]) : null;
-        return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []), ...(xtra ? [xtra] : []));
-      });
-    } else {
-      drawn = [];
-      const teams = slotTeams(s);
-      chips = teams.map((t, k) => chip(t, k, k === teams.length - 1 && t === st && teams.length > 2, '', h('span', { class: 'ic' }, '?'), h('span', { class: 'nm' }, '…')));
-    }
+    const queue: Turn[] = ph.kind === 'act' ? ph.queue : roundQueue(s).map(id => ({ id, extra: false })), qi = ph.kind === 'act' ? ph.qi : -1;
+    const order = queue.map(t => `${t.id}${t.extra ? '+' : ''}`), was = drawn;
+    drawn = order;
+    const moved = (k: number) => was.length > 0 && was.length <= order.length && was.includes(order[k] ?? '') && was.indexOf(order[k] ?? '') !== k;
+    const chips = queue.map(({ id, extra }, k) => {
+      const u = getUnit(s, id);
+      if (!u) return h('div');
+      const C = CLASSES[u.cls], closes = k === queue.length - 1 && u.team === st && queue.length > 2;
+      const state = (k < qi ? ' done' : k === qi ? ' now' : '') + (extra ? ' extra' : '') + (moved(k) || (extra && !was.includes(order[k] ?? '') && was.length > 0) ? ' moved' : '');
+      const calls = s.calls.filter(c => c.by === u.id);
+      const star = calls.length ? withTip(h('span', { class: 'cstar' }, '☄'), () => calls.map(c => h('div', null, `${SKILLS[c.skill].icon} ${SKILLS[c.skill].name} lands at the start of ${u.name}'s turn.`))) : null;
+      const xtra = extra ? withTip(h('span', { class: 'xtra' }, '+1'), () => [h('div', null, `An extra turn for ${u.name}: cooldowns don't tick on it.`)]) : null;
+      return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []), ...(xtra ? [xtra] : []));
+    });
     const end = endChip(s);
     initbar.replaceChildren(head, ...chips,
       ...(s.round >= DARK_ROUND ? [h('div', { class: 'rd dark' }, '🕯', h('small', null, 'dark'))] : []),
@@ -335,7 +310,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const s = shown, u = current(s);
     if (!u || s.phase.kind !== 'act') {
       selinfo.replaceChildren(h('b', null, '…'));
-      actions.replaceChildren(h('div', { class: 'wait' }, s.phase.kind === 'over' ? 'The battle is over.' : 'Choosing the order…'));
+      actions.replaceChildren(h('div', { class: 'wait' }, s.phase.kind === 'over' ? 'The battle is over.' : 'To battle…'));
       endBtn.disabled = true;
       return;
     }
@@ -376,58 +351,13 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const set = (...parts: (Node | string)[]) => { hint.replaceChildren(...parts); hint.classList.toggle('hidden', parts.length === 0); };
     const s = shown, u = current(s);
     hint.style.bottom = `${actionbar.offsetHeight + 22}px`;
-    if (input.kind === 'order' || s.phase.kind !== 'act' || !u) { set(); return; }
+    if (s.phase.kind !== 'act' || !u) { set(); return; }
     if (!human(u)) { set(h('b', null, u.name), ` (${TEAM_NAME[u.team]}, AI) is acting…`); return; }
     if (input.kind !== 'turn') { set(); return; }
     if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
     const leash = holders(s, u).flatMap(t => { const w = getUnit(s, t.by); return w && w.team !== u.team ? [`${w.name} (${t.len})`] : []; });
     if (leash.length && !u.moved) { set(h('b', null, u.name), ' is leashed by ', h('b', null, leash.join(', ')), ': blue tiles stay within the Thread’s length. ', h('b', null, 'Space'), ' = end turn.'); return; }
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
-  }
-
-  function renderOrder(): void {
-    if (input.kind !== 'order') { orderPanel.classList.add('hidden'); return; }
-    const o = input, s = shown, t = o.team, st = s.starter, isStarter = t === st, mine = alive(s, t);
-    const ph = s.phase, theirs = ph.kind === 'order' && other(t) === st ? ph.orders[other(t)] : null;
-    const seen: [number, number] = [0, 0], teams = slotTeams(s);
-    const seq = teams.map((team, k) => {
-      const n = seen[team]++, closes = k === teams.length - 1 && team === st && teams.length > 2;
-      const id = team === t ? o.picks[n] : theirs?.[n], u = id !== undefined ? getUnit(s, id) : null;
-      if (u) return chip(team, k, closes, '', h('span', { class: 'ic' }, CLASSES[u.cls].icon), h('span', { class: 'nm' }, u.name));
-      return chip(team, k, closes, '', h('span', { class: 'ic' }, team === t ? '?' : '🂠'), h('span', { class: 'nm' }, team === t ? 'you' : 'hidden'));
-    });
-    const pickBtn = (u: Unit) => {
-      const used = o.picks.indexOf(u.id), C = CLASSES[u.cls];
-      const cond = u.life.kind === 'downed' ? 'Downed: bleeds on its turn' : u.st.stun ? 'Stunned: will lose its turn' : `${u.hp}/${u.maxHp} HP`;
-      return h('button', { data: { unit: String(u.id) }, disabled: used >= 0, style: { '--cc': C.color }, onclick: () => pick(u.id) },
-        h('b', null, `${C.icon} ${u.name}`), human(u) ? null : ' 🤖', h('small', null, cond, used >= 0 ? ` · #${used + 1}` : ''));
-    };
-    orderPanel.classList.remove('hidden');
-    orderPanel.replaceChildren(
-      h('div', { class: 'tag', style: { color: TEAM_COLOR[t] } }, `Round ${s.round} · ${TEAM_NAME[st]} starts`),
-      h('h2', null, `${TEAM_NAME[t]}: who acts first?`),
-      h('div', { class: 'seq' }, seq),
-      h('div', { class: 'pick' }, mine.map(pickBtn)),
-      h('div', { class: 'note' },
-        h('span', null, ...(isStarter
-          ? ['You act ', h('b', null, 'first and last'), ': your last pick closes the round, after the enemy’s last move.']
-          : ['The enemy acts first and last; your 2nd and 3rd go back to back.'])),
-        h('button', { class: 'btn', id: 'op-undo', disabled: o.picks.length === 0, onclick: () => setPicks(o.picks.slice(0, -1)) }, '↶ Undo'),
-        h('button', { class: 'btn', id: 'op-ai', onclick: () => setPicks(aiOrder(s, t, suggestRng)) }, '✨ Suggest')));
-  }
-
-  function pick(id: UnitId): void {
-    if (input.kind === 'order' && !input.picks.includes(id)) setPicks([...input.picks, id]);
-  }
-
-  function setPicks(picks: UnitId[]): void {
-    if (input.kind !== 'order') return;
-    const team = input.team, mine = alive(shown, team);
-    const rest = mine.filter(u => !picks.includes(u.id));
-    const full = rest.length === 1 && rest[0] ? [...picks, rest[0].id] : picks;
-    input = { kind: 'order', team, picks: full };
-    renderHud();
-    if (full.length >= mine.length) later(350, () => { if (input.kind === 'order' && input.team === team) submit({ kind: 'order', team, order: full }); });
   }
 
   // ---------- start ----------
@@ -444,7 +374,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   });
 
   return {
-    phase: () => (input.kind === 'order' ? 'order' : 'battle'),
+    phase: () => 'battle',
     state: () => shown,
     tile,
     key,
@@ -454,7 +384,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       for (const t of timers) clearTimeout(t);
       clearBanners();
       hideTip();
-      hud.remove(); hint.remove(); orderPanel.remove();
+      hud.remove(); hint.remove();
     },
   };
 }
