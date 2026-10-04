@@ -45,7 +45,7 @@ const per = new Map<MapId, MapStats>(MAP_ORDER.map(m => [m, { n: 0, rounds: 0, r
 const wins: [number, number, number] = [0, 0, 0], combos: Record<string, number> = {};
 const cls: Record<string, [number, number]> = {}, path: Record<string, [number, number]> = {};
 const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0] };
-let rounds = 0, ms = 0;
+let rounds = 0, ms = 0, starterWins = 0;
 
 for (let i = from; i < from + battles; i++) {
   const r = mulberry32(100 + i);
@@ -58,7 +58,8 @@ for (let i = from; i < from + battles; i++) {
     : [party(r), party(r)];
   const bare = createBattle({ map, starter: 0, teams: [[], []] }, r);
   const deploy: [ReturnType<typeof aiDeploy>, ReturnType<typeof aiDeploy>] = [aiDeploy(bare, 0, teams[0], r, opts(0)), aiDeploy(bare, 1, teams[1], r, opts(1))];
-  let s: BattleState = createBattle({ map, starter: (i % 2) as Team, teams, deploy }, r);
+  const starter = (i % 2) as Team;
+  let s: BattleState = createBattle({ map, starter, teams, deploy }, r);
   const used = [new Set<Mechanic>(), new Set<Mechanic>()];
   const t0 = performance.now();
   const run = (cmds: Command[]) => {
@@ -86,6 +87,7 @@ for (let i = from; i < from + battles; i++) {
   if (s.phase.kind !== 'over') throw new Error(`battle ${i} did not finish`);
   const { winner, reason } = s.phase;
   wins[winner === 'draw' ? 2 : winner]++;
+  if (winner === starter) starterWins++;
   rounds += s.round;
   st.n++; st.rounds += s.round;
   st.reasons[reason] = (st.reasons[reason] ?? 0) + 1;
@@ -105,6 +107,7 @@ for (let i = from; i < from + battles; i++) {
 }
 const pct = (v: [number, number]) => `${((100 * v[0]) / Math.max(1, v[1])).toFixed(0)}%`;
 console.log('wins', wins, 'avg rounds', (rounds / battles).toFixed(1), 'avg ms', (ms / battles).toFixed(0));
+console.log(`starter (opens and closes every round) wins ${pct([starterWins, battles])}, the other side ${pct([battles - starterWins - wins[2], battles])}, draws ${wins[2]}`);
 console.log('combos', JSON.stringify(combos));
 console.log('class win share', Object.entries(cls).map(([k, v]) => `${k} ${pct(v)}`).join(', '));
 console.log('keystone path win share');
