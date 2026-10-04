@@ -5,8 +5,8 @@ import { DARK_ROUND, MAX_ROUNDS } from './tables';
 import type { BattleEvent, BattleState, Team, Unit, UnitId } from './types';
 
 /** The starter opens and closes the round; the rest alternate. */
-export function buildQueue(sOrder: readonly UnitId[], oOrder: readonly UnitId[]): UnitId[] {
-  const q: UnitId[] = [], n = Math.max(sOrder.length, oOrder.length);
+export function buildQueue<T>(sOrder: readonly T[], oOrder: readonly T[]): T[] {
+  const q: T[] = [], n = Math.max(sOrder.length, oOrder.length);
   for (let i = 0; i < n; i++) {
     const a = sOrder[i], b = oOrder[i];
     if (a !== undefined) q.push(a);
