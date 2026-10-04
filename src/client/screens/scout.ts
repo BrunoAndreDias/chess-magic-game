@@ -7,7 +7,7 @@ import { h } from '../dom';
 import { battleSetup, humanTeams, seats } from '../draft';
 import type { Draft } from '../draft';
 import { legend, revealLayers } from '../rules';
-import { TEAM_COLOR, TEAM_NAME } from '../theme';
+import { TEAM_COLOR, TEAM_NAME, other } from '../theme';
 import { terrainTip, unitTip } from '../tips';
 import { hideTip, showTip } from '../tooltip';
 
@@ -81,7 +81,8 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
       h('div', null, h('div', { class: 'tag', style: { color: TEAM_COLOR[team] } }, `${M.name} · scout & deploy`), h('h2', null, `${TEAM_NAME[team]}: read the map, place your party`)),
       h('div', { class: 'timer', id: 'sc-timer' }),
       h('div', { class: 'm', style: { 'font-size': '12.5px' } }, 'Click one of your characters, then a gold tile. ',
-        team === 0 ? 'The Red party deploys after you, and you start round 1.' : 'The Blue party starts round 1, but you deploy seeing them.'),
+        team === 0 ? 'The Red party deploys after you. ' : 'You deploy seeing the Blue party. ',
+        team === draft.starter ? 'You open and close every round.' : `The ${TEAM_NAME[other(team)]} opens and closes every round.`),
       h('div', { id: 'sc-units' }, mine.map(u => {
         const p = picks[team][u.slot] ?? u, C = CLASSES[u.cls];
         return h('button', { class: `du${u.slot === sel ? ' on' : ''}`, style: { '--tc': TEAM_COLOR[team] }, data: { slot: String(u.slot) }, onclick: () => { sel = u.slot; render(); } },

@@ -27,7 +27,7 @@ export function mountMap(ctx: Ctx, draft: Draft): Mounted {
     h('ol', { class: 'tl', id: 'mp-timeline' }, timeline(s).map(step => h('li', null, h('b', null, step.when), h('span', null, step.what)))),
     h('div', { class: 'mapdesc' }, h('b', null, 'Plays well for: '), M.favors),
     legend(s),
-    h('div', { class: 'scout-ready' }, h('button', { class: 'btn primary', id: 'mp-go', onclick: () => ctx.go({ kind: 'setup', draft }) }, 'Form your parties →')));
+    h('div', { class: 'scout-ready' }, h('button', { class: 'btn primary', id: 'mp-go', onclick: () => ctx.go({ kind: 'picks', draft }) }, 'Form your parties →')));
   const hint = h('div', { id: 'hintbar' }, HINT[M.rule.kind], ' Hover a tile to read it.');
   ctx.ui.append(panel, hint);
 

@@ -6,7 +6,7 @@ import type { Phase } from './app';
 import { createBoard } from './board/index';
 import { loadFigures } from './board/models';
 import { byId } from './dom';
-import { defaultDraft, drawMap } from './draft';
+import { defaultDraft, drawMap, drawStarter } from './draft';
 import { installErrorOverlay } from './overlay';
 import { trackMouse } from './tooltip';
 
@@ -24,7 +24,7 @@ const seed = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() *
 const board = createBoard(byId<HTMLCanvasElement>('board'), byId('labels'));
 const app = createApp(board, byId('ui'), seed);
 const map = MAP_ORDER.find(id => id === params.get('map')) ?? drawMap(mulberry32(seed ^ 0x5eed));
-const draft = defaultDraft({ allAi: params.has('ai'), map });
+const draft = defaultDraft({ allAi: params.has('ai'), map, starter: drawStarter(mulberry32(seed ^ 0xc017)) });
 
 window.__party = {
   state: () => app.mounted()?.state() ?? null,

@@ -2,7 +2,7 @@ import { MAPS } from '../../engine/index';
 import type { BattleState } from '../../engine/index';
 import type { Ctx, Mounted } from '../app';
 import { h } from '../dom';
-import { drawMap } from '../draft';
+import { drawMap, drawStarter } from '../draft';
 import type { Draft } from '../draft';
 import { REASON, winnerTitle } from '../format';
 import { TEAM_COLOR, TEAM_NAME } from '../theme';
@@ -21,8 +21,8 @@ export function mountResult(ctx: Ctx, draft: Draft, final: BattleState): Mounted
       row('Damage dealt', st.dmg), row('Healing', st.heal), row('Enemies downed', st.downs), row('Revives', st.revives), row('Combos', final.combos)),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', id: 'res-again', onclick: () => ctx.go({ kind: 'scout', draft }) }, 'Rematch'),
-      h('button', { class: 'btn', id: 'res-party', onclick: () => ctx.go({ kind: 'setup', draft }) }, 'Change parties'),
-      h('button', { class: 'btn', id: 'res-map', onclick: () => ctx.go({ kind: 'map', draft: { ...draft, map: drawMap(Math.random, draft.map) } }) }, 'New battlefield'))));
+      h('button', { class: 'btn', id: 'res-party', onclick: () => ctx.go({ kind: 'picks', draft: { ...draft, starter: drawStarter(Math.random) } }) }, 'Change parties'),
+      h('button', { class: 'btn', id: 'res-map', onclick: () => ctx.go({ kind: 'map', draft: { ...draft, map: drawMap(Math.random, draft.map), starter: drawStarter(Math.random) } }) }, 'New battlefield'))));
   ctx.ui.append(root);
   return { phase: () => 'result', state: () => final, dispose: () => root.remove() };
 }

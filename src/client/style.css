@@ -80,6 +80,9 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .ccard .mx { font-size: 11px; line-height: 1.3; color: var(--muted); text-align: center; padding: 1px 4px 0 }
 .ccard.on .mx { color: var(--text) }
 .cls-line { margin: 7px 2px 0; font-size: 12.5px; line-height: 1.4 }
+.su-cls { flex-direction: row; justify-content: flex-start; gap: 10px; padding: 8px 12px; cursor: default }
+.su-cls:hover { background: color-mix(in srgb, var(--cc) 16%, #19141d); border-color: var(--cc) }
+.su-cls .mx { text-align: left }
 .kit { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
 .skc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; background: #17131b; border: 1px solid var(--line); border-radius: 10px; padding: 7px 4px 6px; opacity: .55; filter: saturate(.5) }
 .skc:hover { opacity: .9; filter: none }
@@ -143,6 +146,45 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .mapdesc { font-size: 12px; color: var(--muted); margin-top: 8px }
 .mapdesc b { color: var(--text) }
 select { background: #1a1621; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: inherit }
+
+/* ---------- picks ---------- */
+#picks { display: flex; flex-direction: column; gap: 16px; padding: 16px 22px }
+.pk-coin { display: flex; align-items: center; gap: 14px }
+.pk-coin .disc { display: grid; place-items: center; width: 52px; height: 52px; flex: none; border-radius: 50%; font-size: 26px; background: #1b1722; border: 2px solid var(--tc); box-shadow: 0 0 22px color-mix(in srgb, var(--tc) 45%, transparent) }
+.pk-coin h2 { font-size: 22px }
+.pk-coin .m { font-size: 13px }
+.pk-track { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; max-width: 1080px }
+.pk-seat { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; padding: 8px 6px 9px; background: rgba(25, 20, 29, .9); border: 1px solid var(--line); border-bottom: 3px solid var(--tc); border-radius: 10px; text-align: center }
+.pk-seat .k { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold) }
+.pk-seat .mean { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+.pk-seat .ic { font-size: 26px; line-height: 1.3 }
+.pk-seat .nm { font: 600 15px Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+.pk-seat .cl { font-size: 12px; color: var(--cc, var(--muted)) }
+.pk-seat:not(.locked):not(.now) { opacity: .55 }
+.pk-seat:not(.locked) .nm { color: var(--muted); font-size: 13px }
+.pk-seat.locked { background: color-mix(in srgb, var(--cc) 12%, rgba(25, 20, 29, .9)); animation: landed .5s ease-out }
+.pk-seat.now { border-color: var(--gold); border-bottom-color: var(--tc); box-shadow: 0 0 0 2px var(--gold), 0 0 22px rgba(232, 182, 90, .3) }
+@keyframes landed { from { transform: scale(1.08); box-shadow: 0 0 26px var(--cc) } to { transform: none } }
+.pk-team { display: flex; flex-direction: column; gap: 10px; max-width: 1080px }
+.pk-th { display: flex; gap: 12px; align-items: baseline; font-size: 15px }
+.pk-th b { font: 600 18px Georgia, serif }
+.pk-members { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.pk-member { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid transparent; border-radius: 12px; cursor: pointer }
+.pk-member.on { border-color: rgba(232, 182, 90, .55); border-top-color: var(--gold); box-shadow: 0 0 24px rgba(255, 150, 60, .18) }
+.pk-member.locked { cursor: default; border-top-color: var(--tc); opacity: .8 }
+.pk-mh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px }
+.pk-mh .nm { font: 600 18px Georgia, serif }
+.pk-mh .m { font-size: 12px; text-align: right }
+.pk-member .ccards { grid-template-columns: repeat(4, minmax(0, 1fr)) }
+.pk-member .ccard { padding: 6px 2px 5px }
+.pk-member .ccard .nm { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis }
+.pk-member .ccard:disabled { cursor: default }
+.pk-member .ccard:disabled:not(.on) { opacity: .3 }
+.pk-lock { display: flex; justify-content: center }
+@media (max-width: 760px) {
+  .pk-track { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .pk-members { grid-template-columns: minmax(0, 1fr) }
+}
 
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5 }
@@ -212,7 +254,7 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 #hintbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 7; pointer-events: none; background: rgba(10, 8, 14, .9); border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px; font-size: 13px; white-space: nowrap; max-width: calc(100vw - 640px); overflow: hidden; text-overflow: ellipsis }
 #hintbar b { color: var(--gold) }
 
-/* ---------- order + scout panels ---------- */
+/* ---------- scout panels ---------- */
 #scout { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 340px; z-index: 8; display: flex; flex-direction: column; gap: 9px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto }
 #scout h2 { font-size: 21px }
 .timer { font: 700 34px ui-monospace, Menlo, monospace; color: var(--gold); text-align: center }

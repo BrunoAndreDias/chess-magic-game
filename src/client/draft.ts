@@ -1,5 +1,5 @@
-import { CLASSES, CLASS_ORDER, MAP_ORDER, POINTS, TREES, newMember } from '../engine/index';
-import type { BattleSetup, ClassId, ClassSkillId, MapId, MemberBuild, NodeId, Pos, Team } from '../engine/index';
+import { CLASSES, MAP_ORDER, POINTS, TREES, lineup, newMember } from '../engine/index';
+import type { BattleSetup, ClassId, ClassSkillId, MapId, MemberBuild, NodeId, PickState, Pos, Team } from '../engine/index';
 import type { Seats } from '../host/match';
 
 export const LOCAL = 'local';
@@ -7,9 +7,12 @@ type Timer = 0 | 20 | 30 | 45;
 export const TIMERS: readonly Timer[] = [20, 30, 45, 0];
 
 export interface Member extends MemberBuild { human: boolean }
-/** Everything the setup screen edits. It outlives a battle, so Rematch and Change parties start from it. */
+/** Everything the pick and setup screens edit. It outlives a battle, so Rematch and Change parties start from it. */
 export interface Draft {
+  /** Members in turn order: the pick phase reorders them. */
   teams: [Member[], Member[]];
+  /** Opens and closes every round. */
+  starter: Team;
   sel: { team: Team; slot: number };
   map: MapId;
   timer: Timer;
@@ -18,9 +21,21 @@ export interface Draft {
 const NAMES: readonly [readonly string[], readonly string[]] = [['Aldric', 'Seren', 'Kip'], ['Morvath', 'Ysolde', 'Grix']];
 const CLASSES_BY_TEAM: readonly [readonly ClassId[], readonly ClassId[]] = [['gravecaller', 'astromancer', 'bellringer'], ['bellringer', 'weaver', 'gravecaller']];
 
-export function defaultDraft(opts: { allAi: boolean; map: MapId }): Draft {
+export function defaultDraft(opts: { allAi: boolean; map: MapId; starter: Team }): Draft {
   const team = (t: Team): Member[] => CLASSES_BY_TEAM[t].map((c, i) => ({ ...newMember(c, NAMES[t][i] ?? 'Hero'), human: t === 0 && !opts.allAi }));
-  return { teams: [team(0), team(1)], sel: { team: 0, slot: 0 }, map: opts.map, timer: 30 };
+  return { teams: [team(0), team(1)], starter: opts.starter, sel: { team: 0, slot: 0 }, map: opts.map, timer: 30 };
+}
+
+export function drawStarter(rnd: () => number): Team { return rnd() < 0.5 ? 0 : 1; }
+
+/** Each team in lineup order, playing its locked class. A member whose class changed starts from that class's recommended build. */
+export function afterPicks(d: Draft, p: PickState): Draft {
+  const team = (t: Team): Member[] => lineup(p, t).map(l => {
+    const m = d.teams[t][l.member];
+    if (!m) throw new Error(`no member ${l.member} on team ${t}`);
+    return m.cls === l.cls ? m : recommended(m, l.cls);
+  });
+  return { ...d, teams: [team(0), team(1)], starter: p.starter, sel: { team: humanTeams(d)[0] ?? 0, slot: 0 } };
 }
 
 export function selected(d: Draft): Member {
@@ -41,9 +56,9 @@ export function toggleSkill(m: Member, id: ClassSkillId): Member {
   return { ...m, skills: [...keep, id] };
 }
 
-/** A random class, 3 of its skills, a keystone path and the other 2 points in a second path. */
+/** 3 random skills of its class, a keystone path and the other 2 points in a second path. */
 export function randomMember(m: Member, rnd: () => number): Member {
-  const cls = CLASS_ORDER[Math.floor(rnd() * CLASS_ORDER.length)] ?? 'astromancer', C = CLASSES[cls];
+  const cls = m.cls, C = CLASSES[cls];
   const skills = C.skills.slice().sort(() => rnd() - 0.5).slice(0, 3);
   const paths = TREES[cls], key = Math.floor(rnd() * paths.length), dip = (key + 1 + Math.floor(rnd() * (paths.length - 1))) % paths.length;
   const tree: NodeId[] = [...(paths[key]?.nodes ?? []), ...(paths[dip]?.nodes ?? [])].map(n => n.id).slice(0, POINTS);
@@ -63,7 +78,7 @@ export function humanTeams(d: Draft): Team[] {
 function build(m: Member): MemberBuild { return { name: m.name.trim() || 'Hero', cls: m.cls, skills: m.skills.slice(), tree: m.tree.slice() }; }
 
 export function battleSetup(d: Draft, deploy: [readonly Pos[], readonly Pos[]] | null): BattleSetup {
-  return { map: d.map, starter: 0, teams: [d.teams[0].map(build), d.teams[1].map(build)], ...(deploy ? { deploy } : {}) };
+  return { map: d.map, starter: d.starter, teams: [d.teams[0].map(build), d.teams[1].map(build)], ...(deploy ? { deploy } : {}) };
 }
 
 export function seats(d: Draft): Seats {

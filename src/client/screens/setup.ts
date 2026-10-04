@@ -1,5 +1,5 @@
 import {
-  CLASSES, CLASS_ORDER, COVERAGE, MAPS, PAIRS, POINTS, SKILLS, TREES, canDrop, canTake, createBattle, mulberry32, partyBonuses, roleOf,
+  CLASSES, COVERAGE, MAPS, PAIRS, POINTS, SKILLS, TREES, canDrop, canTake, createBattle, mulberry32, partyBonuses, roleOf,
 } from '../../engine/index';
 import type { ClassId, NodeDef, NodeId, PairDef, Role, SkillId, Team } from '../../engine/index';
 import type { Ctx, Mounted } from '../app';
@@ -125,13 +125,9 @@ export function mountSetup(ctx: Ctx, draft: Draft): Mounted {
 
   function classSec(m: Member): HTMLElement {
     const C = CLASSES[m.cls];
-    return h('section', { class: 'sec' }, h('h3', null, 'Class'),
-      h('div', { class: 'ccards' }, CLASS_ORDER.map(cid => {
-        const K = CLASSES[cid];
-        return withTip(h('button', { class: `ccard${cid === m.cls ? ' on' : ''}`, style: { '--cc': K.color }, data: { cls: cid }, onclick: () => update(x => (x.cls === cid ? x : recommended(x, cid))) },
-          h('span', { class: 'ic' }, K.icon), h('span', { class: 'nm' }, K.name), h('span', { class: 'rl' }, mechanic(cid)[0]), h('span', { class: 'mx' }, mechanic(cid)[1])),
-        () => [h('div', { class: 'tt' }, `${K.icon} ${K.name}`), K.plays, h('div', { class: 'm' }, `HP ${K.hp} · move ${K.move}`)]);
-      })),
+    return h('section', { class: 'sec' }, h('h3', null, 'Class', h('small', null, 'locked in the pick phase')),
+      h('div', { class: 'ccard on su-cls', id: 'ed-cls', style: { '--cc': C.color }, data: { cls: m.cls } },
+        h('span', { class: 'ic' }, C.icon), h('span', { class: 'nm' }, C.name), h('span', { class: 'rl' }, mechanic(m.cls)[0]), h('span', { class: 'mx' }, mechanic(m.cls)[1])),
       h('p', { class: 'cls-line' }, C.plays, ' ', h('span', { class: 'm' }, `HP ${C.hp} · move ${C.move} · ${C.basic.name} (${C.basic.range > 1 ? `range ${C.basic.range}` : 'melee'})`)));
   }
 
@@ -179,7 +175,7 @@ export function mountSetup(ctx: Ctx, draft: Draft): Mounted {
     const timer = h('select', { id: 'su-timer', onchange: () => { const v = Number(timer.value); draft.timer = TIMERS.find(x => x === v) ?? 30; } },
       TIMERS.map(v => h('option', { value: v, selected: draft.timer === v }, v ? `${v} s` : 'No timer')));
     top.replaceChildren(
-      h('div', null, h('div', { class: 'tag' }, 'Party tactics · 3 v 3'), h('h1', null, 'Form your parties')),
+      h('div', null, h('div', { class: 'tag' }, 'Party tactics · 3 v 3'), h('h1', null, 'Build your parties')),
       h('div', { class: 'su-act' },
         h('label', { class: 'm' }, 'Deploy timer ', timer),
         h('button', { class: 'btn', id: 'su-random', onclick: () => { const r = Math.random; for (const x of TEAMS) draft.teams[x] = draft.teams[x].map(o => randomMember(o, r)); render(); } }, '🎲 Randomize'),

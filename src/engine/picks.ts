@@ -16,8 +16,12 @@ export type PickCmd =
   | { kind: 'lock'; team: Team; member: number; cls: ClassId };
 
 const PARTY = 3;
-/** Draft order is turn order: step k fills the k-th turn of the round's queue, so the starter picks first and last. */
-const STARTER_STEP: readonly boolean[] = buildQueue([0, 1, 2], [3, 4, 5]).map(n => n < PARTY);
+
+/** The team of each step. Draft order is turn order: step k fills the k-th turn of the round's queue, so the starter picks first and last. */
+export function steps(starter: Team): Team[] {
+  const other: Team = starter === 0 ? 1 : 0;
+  return buildQueue([0, 1, 2], [3, 4, 5]).map(n => (n < PARTY ? starter : other));
+}
 
 export function newPicks(starter: Team): PickState {
   const none = () => Array.from({ length: PARTY }, (): ClassId | null => null);
@@ -26,9 +30,7 @@ export function newPicks(starter: Team): PickState {
 
 /** The team whose step it is; null when the draft is done. */
 export function onClock(p: PickState): Team | null {
-  const step = STARTER_STEP[p.locks.length];
-  if (step === undefined) return null;
-  return step ? p.starter : p.starter === 0 ? 1 : 0;
+  return steps(p.starter)[p.locks.length] ?? null;
 }
 
 /** That team's locks in turn order. */

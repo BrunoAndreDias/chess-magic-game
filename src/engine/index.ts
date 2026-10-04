@@ -14,5 +14,5 @@ export { callTiles } from './combat';
 export { aiDeploy, aiTurn } from './ai';
 export type { AiOpts } from './ai';
 export { threat, threatened, threatName, toll, doomed } from './hazards';
-export { newPicks, onClock, applyPick, aiLock, lineup } from './picks';
+export { newPicks, onClock, applyPick, aiLock, lineup, steps } from './picks';
 export type { Lock, PickState, PickCmd } from './picks';
