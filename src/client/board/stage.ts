@@ -20,6 +20,7 @@ export class Stage {
   readonly controls: OrbitControls;
   readonly lantern = new THREE.PointLight(0xffc27a, 1.3, 7, 2);
   readonly #sky = new THREE.Color();
+  readonly #fog = new THREE.Fog(0x000000, 1, 2);
   readonly #hemi = new THREE.HemisphereLight();
   readonly #ambient = new THREE.AmbientLight();
   readonly #sun = new THREE.DirectionalLight();
@@ -38,7 +39,7 @@ export class Stage {
 
     const s = this.scene;
     s.background = this.#sky;
-    s.fog = new THREE.Fog(0x000000, 1, 2);
+    s.fog = this.#fog;
     s.add(this.world, this.#hemi, this.#ambient);
     const sun = this.#sun;
     sun.castShadow = true;
@@ -66,7 +67,7 @@ export class Stage {
 
   setBiome(map: MapId): void {
     if (this.#scenery?.map === map) return;
-    const b = BIOMES[map], fog = this.scene.fog as THREE.Fog;
+    const b = BIOMES[map], fog = this.#fog;
     this.#sky.setHex(b.sky);
     fog.color.setHex(b.sky);
     fog.near = b.fog.near;

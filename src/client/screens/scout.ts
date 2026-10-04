@@ -19,7 +19,8 @@ function same(a: Pos, b: Pos): boolean { return a.x === b.x && a.z === b.z; }
  */
 export function mountScout(ctx: Ctx, draft: Draft): Mounted {
   const base = createBattle(battleSetup(draft, null), mulberry32(ctx.seed ^ 0xdeb10));
-  const picks: [Pos[], Pos[]] = [0, 1].map(t => base.units.filter(u => u.team === t).map(u => ({ x: u.x, z: u.z }))) as [Pos[], Pos[]];
+  const posOf = (t: Team): Pos[] => base.units.flatMap(u => (u.team === t ? [{ x: u.x, z: u.z }] : []));
+  const picks: [Pos[], Pos[]] = [posOf(0), posOf(1)];
   const queue = humanTeams(draft);
   let team: Team = 0, sel = 0, deadline: number | null = null, hover: Pos | null = null;
 

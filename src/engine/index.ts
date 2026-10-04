@@ -9,7 +9,7 @@ export * from './tables';
 export { treeValid, canTake, canDrop, modsOf, partyBonuses, roleOf, newMember } from './builds';
 
 export {
-  current, reachable, castTargets, aoeTiles, canUse, cdOf, moveOf, actionsOf, terrAt, isSolid, los, concealed, standing, unitAt, getUnit,
+  current, statusKeys, reachable, castTargets, aoeTiles, canUse, cdOf, moveOf, actionsOf, terrAt, isSolid, los, concealed, standing, unitAt, getUnit,
   canDeploy, validDeploy, inDeploy, idx, inb, cheb, holders, threadCap, callsOf, puppetMoves, soulCap, soulAt, soulsInReach, actedThisRound, undying,
 } from './board';
 

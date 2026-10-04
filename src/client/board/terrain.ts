@@ -224,6 +224,12 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
   },
 };
 
+/** The tile each pick box stands for. */
+export const TILE_OF = new WeakMap<THREE.Object3D, Pos>();
+
+/** Each flame's flicker or smoke puff's drift phase, so neighbours move out of step. */
+const PHASE = new WeakMap<THREE.Object3D, number>();
+
 const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
   fire: () => {
     const g = new THREE.Group();
@@ -232,7 +238,7 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
     for (let i = 0; i < 3; i++) {
       const s = glow(i ? 0xff7a2a : 0xffd08a, 0.6, 0.9);
       s.position.set((Math.random() - 0.5) * 0.5, 0.3, (Math.random() - 0.5) * 0.5);
-      s.userData.flick = Math.random() * 9;
+      PHASE.set(s, Math.random() * 9);
       g.add(s);
     }
 
@@ -244,7 +250,7 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
     for (let i = 0; i < 4; i++) {
       const s = glow(0x8a8f9a, 1.3, 0.45, false);
       s.position.set((Math.random() - 0.5) * 0.6, 0.4 + Math.random() * 0.8, (Math.random() - 0.5) * 0.6);
-      s.userData.drift = Math.random() * 9;
+      PHASE.set(s, Math.random() * 9);
       g.add(s);
     }
 
@@ -302,10 +308,10 @@ export class Terrain {
       const group = new THREE.Group();
       group.position.set(x - OFF, 0, z - OFF);
       this.root.add(group);
-      const hl = decal(new THREE.PlaneGeometry(0.94, 0.94), new THREE.MeshBasicMaterial({ map: HL_TEX, transparent: true, depthWrite: false }), 0) as TileView['hl'];
+      const hl = decal(new THREE.PlaneGeometry(0.94, 0.94), new THREE.MeshBasicMaterial({ map: HL_TEX, transparent: true, depthWrite: false }), 0);
       hl.renderOrder = 3;
       hl.visible = false;
-      const hz = decal(new THREE.PlaneGeometry(0.98, 0.98), new THREE.MeshBasicMaterial({ map: HZ_TEX, transparent: true, depthWrite: false }), 0) as TileView['hz'];
+      const hz = decal(new THREE.PlaneGeometry(0.98, 0.98), new THREE.MeshBasicMaterial({ map: HZ_TEX, transparent: true, depthWrite: false }), 0);
       hz.renderOrder = 4;
       hz.visible = false;
       this.root.add(hl, hz);
@@ -322,7 +328,7 @@ export class Terrain {
     BUILD[t.base](t, rnd, (dx, dz) => (inb(t.x + dx, t.z + dz) ? s.terr[idx(t.x + dx, t.z + dz)] ?? null : null), this.#look);
     const top = t.base === 'o' ? 0 : t.base === '#' ? 1.6 : TOP[t.base] ?? 0;
     const pick = mesh(new THREE.BoxGeometry(1, top + 0.3, 1), pickMat, 0, (top - 0.3) / 2, 0);
-    pick.userData.tile = { x: t.x, z: t.z } satisfies Pos;
+    TILE_OF.set(pick, { x: t.x, z: t.z });
     t.pick = pick;
     t.group.add(pick);
     t.hl.position.set(t.x - OFF, Math.max(0, TOP[t.base] ?? 0) + HL_Y, t.z - OFF);
@@ -442,7 +448,7 @@ export class Terrain {
       }
 
       if (t.fx.fire) for (const c of t.fx.fire.children) {
-        const ph = c.userData.flick as number | undefined;
+        const ph = PHASE.get(c);
 
         if (ph === undefined) continue;
         c.scale.setScalar(0.55 + 0.2 * Math.sin(time * 14 + ph));
@@ -450,9 +456,11 @@ export class Terrain {
       }
 
       if (t.fx.smoke) for (const c of t.fx.smoke.children) {
-        const ph = c.userData.drift as number;
+        const ph = PHASE.get(c);
+
+        if (ph === undefined || !(c instanceof THREE.Sprite)) continue;
         c.position.y += Math.sin(time + ph) * 0.002;
-        (c as THREE.Sprite).material.rotation += 0.004;
+        c.material.rotation += 0.004;
       }
     }
   }

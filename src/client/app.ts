@@ -35,7 +35,10 @@ export interface Ctx {
   go(next: Screen): void;
 }
 
-export function createApp(board: Board, ui: HTMLElement, seed: number): { go(next: Screen): void; mounted(): Mounted | null } {
+/** Moves between screens; `mounted` is the one on screen, for the verify harness. */
+export interface App { go(next: Screen): void; mounted(): Mounted | null }
+
+export function createApp(board: Board, ui: HTMLElement, seed: number): App {
   let mounted: Mounted | null = null;
   const ctx: Ctx = { board, ui, seed, go };
 

@@ -125,15 +125,17 @@ export function doomTip(s: BattleState, u: Unit): HTMLElement | null {
   return h('div', { style: { color: '#e2b8ff' } }, ruleOf(s).kind === 'crumble' ? "⬇ Can't escape: this tile falls this round." : "⚡ Can't escape the strike this round.");
 }
 
-const LEGEND: Partial<Record<TerrainChar, (s: BattleState) => string>> = {
-  '#': s => css(BIOMES[s.map].wall), o: () => '#05030a', '~': s => css(BIOMES[s.map].water), G: s => css(BIOMES[s.map].grass),
-  '^': s => css(BIOMES[s.map].high[0]), B: () => '#ff7a2a', '+': () => '#7ee081', A: () => '#ffd36b', I: () => '#cff4ff',
-};
+/** The terrains the legend shows, in order, with each one's swatch colour. */
+const LEGEND: readonly (readonly [TerrainChar, (s: BattleState) => string])[] = [
+  ['#', s => css(BIOMES[s.map].wall)], ['o', () => '#05030a'], ['~', s => css(BIOMES[s.map].water)], ['G', s => css(BIOMES[s.map].grass)],
+  ['^', s => css(BIOMES[s.map].high[0])], ['B', () => '#ff7a2a'], ['+', () => '#7ee081'], ['A', () => '#ffd36b'], ['I', () => '#cff4ff'],
+];
 
 /** A swatch per terrain present on the map, with its rule text. */
 export function legend(s: BattleState): HTMLElement {
   const used = new Set(s.terr);
 
-  return h('div', { class: 'legend' }, (Object.keys(LEGEND) as TerrainChar[]).filter(c => used.has(c)).map(c =>
-    h('div', null, h('i', { style: { background: LEGEND[c]?.(s) ?? '#000' } }), h('span', null, h('b', null, TERRAIN[c].name), `: ${TERRAIN[c].text ?? ''}`))));
+  return h('div', { class: 'legend' }, LEGEND.flatMap(([c, swatch]) => (used.has(c) ? [
+    h('div', null, h('i', { style: { background: swatch(s) } }), h('span', null, h('b', null, TERRAIN[c].name), `: ${TERRAIN[c].text ?? ''}`)),
+  ] : [])));
 }

@@ -12,7 +12,9 @@ import { bonusChips, loadout, roleLabel } from './loadout';
 const AI_MS = 500;
 
 /** What a turn-order seat means for the team that holds it: its label, a note, and the question its pick answers. */
-function seatMeaning(seats: readonly Team[], k: number): { label: string; note: string; ask: string } {
+interface SeatMeaning { label: string; note: string; ask: string }
+
+function seatMeaning(seats: readonly Team[], k: number): SeatMeaning {
   if (k === 0) return { label: 'Opener', note: 'first each round', ask: 'Who acts first every round?' };
 
   if (k === seats.length - 1) return { label: 'Closer', note: 'last each round', ask: 'Who acts last every round?' };
@@ -131,7 +133,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
     const m = lock ? draft.teams[t][lock.member] : null, C = lock ? CLASSES[lock.cls] : null, mine = now && humans().includes(t);
     const state = lock ? 'locked' : now ? 'now' : 'wait';
 
-    return h('li', { class: `pk-seat ${state}${k === landed ? ' fresh' : ''}`, style: { '--tc': TEAM_COLOR[t], ...(C ? { '--cc': C.color } : {}) }, data: { step: String(k), team: String(t) } },
+    return h('li', { class: `pk-seat ${state}${k === landed ? ' fresh' : ''}`, style: { '--tc': TEAM_COLOR[t], '--cc': C?.color }, data: { step: String(k), team: String(t) } },
       h('div', { class: 'pos' }, h('span', { class: 'k' }, s.label), s.note ? h('span', { class: 'mean' }, s.note) : null),
       h('span', { class: 'ic' }, C ? C.icon : now ? '⏳' : ''),
       h('div', { class: 'who' },

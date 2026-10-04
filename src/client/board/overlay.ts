@@ -19,6 +19,12 @@ const CSS = `
 interface Float { el: HTMLElement; pos: THREE.Vector3; t: number; life: number }
 
 /** In-world DOM: unit labels and floating numbers, projected onto the labels layer every frame. */
+/** A point on screen, in CSS pixels. */
+export interface ScreenPos { x: number; y: number }
+
+/** `ok` is false behind the camera. */
+export interface Projected extends ScreenPos { ok: boolean }
+
 export class Overlay {
   readonly #floats: Float[] = [];
   readonly #style: HTMLStyleElement;
@@ -46,13 +52,13 @@ export class Overlay {
   }
 
   /** Position in the labels layer; `ok` is false behind the camera. */
-  project(p: THREE.Vector3): { x: number; y: number; ok: boolean } {
+  project(p: THREE.Vector3): Projected {
     const v = this.#v.copy(p).project(this.camera);
 
     return { x: this.#dx + (v.x * 0.5 + 0.5) * this.#w, y: this.#dy + (-v.y * 0.5 + 0.5) * this.#h, ok: v.z < 1 };
   }
   /** Position in the browser viewport. */
-  viewport(p: THREE.Vector3): { x: number; y: number } {
+  viewport(p: THREE.Vector3): ScreenPos {
     const v = this.#v.copy(p).project(this.camera), c = this.canvas.getBoundingClientRect();
 
     return { x: c.left + (v.x * 0.5 + 0.5) * c.width, y: c.top + (-v.y * 0.5 + 0.5) * c.height };
@@ -80,16 +86,15 @@ export class Overlay {
     el.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
     el.classList.toggle('bd-down', s.life.kind === 'downed');
     const name = s.life.kind === 'downed' ? `${s.name} · DOWNED ${s.life.bleed}` : s.name;
-    const [st, n, bar] = el.children as unknown as [HTMLElement, HTMLElement, HTMLElement];
+    const { st, n, hp, sh } = v.parts;
 
     if (n.textContent !== name) n.textContent = name;
     const icons = [...s.st].map(k => (k === 'encased' && !s.ice ? '🥚' : STATUS[k].icon)).join('');
 
     if (st.textContent !== icons) st.textContent = icons;
     const hpW = `${Math.round(Math.max(0, s.hp) / s.maxHp * 100)}%`, shW = `${Math.min(100, Math.round(s.shield / s.maxHp * 100))}%`;
-    const [i, sh] = bar.children as unknown as [HTMLElement, HTMLElement];
 
-    if (i.style.width !== hpW) i.style.width = hpW;
+    if (hp.style.width !== hpW) hp.style.width = hpW;
 
     if (sh.style.width !== shW) sh.style.width = shW;
   }

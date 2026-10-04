@@ -258,7 +258,7 @@ export const PAIRS: readonly PairDef[] = PAIR_TABLE;
 
 export type EveryPairListed = Assert<NoMissing<PairId, (typeof PAIR_TABLE)[number]['id']>>;
 
-export const COVERAGE: { id: 'coverage'; name: string; text: string } = { id: 'coverage', name: 'Role Coverage', text: 'A tank, a damage and a support path: +40 max HP for everyone.' };
+export const COVERAGE = { id: 'coverage', name: 'Role Coverage', text: 'A tank, a damage and a support path: +40 max HP for everyone.' } as const;
 
 // ---------- statuses: durations count the owner's turns and tick down at the end of each of them ----------
 export interface StatusDef { name: string; icon: string; color: string; bad?: true; text: string }
@@ -295,8 +295,12 @@ export interface SkillDef {
 function basicSkill(cls: ClassId): SkillDef {
   const b = CLASSES[cls].basic, ranged = b.range > 1;
 
-  return { name: b.name, icon: ranged ? '✦' : '⚔️', target: 'enemy', range: b.range, ...(ranged ? { los: true } : {}), cd: 0, basic: true, cls, color: '#e8e2d0',
+  const def: SkillDef = { name: b.name, icon: ranged ? '✦' : '⚔️', target: 'enemy', range: b.range, cd: 0, basic: true, cls, color: '#e8e2d0',
     text: `${ranged ? 'Ranged attack' : 'Melee attack'} for ${b.dmg}. Finishes Downed enemies.` };
+
+  if (ranged) def.los = true;
+
+  return def;
 }
 
 const SKILL_TABLE = {

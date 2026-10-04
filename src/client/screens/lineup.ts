@@ -15,6 +15,9 @@ const STATIONS: readonly Station[] = [
 
 const SWAP_SEC = 0.4;
 
+/** The party slot each figure's scene objects belong to, for picking. */
+const SLOT_OF = new WeakMap<THREE.Object3D, number>();
+
 const FIRE = new THREE.Vector3(0, 0, 0.2);
 
 interface Pose { x: number; z: number; scale: number; turn: number }
@@ -138,7 +141,7 @@ export class Lineup {
       if (!f) {
         const { body, idle } = buildModel(m.cls, team), root = new THREE.Group();
         root.add(body);
-        root.traverse(o => { o.userData.slot = slot; });
+        root.traverse(o => { SLOT_OF.set(o, slot); });
         this.#scene.add(root);
         const prev = this.#figs[slot];
         f = { key, root, body, idle, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1 };
@@ -157,7 +160,7 @@ export class Lineup {
     this.#ray.setFromCamera(new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1), this.#camera);
     const hit = this.#ray.intersectObjects(this.#figs.flatMap(f => (f ? [f.root] : [])), true)[0];
 
-    return hit ? (hit.object.userData.slot as number) : null;
+    return (hit && SLOT_OF.get(hit.object)) ?? null;
   }
 
   #fit(): void {

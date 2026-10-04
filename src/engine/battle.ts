@@ -9,6 +9,10 @@ import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, Skill
 
 const TEAMS: readonly Team[] = [0, 1];
 
+/** The one place a number becomes a UnitId. */
+// SAFETY: createBattle numbers units 1..6 in order, and tests name those same numbers; nothing else mints an id.
+export const unitId = (n: number): UnitId => n as UnitId;
+
 export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
   const s: BattleState = {
     map: setup.map,
@@ -39,7 +43,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
       if (!p) throw new Error(`team ${team} slot ${slot}: no deploy tile`);
       const hp = C.hp + (mods.hp || 0) + (s.party[team].has('coverage') ? 40 : 0);
       s.units.push({
-        id: nextId++ as UnitId, team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, 3), tree: m.tree.slice(), mods,
+        id: unitId(nextId++), team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, 3), tree: m.tree.slice(), mods,
         x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false,
         spared: false, souls: 0,
       });

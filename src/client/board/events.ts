@@ -479,6 +479,6 @@ export const PLAY: Handlers = {
 };
 
 export async function playEvent(e: BattleEvent, c: PlayCtx): Promise<void> {
-  // The mapped type guarantees PLAY[e.type] accepts this exact variant; TS cannot correlate the two through a union index.
+  // SAFETY: the mapped type guarantees PLAY[e.type] accepts this exact variant; TS cannot correlate the two through a union index.
   await (PLAY[e.type] as Handler<typeof e.type>)(e as never, c);
 }

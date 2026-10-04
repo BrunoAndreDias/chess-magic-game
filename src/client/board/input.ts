@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Pos } from '../../engine/index';
+import { TILE_OF } from './terrain';
 import type { TileInput } from '../board';
 
 const CLICK_SLOP = 6;
@@ -82,7 +83,7 @@ export class Picker {
       if (t) return t;
     }
 
-    return (hitTile?.object.userData.tile as Pos | undefined) ?? null;
+    return (hitTile && TILE_OF.get(hitTile.object)) ?? null;
   }
 
   dispose(): void { this.#off(); this.#listeners.clear(); }

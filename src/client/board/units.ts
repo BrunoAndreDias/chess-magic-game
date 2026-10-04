@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { statusKeys } from '../../engine/index';
 import type { Life, StatusKey, Team, Unit, UnitId } from '../../engine/index';
 import { GOLD, TEAM_HEX, basic, decal, glow, keep, mesh } from './art';
+import { h } from '../dom';
 import { buildModel } from './models';
 
 /** What the unit's label and aura show right now: `before` at the start of a play, nudged by each event, `after` at its end. */
@@ -24,12 +26,17 @@ export interface UnitView {
   cocoon: THREE.Group;
   idle: ((time: number) => void) | null;
   label: HTMLElement;
+  /** The label's status icons, name, and HP and shield bars. */
+  parts: { st: HTMLElement; n: HTMLElement; hp: HTMLElement; sh: HTMLElement };
   shown: Shown;
   /** 0 standing, 1 lying down. */
   pose: number;
   bob: number;
 }
 
+
+/** The unit each of its scene objects belongs to, for picking. */
+export const UNIT_OF = new WeakMap<THREE.Object3D, UnitId>();
 
 const silk = keep(basic(0xf4eefa));
 
@@ -61,32 +68,31 @@ export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   group.add(body);
 
   const disc = decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[u.team], 0.35), 0.02);
-  const ring = decal(new THREE.RingGeometry(0.47, 0.58, 32), basic(GOLD, 0.95), 0.03) as UnitView['ring'];
+  const ring = decal(new THREE.RingGeometry(0.47, 0.58, 32), basic(GOLD, 0.95), 0.03);
   ring.visible = false;
   const bubble = mesh(new THREE.SphereGeometry(0.72, 20, 14), basic(0xe0c477, 0.18), 0, 0.72, 0);
   bubble.visible = false;
-  const blood = decal(new THREE.RingGeometry(0.2, 0.62, 28), basic(0xc0392b, 0.6), 0.035) as UnitView['blood'];
+  const blood = decal(new THREE.RingGeometry(0.2, 0.62, 28), basic(0xc0392b, 0.6), 0.035);
   blood.visible = false;
   const aura = glow(0xffffff, 1.4, 0);
   aura.position.y = 0.8;
   group.add(disc, ring, bubble, blood, aura);
   group.rotation.y = u.team === 0 ? 0 : Math.PI;
-  group.traverse(o => { o.userData.unit = u.id; });
+  group.traverse(o => { UNIT_OF.set(o, u.id); });
 
-  const label = document.createElement('div');
-  label.className = `bd-unit bd-t${u.team}`;
-  label.innerHTML = '<div class="bd-st"></div><div class="bd-n"></div><div class="bd-bar"><i></i><s></s></div>';
+  const parts = { st: h('div', { class: 'bd-st' }), n: h('div', { class: 'bd-n' }), hp: h('i'), sh: h('s') };
+  const label = h('div', { class: `bd-unit bd-t${u.team}` }, parts.st, parts.n, h('div', { class: 'bd-bar' }, parts.hp, parts.sh));
   labels.appendChild(label);
 
   return {
     id: u.id, team: u.team, group, body, weapon, height, main, disc, ice, cocoon, idle,
-    ring, bubble, blood, aura, label, shown: shownOf(u), pose: 0, bob: Math.random() * 6,
+    ring, bubble, blood, aura, label, parts, shown: shownOf(u), pose: 0, bob: Math.random() * 6,
   };
 }
 
 export function shownOf(u: Unit): Shown {
   return {
-    name: u.name, hp: u.hp, maxHp: u.maxHp, shield: u.shield, life: u.life, st: new Set(Object.keys(u.st) as StatusKey[]),
+    name: u.name, hp: u.hp, maxHp: u.maxHp, shield: u.shield, life: u.life, st: new Set(statusKeys(u.st)),
     ice: !!u.st.encased?.ice,
   };
 }

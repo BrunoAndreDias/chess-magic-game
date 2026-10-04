@@ -7,19 +7,19 @@ import { playEvent } from './events';
 import type { PlayCtx } from './events';
 import { Fx } from './fx';
 import { Marks } from './marks';
+import type { MarkCounts } from './marks';
 import { Picker } from './input';
 import { Overlay } from './overlay';
 import { Stage } from './stage';
 import { FX_KEYS, Terrain } from './terrain';
 import { Tweens } from './tween';
-import { animateUnit, buildUnit, setPose, shownOf } from './units';
+import { UNIT_OF, animateUnit, buildUnit, setPose, shownOf } from './units';
 import type { UnitView } from './units';
 
 /** What the scene currently shows, read back from the meshes for the browser playtest. */
 export interface BoardDebug {
   units(): { id: UnitId; x: number; z: number; visible: boolean; down: boolean; hp: number; shield: number }[];
-  /** How many ground Souls, pending Calls and Threads are drawn. */
-  marks(): { souls: number; calls: number; threads: number };
+  marks(): MarkCounts;
   /** Per tile `x,z` the base terrain char and overlay keys, e.g. `3,4:.:fire+smoke`. */
   tiles(): string[];
   busy(): boolean;
@@ -58,8 +58,8 @@ class BoardView implements Board {
     this.#marks = new Marks(this.#stage.world, labels, this.#terrain, this.#overlay, this.#tweens, this.#views);
     this.#picker = new Picker(canvas, this.#stage.camera, () => ({
       tiles: this.#terrain.picks,
-      units: [...this.#views.values()].filter(v => v.group.visible).map(v => v.group),
-      tileOfUnit: o => { const v = this.#views.get(o.userData.unit as UnitId); return v ? tileOf(v) : null; },
+      units: [...this.#views.values()].flatMap(v => (v.group.visible ? [v.group] : [])),
+      tileOfUnit: o => { const id = UNIT_OF.get(o), v = id === undefined ? undefined : this.#views.get(id); return v ? tileOf(v) : null; },
     }));
     // A hidden tab gets no animation frames, so a play would never resolve; finish animations instantly instead.
     this.#onVisibility = () => { this.#tweens.instant = document.hidden; if (document.hidden) this.#tweens.flush(); };

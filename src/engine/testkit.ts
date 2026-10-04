@@ -1,9 +1,9 @@
-import { apply, createBattle } from './battle';
+import { apply, createBattle, unitId } from './battle';
 import { mulberry32 } from './rng';
-import type { BattleEvent, BattleState, ClassId, ClassSkillId, Command, Life, MapId, MemberBuild, NodeId, SkillId, Team, TerrainChar, Turn, UnitId } from './types';
+import type { BattleEvent, BattleState, ClassId, ClassSkillId, Command, Life, MapId, MemberBuild, NodeId, SkillId, Team, TerrainChar, Turn } from './types';
 import { CLASSES, N } from './tables';
 
-export const uid = (n: number) => n as UnitId;
+export const uid = unitId;
 
 /** A queue of turns; ids after `'+'` are extra turns. */
 export const turns = (...ids: (number | '+')[]): Turn[] => {
@@ -48,8 +48,11 @@ export function stage(opts: {
   return s;
 }
 
+/** The state after some commands, and every event they raised in order. */
+export interface Played { state: BattleState; events: BattleEvent[] }
+
 /** Applies each command in turn; throws on the first rejection. */
-export function run(state: BattleState, ...cmds: Command[]): { state: BattleState; events: BattleEvent[] } {
+export function run(state: BattleState, ...cmds: Command[]): Played {
   let s = state;
   const events: BattleEvent[] = [];
 

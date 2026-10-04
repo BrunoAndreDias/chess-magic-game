@@ -35,15 +35,15 @@ export async function loadFigures(): Promise<void> {
       if (!(o instanceof THREE.Mesh)) return;
       o.castShadow = true;
       o.geometry.userData.shared = true;
+      const m: THREE.Material | THREE.Material[] = o.material;
 
-      if ((o.material as THREE.Material).name === 'void') o.material = VOID;
-
-      if ((o.material as THREE.Material).name === 'spirit') {
-        o.material = spirit(o.material as THREE.MeshStandardMaterial);
+      if (m instanceof THREE.Material && m.name === 'void') o.material = VOID;
+      else if (m instanceof THREE.MeshStandardMaterial && m.name === 'spirit') {
+        o.material = spirit(m);
         o.castShadow = false;
       }
 
-      keep(o.material as THREE.Material);
+      for (const x of [o.material].flat()) keep(x);
     });
     SOURCES.set(cls, { scene: g.scene, clips: g.animations, height: new THREE.Box3().setFromObject(g.scene).max.y });
   }));
@@ -81,7 +81,8 @@ export function buildModel(cls: ClassId, team: Team): Figure {
     if (o.name.startsWith('glow')) glows.push(o);
   });
 
-  for (const o of glows) o.add(glow(hex(o.userData.color as string), o.userData.size as number, 0.9));
+  // The glb's custom props, per art/figures/common.py: `color` is "#rrggbb" and `size` is metres.
+  for (const o of glows) o.add(glow(hex(String(o.userData.color)), Number(o.userData.size), 0.9));
   const main = [...own.values()].find(m => m.name === 'main');
   const weapon = body.getObjectByName('weapon');
 

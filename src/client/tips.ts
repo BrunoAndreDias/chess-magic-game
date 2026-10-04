@@ -1,11 +1,9 @@
-import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, actedThisRound, callTiles, getUnit, holders, idx, moveOf, roleOf, soulAt, soulCap, threadCap, undying } from '../engine/index';
+import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, actedThisRound, callTiles, getUnit, holders, idx, moveOf, roleOf, soulAt, soulCap, statusKeys, threadCap, undying } from '../engine/index';
 import type { BattleState, StatusKey, Unit } from '../engine/index';
 import { h } from './dom';
 import type { Child } from './dom';
 import { doomTip, hazardTip } from './rules';
 import { TEAM_TEXT } from './theme';
-
-function statusKeys(u: Unit): StatusKey[] { return (Object.keys(u.st) as StatusKey[]).filter(k => u.st[k]); }
 
 const COCOON = { name: 'Cocooned', icon: '🥚', text: 'Wrapped in silk: skips its turn, can’t be damaged or moved.' };
 
@@ -18,7 +16,7 @@ export function statusLook(u: Unit, k: StatusKey): { name: string; icon: string;
 
 /** Small status chips with the remaining turns; each explains itself on hover via `title`. */
 export function statusChips(u: Unit): HTMLElement[] {
-  return statusKeys(u).map(k => {
+  return statusKeys(u.st).map(k => {
     const S = statusLook(u, k), v = u.st[k];
 
     return h('span', { class: 'sti', style: { '--sc': S.color }, title: `${S.name}: ${S.text}` }, S.icon, v ? v.t : null);
@@ -71,7 +69,7 @@ export function unitTip(s: BattleState, u: Unit, human: boolean): Child[] {
     life,
     doomTip(s, u),
     ...mechanicLines(s, u),
-    ...statusKeys(u).map(k => {
+    ...statusKeys(u.st).map(k => {
       const S = statusLook(u, k), v = u.st[k], by = v ? getUnit(s, v.by) : null;
 
       return h('div', { style: { color: S.color } }, `${S.icon} ${S.name}`, by && by.id !== u.id ? h('span', { class: 'm' }, ` (from ${by.name})`) : null, ': ', h('span', { class: 'm' }, S.text));

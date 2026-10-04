@@ -1,6 +1,7 @@
 import { describe as suite, expect, test } from 'vitest';
 import { createBattle, mulberry32, newMember } from '../engine/index';
-import type { BattleEvent, BattleState, NodeId, UnitId } from '../engine/index';
+import { uid } from '../engine/testkit';
+import type { BattleEvent, BattleState, NodeId } from '../engine/index';
 import { callLines, comboCredit, describe, openingLines, previewLines } from './format';
 
 const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tree });
@@ -14,7 +15,7 @@ const s = createBattle({
   deploy: [[{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 2, z: 0 }], [{ x: 0, z: 11 }, { x: 1, z: 11 }, { x: 2, z: 11 }]],
 }, mulberry32(1));
 
-const id = (n: number) => n as UnitId;
+const id = uid;
 
 const line = (e: BattleEvent) => describe(e, s);
 

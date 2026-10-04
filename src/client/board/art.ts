@@ -20,7 +20,7 @@ export function basic(color: number, opacity = 1): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
 }
 
-export function mesh(geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
+export function mesh<G extends THREE.BufferGeometry, M extends THREE.Material>(geo: G, m: M, x = 0, y = 0, z = 0): THREE.Mesh<G, M> {
   const o = new THREE.Mesh(geo, m);
   o.position.set(x, y, z);
 
@@ -28,7 +28,7 @@ export function mesh(geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0,
 }
 
 /** A flat quad lying on the ground. */
-export function decal(geo: THREE.BufferGeometry, m: THREE.Material, y: number): THREE.Mesh {
+export function decal<G extends THREE.BufferGeometry, M extends THREE.Material>(geo: G, m: M, y: number): THREE.Mesh<G, M> {
   const o = mesh(geo, m, 0, y, 0);
   o.rotation.x = -Math.PI / 2;
 
@@ -75,9 +75,8 @@ export function disposeTree(o: THREE.Object3D): void {
 
     // Every Sprite shares one module-level geometry inside three.
     if (!(c instanceof THREE.Sprite) && !c.geometry.userData.shared) c.geometry.dispose();
-    const m = c.material as THREE.Material | THREE.Material[];
 
-    for (const x of Array.isArray(m) ? m : [m]) if (!x.userData.shared) x.dispose();
+    for (const x of [c.material].flat()) if (!x.userData.shared) x.dispose();
   });
   o.removeFromParent();
 }

@@ -22,7 +22,11 @@ const pick = <T>(r: Rng, xs: readonly T[]): T => {
 function shuffled<T>(r: Rng, xs: readonly T[]): T[] {
   const out = xs.slice();
 
-  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [out[i], out[j]] = [out[j] as T, out[i] as T]; }
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    // SAFETY: 0 <= j <= i < out.length, so both reads are inside the array.
+    [out[i], out[j]] = [out[j] as T, out[i] as T];
+  }
 
   return out;
 }
@@ -78,7 +82,7 @@ for (let i = from; i < from + battles; i++) {
 
   const bare = createBattle({ map, starter: 0, teams: [[], []] }, r);
   const deploy: [ReturnType<typeof aiDeploy>, ReturnType<typeof aiDeploy>] = [aiDeploy(bare, 0, teams[0], r, opts(0)), aiDeploy(bare, 1, teams[1], r, opts(1))];
-  const starter = (i % 2) as Team;
+  const starter: Team = i % 2 === 0 ? 0 : 1;
   let s: BattleState = createBattle({ map, starter, teams, deploy }, r);
   const used = [new Set<Mechanic>(), new Set<Mechanic>()];
   const t0 = performance.now();

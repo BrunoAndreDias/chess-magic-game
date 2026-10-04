@@ -19,6 +19,11 @@ export function isDowned(u: Unit): boolean { return u.life.kind === 'downed'; }
 
 export function isAlive(u: Unit): boolean { return u.life.kind !== 'dead'; }
 
+/** A unit's statuses, in the order they were applied. */
+export function statusKeys(st: Statuses): StatusKey[] {
+  return Object.keys(st).filter(isStatusKey).filter(k => st[k]);
+}
+
 export function getUnit(s: BattleState, id: UnitId | null | undefined): Unit | null {
   for (const u of s.units) if (u.id === id) return u;
 
@@ -478,7 +483,11 @@ export function evens(u: Unit, o: Unit): boolean {
 export function boneTiles(s: BattleState, u: Unit, tx: number, tz: number): Pos[] {
   const dx = sign(tx - u.x), dz = sign(tz - u.z);
 
-  return [-1, 0, 1].map(k => ({ x: tx - dz * k, z: tz + dx * k })).filter(p => inb(p.x, p.z) && !isSolid(s, p.x, p.z) && !unitAt(s, p.x, p.z));
+  return [-1, 0, 1].flatMap(k => {
+    const x = tx - dz * k, z = tz + dx * k;
+
+    return inb(x, z) && !isSolid(s, x, z) && !unitAt(s, x, z) ? [{ x, z }] : [];
+  });
 }
 
 /** The tiles a cast at (tx, tz) affects, for highlighting (and a Call's area). */

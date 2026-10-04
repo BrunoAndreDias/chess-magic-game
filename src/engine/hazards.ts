@@ -37,7 +37,7 @@ function atOnce(s: BattleState, f: () => void): void {
   if (before.kind !== 'over' && s.phase.kind === 'over') { s.phase = before; checkWinner(s); }
 }
 
-const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
+const RULES = {
   crumble: {
     hits: (s, r, round, k) => crumbleRounds(s.map, r)[k] === round && !TERRAIN[s.terr[k] ?? '#'].solid,
     name: (r, round) => r.names[round] ?? null,
@@ -100,11 +100,12 @@ const RULES: { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> } = {
       if (team !== null && s.favor[team] >= r.goal) s.phase = { kind: 'over', winner: team, reason: 'altar' };
     },
   },
-};
+} satisfies { [K in MapRule['kind']]: RuleImpl<RuleOf<K>> };
 
 function ruleOf(s: BattleState): [MapRule, RuleImpl<MapRule>] {
   const r = MAPS[s.map].rule;
 
+  // SAFETY: RULES maps each kind to the impl for that kind's rule, so the impl at r.kind takes r; TS cannot correlate the two through the union.
   return [r, RULES[r.kind] as RuleImpl<MapRule>];
 }
 

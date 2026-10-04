@@ -67,8 +67,11 @@ function mechanic(cls: ClassId): [string, string] {
   return [line.slice(0, at), rest.charAt(0).toUpperCase() + rest.slice(1)];
 }
 
+/** A line under a section that shows whatever the pointer is on; `hover` wires a target to it. */
+interface DetailLine { el: HTMLElement; hover<T extends HTMLElement>(target: T, content: () => Child[]): T }
+
 /** A line under a section that shows whatever the pointer is on, falling back to `rest`. */
-function detailLine(rest: () => Child[]): { el: HTMLElement; hover<T extends HTMLElement>(target: T, content: () => Child[]): T } {
+function detailLine(rest: () => Child[]): DetailLine {
   const el = h('div', { class: 'detail' }, rest());
 
   return {

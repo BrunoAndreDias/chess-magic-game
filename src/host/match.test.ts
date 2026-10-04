@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { newMember } from '../engine/index';
-import type { BattleEvent, BattleSetup, UnitId } from '../engine/index';
+import { uid } from '../engine/testkit';
+import type { BattleEvent, BattleSetup } from '../engine/index';
 import { Match } from './match';
 import type { Seats } from './match';
 
@@ -11,7 +12,7 @@ const setup: BattleSetup = {
 
 const ai: Seats = [[{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }], [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }]];
 
-const id = (n: number) => n as UnitId;
+const id = uid;
 
 describe('Match', () => {
   test('a player can only command the units and team they hold', () => {

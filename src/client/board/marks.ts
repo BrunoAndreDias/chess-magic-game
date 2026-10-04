@@ -84,6 +84,9 @@ const CSS = `
 .bd-call{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;font:700 12px -apple-system,system-ui,sans-serif;padding:2px 8px;border-radius:7px;background:rgba(10,8,16,.82);border:1px solid currentColor;text-shadow:0 1px 2px #000;will-change:transform}
 `;
 
+/** How many ground Souls, pending Calls and Threads are drawn. */
+export interface MarkCounts { souls: number; calls: number; threads: number }
+
 export class Marks {
   readonly root = new THREE.Group();
   readonly #souls = new Map<string, SoulView>();
@@ -106,7 +109,7 @@ export class Marks {
     document.head.appendChild(this.#style);
   }
 
-  get counts(): { souls: number; calls: number; threads: number } {
+  get counts(): MarkCounts {
     return { souls: this.#souls.size, calls: this.#calls.size, threads: this.#threads.size };
   }
 
@@ -171,7 +174,7 @@ export class Marks {
 
     const tiles = callTiles(c.skill, c.x, c.z).flatMap(p => {
       if (!this.terrain.tile(p.x, p.z)) return [];
-      const q = decal(new THREE.PlaneGeometry(0.96, 0.96), new THREE.MeshBasicMaterial({ map: CALL_TEX[c.team]![phase], color: team, transparent: true, depthWrite: false, opacity: 0.8 }), 0) as CallView['tiles'][number];
+      const q = decal(new THREE.PlaneGeometry(0.96, 0.96), new THREE.MeshBasicMaterial({ map: CALL_TEX[c.team]![phase], color: team, transparent: true, depthWrite: false, opacity: 0.8 }), 0);
       q.position.copy(this.terrain.at(p.x, p.z, 0.06, false));
       q.renderOrder = 5;
       g.add(q);

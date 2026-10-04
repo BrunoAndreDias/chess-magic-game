@@ -26,7 +26,7 @@ const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
 
 const seed = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 2 ** 31);
 
-const board = createBoard(byId<HTMLCanvasElement>('board'), byId('labels'));
+const board = createBoard(byId('board', HTMLCanvasElement), byId('labels'));
 
 const app = createApp(board, byId('ui'), seed);
 

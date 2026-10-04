@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { CLASSES, CLASS_ORDER } from '../engine/index';
-import type { MapId, Team } from '../engine/index';
+import { CLASSES, CLASS_ORDER, MAP_ORDER } from '../engine/index';
+import type { Team } from '../engine/index';
 import { BIOMES } from './biome';
 import { TEAM_HEX, basic, decal, mat, mesh } from './board/art';
 import { buildModel, loadFigures } from './board/models';
+import { byId } from './dom';
 import { installErrorOverlay } from './overlay';
 
 /** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`. After `art/build.sh`, reload to see new figures. */
@@ -13,7 +14,7 @@ const params = new URLSearchParams(location.search);
 
 await loadFigures();
 
-const canvas = document.getElementById('c') as HTMLCanvasElement, names = document.getElementById('names')!;
+const canvas = byId('c', HTMLCanvasElement), names = byId('names');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 
@@ -23,7 +24,7 @@ renderer.shadowMap.enabled = true;
 
 renderer.setScissorTest(true);
 
-const biomeId = (params.get('biome') ?? 'storm') as MapId, B = BIOMES[biomeId] ?? BIOMES.storm;
+const B = BIOMES[MAP_ORDER.find(m => m === params.get('biome')) ?? 'storm'];
 
 function lit(s: THREE.Scene, b = B): void {
   s.background = new THREE.Color(b.sky);

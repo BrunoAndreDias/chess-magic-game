@@ -92,7 +92,11 @@ export function humanTeams(d: Draft): Team[] {
 function build(m: Member): MemberBuild { return { name: m.name.trim() || 'Hero', cls: m.cls, skills: m.skills.slice(), tree: m.tree.slice() }; }
 
 export function battleSetup(d: Draft, deploy: [readonly Pos[], readonly Pos[]] | null): BattleSetup {
-  return { map: d.map, starter: d.starter, teams: [d.teams[0].map(build), d.teams[1].map(build)], ...(deploy ? { deploy } : {}) };
+  const setup: BattleSetup = { map: d.map, starter: d.starter, teams: [d.teams[0].map(build), d.teams[1].map(build)] };
+
+  if (deploy) setup.deploy = deploy;
+
+  return setup;
 }
 
 export function seats(d: Draft): Seats {
