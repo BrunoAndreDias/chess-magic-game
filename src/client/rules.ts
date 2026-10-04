@@ -9,7 +9,7 @@ import { h } from './dom';
 const pos = (k: number): Pos => ({ x: k % N, z: (k / N) | 0 });
 const ruleOf = (s: BattleState) => MAPS[s.map].rule;
 
-/** The first sentence of the rule text, for the compact strip on the setup screen. */
+/** The first sentence of the rule text, for the compact strip on the draft screen. */
 export function ruleLine(id: MapId): string {
   const t = MAPS[id].ruleText, end = t.indexOf('. ');
   return end < 0 ? t : t.slice(0, end + 1);

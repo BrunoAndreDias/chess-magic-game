@@ -1,4 +1,4 @@
-// Plays one battle through the real UI in headless Chromium: map reveal → picks → setup → scout → every Blue turn by clicks and hotkeys → result → Rematch.
+// Plays one battle through the real UI in headless Chromium: map reveal → draft → scout → every Blue turn by clicks and hotkeys → result → Rematch.
 // Blue's moves are chosen by the engine AI (aiTurn) and performed through the HUD. Exits non-zero on any page error or if no result is reached.
 // ALL_AI=1 instead spectates an all-AI battle (?ai&quick) to the result screen, then draws a New battlefield.
 // Env: PLAYWRIGHT_CORE (module path), CHROME (browser binary), SHOTS (screenshot dir), MAP, SEED, PORT.
@@ -124,7 +124,7 @@ async function serve() {
     return `all-AI battle on ${fin.map} "${fin.title}" after round ${fin.round} (${fin.why}); rule shots ${ruleShots.length}; mechanics: ${used}; New battlefield drew ${next}`;
   }
 
-  async function setupAndScout() {
+  async function draftAndScout() {
     await p.goto(`http://localhost:${PORT}/?map=${MAP}&seed=${SEED}`);
     await keepLog();
     if (!(await until(async () => (await phase()) === 'map'))) throw new Error('no map screen');
@@ -135,21 +135,21 @@ async function serve() {
     if (!(await until(async () => (await phase()) === 'picks'))) throw new Error('Form your parties did not open the picks');
     await wait(600);
     await shot('01-picks');
-    // Blue locks its members in card order, the middle one switched to a Weaver; Red's AI locks between.
+    // Blue selects and locks its members in order, the middle one switched to a Weaver; Red's AI locks between.
     for (let k = 0; k < 3; k++) {
-      if (k === 1) await p.click('#pk-team .pk-member[data-member="1"] .ccard[data-cls="weaver"]');
-      await p.click(`#pk-team .pk-member[data-member="${k}"]`);
+      await p.click(`#su-teams .pslot[data-team="0"][data-slot="${k}"]`);
+      if (k === 1) await p.click('.sheet .ccard[data-cls="weaver"]');
       if (!(await until(() => p.$eval('#pk-lock', b => !b.disabled).catch(() => false), 5000))) throw new Error(`lock ${k} never enabled`);
+      if (k === 1) await shot('01-picks-mine');
       await p.click('#pk-lock');
     }
     if (!(await until(() => p.$eval('#pk-go', b => !b.disabled), 5000))) throw new Error('the picks never finished');
-    await shot('01-picks-done');
-    await p.click('#pk-go');
-    if (!(await until(async () => (await phase()) === 'setup'))) throw new Error('Build your party did not open setup');
     await wait(800);
-    await shot('01-setup');
+    await shot('01-picks-done');
+    const weaver = await p.$eval('#pk-track', el => el.textContent);
+    if (!weaver.includes('Weaver')) throw new Error(`the turn order does not show the Weaver lock: ${weaver}`);
     const strip = await p.textContent('#su-mapinfo');
-    if (!strip.includes(mapName)) throw new Error(`setup strip does not name ${mapName}: ${strip}`);
+    if (!strip.includes(mapName)) throw new Error(`draft strip does not name ${mapName}: ${strip}`);
     await p.click('#su-teams .pslot[data-team="0"][data-slot="1"]');
     await wait(600);
     // The lineup walks members to their spots at the frame rate, so wait for the plate under slot 0 to stop moving.
@@ -167,8 +167,8 @@ async function serve() {
     if (picked !== '0') throw new Error(`clicking a character in the lineup selected slot ${picked}, not 0`);
     await p.evaluate(() => document.querySelector('.treewrap').scrollIntoView());
     await wait(200);
-    await shot('02-setup-tree');
-    await p.click('#su-start');
+    await shot('02-draft-tree');
+    await p.click('#pk-go');
 
     if (!(await until(async () => (await phase()) === 'scout'))) throw new Error('no scout screen');
     await wait(1200);
@@ -206,7 +206,7 @@ async function serve() {
 
   let mapName = '';
   async function playBlue() {
-    await setupAndScout();
+    await draftAndScout();
     const watcher = watchRuleEvents();
     let battleShot = false, midShot = false, hazardShot = false, k = 0;
     const turns = new Set();

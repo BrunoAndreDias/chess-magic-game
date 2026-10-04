@@ -7,15 +7,13 @@ import { mountMap } from './screens/map';
 import { mountPicks } from './screens/picks';
 import { mountResult } from './screens/result';
 import { mountScout } from './screens/scout';
-import { mountSetup } from './screens/setup';
 
-export type Phase = 'map' | 'picks' | 'setup' | 'scout' | 'battle' | 'result';
+export type Phase = 'map' | 'picks' | 'scout' | 'battle' | 'result';
 
 /** The client state machine. The draft rides along every screen so Rematch and Change parties can rebuild from it. */
 export type Screen =
   | { kind: 'map'; draft: Draft }
   | { kind: 'picks'; draft: Draft }
-  | { kind: 'setup'; draft: Draft }
   | { kind: 'scout'; draft: Draft }
   | { kind: 'battle'; draft: Draft; match: Match }
   | { kind: 'result'; draft: Draft; final: BattleState };
@@ -58,7 +56,6 @@ function mount(ctx: Ctx, s: Screen): Mounted {
   switch (s.kind) {
     case 'map': return mountMap(ctx, s.draft);
     case 'picks': return mountPicks(ctx, s.draft);
-    case 'setup': return mountSetup(ctx, s.draft);
     case 'scout': return mountScout(ctx, s.draft);
     case 'battle': return mountBattle(ctx, s.draft, s.match);
     case 'result': return mountResult(ctx, s.draft, s.final);

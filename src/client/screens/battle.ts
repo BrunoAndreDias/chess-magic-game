@@ -16,7 +16,7 @@ import { endChip, hazardLayer, roundHazard } from '../rules';
 import { TEAM_NAME, TEAM_TEXT, skillColor } from '../theme';
 import { statusChips, terrainTip, unitTip } from '../tips';
 import { hideTip, showTip, withTip } from '../tooltip';
-import { bonusChips, skillInfo } from './setup';
+import { bonusChips, skillInfo } from './loadout';
 
 interface Batch { events: readonly BattleEvent[]; state: BattleState }
 interface Aim { skill: SkillId; targets: Target[] }
@@ -42,7 +42,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
   const initbar = h('div', { id: 'initbar' });
   const followBtn = h('button', { class: 'btn', id: 'btn-cam', onclick: toggleFollow });
-  const menu = h('div', { id: 'menu' }, followBtn, h('button', { class: 'btn', id: 'btn-setup', onclick: () => ctx.go({ kind: 'setup', draft }) }, '⟲ Party'));
+  const menu = h('div', { id: 'menu' }, followBtn, h('button', { class: 'btn', id: 'btn-setup', onclick: () => ctx.go({ kind: 'picks', draft }) }, '⟲ Party'));
   const rosters = [h('div', { class: 'roster', id: 'roster0' }), h('div', { class: 'roster', id: 'roster1' })] as const;
   const selinfo = h('div', { id: 'selinfo' }), actions = h('div', { id: 'actions' });
   const endBtn = h('button', { id: 'endturn', onclick: endTurn }, 'End turn', h('small', null, 'Space'));

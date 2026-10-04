@@ -7,7 +7,7 @@ type Timer = 0 | 20 | 30 | 45;
 export const TIMERS: readonly Timer[] = [20, 30, 45, 0];
 
 export interface Member extends MemberBuild { human: boolean }
-/** Everything the pick and setup screens edit. It outlives a battle, so Rematch and Change parties start from it. */
+/** Everything the draft screen edits. It outlives a battle, so Rematch and Change parties start from it. */
 export interface Draft {
   /** Members in turn order: the pick phase reorders them. */
   teams: [Member[], Member[]];
