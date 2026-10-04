@@ -149,6 +149,7 @@ export class Lineup {
     c.fov = Math.max(34, THREE.MathUtils.radToDeg(2 * Math.atan(halfWidth / (dist * aspect))));
     c.updateProjectionMatrix();
     this.#place();
+    this.#renderer.render(this.#scene, this.#camera);
   }
 
   /** Pins each nameplate under its member's feet. */
