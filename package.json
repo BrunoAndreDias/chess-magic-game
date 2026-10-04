@@ -7,11 +7,15 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "sim": "tsx scripts/sim.ts"
+    "sim": "tsx scripts/sim.ts",
+    "lint": "oxlint --deny-warnings src scripts",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
     "@types/three": "^0.186.0",
+    "oxlint": "^1.86.0",
     "playwright-core": "^1.63.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

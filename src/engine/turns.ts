@@ -66,7 +66,7 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     }
     if (u.st.stun || u.st.encased) {
       ev.push({ type: 'skip', id: u.id });
-      tickStatuses(s, u, ev);
+      tickStatuses(s, u);
       if (u.st.encased) thaw(s, u, ev);
       else delete u.st.stun;
       if (advance(s, ev)) return;
@@ -113,7 +113,7 @@ function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
 }
 
 const TICKING = ['root', 'expose', 'burn', 'poison', 'wither', 'hush', 'haste'] as const;
-function tickStatuses(s: BattleState, u: Unit, ev: BattleEvent[]): void {
+function tickStatuses(s: BattleState, u: Unit): void {
   for (const k of TICKING) {
     const v = u.st[k];
     if (!v) continue;
@@ -149,7 +149,7 @@ export function endActivation(s: BattleState): BattleEvent[] {
     if (t === '+') heal(s, u, 12, ev, null);
     if (f?.fire && !u.st.burn) addStatus(u, 'burn', { t: 2, dmg: 6, by: null }, ev);
     if (t === '~') addStatus(u, 'wet', { t: 2, by: u.st.wet ? u.st.wet.by : null }, ev);
-    tickStatuses(s, u, ev);
+    tickStatuses(s, u);
     webOfFate(s, u, ev);
   }
   u.moved = true; u.acted = true;

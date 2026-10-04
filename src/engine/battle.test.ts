@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { apply, createBattle } from './battle';
 import { partyBonuses, roleOf } from './builds';
-import { cdOf } from './board';
 import { idx, reachable, threadCap } from './index';
 import { mulberry32 } from './rng';
 import { bare, begin, cast, end, move, run, stage, turns, uid, unit } from './testkit';
