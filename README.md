@@ -11,15 +11,15 @@ npm install
 npm run dev      # http://localhost:5173  (?map=span|storm|altar, ?seed=7, ?ai makes all six slots AI, ?quick skips to scouting)
 ```
 
-A game goes map → setup → scout → battle → result. The battlefield is drawn first, at random from the seed unless `?map=` names one, and the map screen shows what its rule does, when and where. Then both parties are formed for it. The result screen offers Rematch (same map and parties), Change parties (same map) and New battlefield (a different map at random).
+A game goes map → picks → scout → battle → result. The battlefield is drawn first, at random from the seed unless `?map=` names one, and the map screen shows what its rule does, when and where. On the picks screen a coin draws the starter, who opens and closes every round for the whole battle. The parties then draft the turn order in the order they will act, and each lock commits a character to a turn and a class. Skills and passives stay editable until scouting. The result screen offers Rematch (same map and parties), Change parties (same map) and New battlefield (a different map at random).
 
 Each map has one rule, fully known in advance. Shattered Span crumbles its edges at the end of set rounds, Storm Court strikes a fixed cycle of lines at the end of every round, and the Sun Altar gives favor to whoever holds it. In battle, violet stripes mark the tiles this round's end will hit (the map's and any Undermined ones), and the initiative bar's last chip names what comes.
 
 ## Check it
 
 ```sh
-npm test                 # rules, Match and log-text tests
-npx tsc --noEmit
+npm run check           # oxlint, tsc and vitest; the pre-commit hook runs this
+npm run build
 npm run sim -- 200       # 200 AI battles with random builds: wins, rounds, combos, class and path win share, mechanic use
 npm run sim -- 300 --blind  # one side ignores the map rule: the aware side's win rate per map
 npm run sim -- 300 --dumb   # three damage keystones against a party covering tank, damage and support
@@ -31,4 +31,5 @@ MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI i
 - `src/engine` holds the rules. They are pure and deterministic: every random choice takes a seeded `Rng`, and every change goes through `apply(state, command)`.
 - `src/host/match.ts` is the authority that holds the real game state. It decides which player may send each command and plays the AI seats. It has no DOM, so it can move to a server unchanged.
 - `src/client` is the browser game. `board/` draws the 3D scene from states and events, and `screens/` holds the menus and HUD. The client only sends commands to the Match.
-- `prototypes-party/` is the throwaway single-file prototype the game was ported from, kept as reference. It predates the current maps.
+- `art/` builds the class figures in Blender: `art/figures/<class>.py` per class, `art/build.sh` writes `public/models/<class>.glb`, and `art/figures/common.py` documents the glb contract the client loads.
+- `docs/classes.md` is the rules spec and `docs/world.md` the lore (lands and orders).
