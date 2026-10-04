@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { apply, createBattle } from './battle';
 import { partyBonuses, roleOf } from './builds';
-import { idx, reachable, threadCap } from './index';
+import { COVERAGE, idx, reachable, threadCap } from './index';
 import { mulberry32 } from './rng';
 import { bare, begin, cast, end, move, run, stage, turns, uid, unit } from './testkit';
 import type { BattleEvent, MemberBuild } from './types';
@@ -291,9 +291,10 @@ describe('party', () => {
   const spinner = build('weaver', ['w_cocoon', 'w_reach', 'w_silk', 'w_spare']);
   const maxHp = (team: MemberBuild[]) => createBattle({ map: 'storm', starter: 0, teams: [team, [bare('weaver')]] }, mulberry32(1)).units.filter(u => u.team === 0).map(u => u.maxHp);
 
-  test('a party covering tank, damage and support gets +40 max HP each; three damage paths get nothing', () => {
-    expect(maxHp([rime, pyre, spinner])).toEqual([180, 180, 230]);
-    expect(maxHp([pyre, pyre, pyre])).toEqual([140, 140, 140]);
+  test('a party covering tank, damage and support gets the coverage HP each; three damage paths get nothing', () => {
+    const alone = [rime, pyre, spinner].map(m => maxHp([m])[0] ?? 0), bonus = (hps: number[], base: number[]) => hps.map((hp, i) => hp - (base[i] ?? 0));
+    expect(bonus(maxHp([rime, pyre, spinner]), alone)).toEqual([COVERAGE.hp, COVERAGE.hp, COVERAGE.hp]);
+    expect(bonus(maxHp([pyre, pyre, pyre]), [alone[1] ?? 0, alone[1] ?? 0, alone[1] ?? 0])).toEqual([0, 0, 0]);
   });
 
   test('a role is the keystone\'s path, else the path with most points, first on a tie, else damage', () => {

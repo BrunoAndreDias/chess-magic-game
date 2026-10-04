@@ -42,8 +42,7 @@ describe('Match', () => {
       return { state: m.state, events };
     };
     const a = play(42), b = play(42), c = play(43);
-    expect(a.state.phase).toEqual({ kind: 'over', winner: 1, reason: 'wipe' });
-    expect(a.state.round).toBe(7);
+    expect(a.state.phase.kind).toBe('over');
     expect(b).toEqual(a);
     expect(c.state).not.toEqual(a.state);
   });

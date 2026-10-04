@@ -1,6 +1,6 @@
 import { describe as suite, expect, test } from 'vitest';
-import { createBattle, mulberry32, newMember } from '../engine/index';
-import type { BattleEvent, BattleState, NodeId, UnitId } from '../engine/index';
+import { BLEED, COVERAGE, PAIRS, createBattle, mulberry32, newMember } from '../engine/index';
+import type { BattleEvent, BattleState, NodeId, PairId, PartyBonusId, UnitId } from '../engine/index';
 import { callLines, comboCredit, describe, openingLines, previewLines } from './format';
 
 const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tree });
@@ -33,7 +33,7 @@ suite('describe', () => {
     expect(line({ type: 'damage', id: id(3), amount: 4, absorbed: 0, kind: 'dark' })).toEqual({ tone: 't0', text: 'The dark drains 4 HP from Kip.' });
   });
   test('downs, revives and deaths are system lines', () => {
-    expect(line({ type: 'downed', id: id(3), team: 0 })).toEqual({ tone: 'sys', text: 'Kip is DOWNED! Help them up within 2 of their turns.' });
+    expect(line({ type: 'downed', id: id(3), team: 0 })).toEqual({ tone: 'sys', text: `Kip is DOWNED! Help them up within ${BLEED} of their turns.` });
     expect(line({ type: 'revive', id: id(3), by: id(1) })).toEqual({ tone: 'sys', text: 'Kip is back on their feet thanks to Aldric!' });
     expect(line({ type: 'death', id: id(5), team: 1, cause: 'bled' })).toEqual({ tone: 'sys', text: 'Ysolde bleeds out.' });
     expect(line({ type: 'bleed', id: id(5), left: 1 })).toEqual({ tone: 't1', text: 'Ysolde is bleeding out: 1 turn left.' });
@@ -63,6 +63,7 @@ suite('describe', () => {
     expect(line({ type: 'call', id: id(2), team: 0, skill: 'meteor', tiles: [] })).toEqual({ tone: 't0', text: "Meteor is called: it lands at the start of Seren's next turn." });
     expect(line({ type: 'land', id: id(2), skill: 'meteor', x: 5, z: 5, tiles: [], power: 1 })).toEqual({ tone: 't0', text: "Seren's Meteor lands!" });
     expect(line({ type: 'land', id: id(5), skill: 'gravitywell', x: 5, z: 5, tiles: [], power: 0.5 })).toEqual({ tone: 't1', text: "Ysolde's Gravity Well lands at half power!" });
+    expect(line({ type: 'land', id: id(5), skill: 'gravitywell', x: 5, z: 5, tiles: [], power: 0.625 })).toEqual({ tone: 't1', text: "Ysolde's Gravity Well lands at 63% power!" });
     expect(line({ type: 'fizzle', id: id(2) })).toEqual({ tone: 't0', text: "Seren's Call fizzles." });
   });
   test('a Gravecaller gathers a Soul or several', () => {
@@ -106,11 +107,12 @@ suite('previewLines', () => {
 });
 
 suite('openingLines', () => {
-  test('name the map and each party bonus', () => {
-    expect(openingLines(s).map(l => l.text)).toEqual([
-      'Storm Court. Order rule: the starting party acts first and last.',
-      'Blue party bonuses: Star-Tether, Conjunction',
-      'Red party bonuses: Star-Tether, Great Web, Role Coverage',
+  const pair = (p: PairId) => PAIRS.find(x => x.id === p)?.name;
+  test('list a party\'s bonuses in table order with Role Coverage last, and say none when it has none', () => {
+    const st: BattleState = { ...s, party: [new Set<PartyBonusId>(['coverage', 'greatweb', 'startether']), new Set<PartyBonusId>()] };
+    expect(openingLines(st).slice(1).map(l => l.text)).toEqual([
+      `Blue party bonuses: ${pair('startether')}, ${pair('greatweb')}, ${COVERAGE.name}`,
+      'Red party bonuses: none',
     ]);
   });
 });
