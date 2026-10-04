@@ -1,10 +1,21 @@
 import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
-// npm run sim -- [battles] [--blind] [--dumb] [--from=K]
-// --from=K: start at battle K, so shards of one long run can go in parallel.
-// --blind: one team ignores the map rule (team 1 on even battles, team 0 on odd), to measure what playing around it is worth.
-// --dumb: team 0 is three damage keystones, team 1 covers tank, damage and support.
+// Plays AI-vs-AI battles with random builds and prints win shares, combos and mechanic use.
+//
+//   npm run sim -- [N] [--from=K] [--blind] [--dumb]
+//
+//   N          battles to play (default 8). Battle i uses seed 100 + i, map i % 3 and starter i % 2, so a run is reproducible.
+//   --from=K   start at battle K: battles K to K + N - 1, one shard of a longer run.
+//   --blind    one team ignores the map rule (team 1 on even battles, team 0 on odd), to measure what playing around it is worth.
+//   --dumb     team 0 is three damage keystones, team 1 covers tank, damage and support.
+//
+// Progress (battles done of N, elapsed seconds) goes to stderr about every 10%; the report goes to stdout.
+// A long sweep runs as parallel shards in the background, each writing its own report, e.g. 7200 battles on 4 cores:
+//
+//   for k in 0 1800 3600 5400; do npm run --silent sim -- 1800 --from=$k > sim-$k.txt 2> sim-$k.log & done; wait
+//
+// `tail sim-*.log` shows how far each shard is. Each shard reports its own shares with their n; weigh them by n to combine.
 const args = process.argv.slice(2), blindMode = args.includes('--blind'), dumbMode = args.includes('--dumb');
 
 const battles = Number(args.find(a => !a.startsWith('--'))) || 8;
@@ -67,6 +78,8 @@ const cls: Record<string, [number, number]> = {}, path: Record<string, [number, 
 const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0] };
 
 let rounds = 0, ms = 0, starterWins = 0;
+
+const started = performance.now(), progressEvery = Math.max(1, Math.ceil(battles / 10));
 
 for (let i = from; i < from + battles; i++) {
   const r = mulberry32(100 + i);
@@ -145,6 +158,9 @@ for (let i = from; i < from + battles; i++) {
       if (used[t]?.has(k)) mech[k][0]++;
     }
   });
+  const done = i - from + 1;
+
+  if (done % progressEvery === 0 || done === battles) process.stderr.write(`sim ${done}/${battles} battles, ${((performance.now() - started) / 1000).toFixed(0)}s\n`);
 }
 
 const pct = (v: [number, number]) => `${((100 * v[0]) / Math.max(1, v[1])).toFixed(0)}%`;

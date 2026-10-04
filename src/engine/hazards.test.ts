@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { doomed, threatName } from './hazards';
+import { MAPS, WET_SHOCK } from './tables';
 import { bare, begin, cast, end, run, stage, unit } from './testkit';
 import type { BattleEvent } from './types';
 
@@ -10,8 +11,14 @@ const after = (events: BattleEvent[], type: BattleEvent['type']) => {
   return events.slice(events.findIndex(e => e.type === type), end < 0 ? undefined : end + 1);
 };
 
+const storm = MAPS.storm.rule, altar = MAPS.altar.rule;
+
+if (storm.kind !== 'storm' || altar.kind !== 'altar') throw new Error('the Storm Court and the Sun Altar keep their rules');
+
 describe('storm', () => {
-  test('the round-1 strike hits the edge columns: 24, 36 when Wet, and it finishes the Downed', () => {
+  const dmg = storm.dmg, wet = Math.round(dmg * WET_SHOCK);
+
+  test('the round-1 strike hits the edge columns: its damage, more when Wet, and it finishes the Downed', () => {
     const s0 = stage({
       a: [bare('weaver'), bare('weaver'), bare('weaver')], b: [bare('weaver'), bare('weaver')],
       place: { 1: [0, 2], 2: [10, 3], 3: [2, 0], 4: [5, 9], 5: [11, 8] }, life: { 5: { kind: 'downed', bleed: 2 } },
@@ -22,19 +29,19 @@ describe('storm', () => {
     const [strike, ...rest] = after(r.events, 'storm');
     expect(strike?.type === 'storm' && [strike.line, strike.tiles.length]).toEqual(['The edges', 48]);
     expect(rest).toEqual([
-      { type: 'damage', id: 1, amount: 24, absorbed: 0, kind: 'storm' },
+      { type: 'damage', id: 1, amount: dmg, absorbed: 0, kind: 'storm' },
       { type: 'soul', x: 0, z: 2 },
-      { type: 'damage', id: 2, amount: 36, absorbed: 0, kind: 'storm' },
+      { type: 'damage', id: 2, amount: wet, absorbed: 0, kind: 'storm' },
       { type: 'soul', x: 10, z: 3 },
       { type: 'death', id: 5, team: 1, cause: 'finished' },
       { type: 'roundEnd', round: 1, burnt: [] },
     ]);
-    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([146, 134, 170, 170]);
+    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([170 - dmg, 170 - wet, 170, 170]);
 
     const r2 = run(r.state, end(1), end(4), end(2), end(3));
     const [strike2, ...rest2] = after(r2.events, 'storm');
     expect(strike2?.type === 'storm' && strike2.line).toBe('The center');
-    expect(rest2).toEqual([{ type: 'damage', id: 4, amount: 24, absorbed: 0, kind: 'storm' }, { type: 'soul', x: 5, z: 9 }, { type: 'roundEnd', round: 2, burnt: [] }]);
+    expect(rest2).toEqual([{ type: 'damage', id: 4, amount: dmg, absorbed: 0, kind: 'storm' }, { type: 'soul', x: 5, z: 9 }, { type: 'roundEnd', round: 2, burnt: [] }]);
   });
 });
 
@@ -86,9 +93,9 @@ describe('altar', () => {
     expect(after(tie.events, 'favor')[0]).toEqual({ type: 'favor', team: null, favor: [2, 1] });
   });
 
-  test('the fifth favor wins the battle', () => {
-    const r = hold({ 1: [2, 2], 2: [3, 2], 3: [5, 6], 4: [9, 9] }, [3, 4]);
-    expect(after(r.events, 'favor')).toEqual([{ type: 'favor', team: 1, favor: [3, 5] }, { type: 'over', winner: 1, reason: 'altar' }]);
+  test('the favor that reaches the goal wins the battle', () => {
+    const goal = altar.goal, r = hold({ 1: [2, 2], 2: [3, 2], 3: [5, 6], 4: [9, 9] }, [goal - 2, goal - 1]);
+    expect(after(r.events, 'favor')).toEqual([{ type: 'favor', team: 1, favor: [goal - 2, goal] }, { type: 'over', winner: 1, reason: 'altar' }]);
     expect(r.state.phase).toEqual({ kind: 'over', winner: 1, reason: 'altar' });
   });
 });

@@ -1,4 +1,4 @@
-import { MAPS } from '../../engine/index';
+import { MAPS, MAX_ROUNDS } from '../../engine/index';
 import type { BattleState } from '../../engine/index';
 import type { Ctx, Mounted } from '../app';
 import { h } from '../dom';
@@ -17,7 +17,7 @@ export function mountResult(ctx: Ctx, draft: Draft, final: BattleState): Mounted
   const root = h('div', { id: 'result', class: 'screen' }, h('div', { class: 'rbox' },
     h('div', { class: 'tag', id: 'res-tag' }, `${MAPS[final.map].name} · battle over`),
     h('h1', { id: 'res-title', style: { color: winner === 'draw' ? '#ece2cf' : TEAM_COLOR[winner] } }, winnerTitle(winner)),
-    h('p', { id: 'res-why' }, `${REASON[reason]} After ${final.round > 20 ? 20 : final.round} round${final.round === 1 ? '' : 's'}.`),
+    h('p', { id: 'res-why' }, `${REASON[reason]} After ${Math.min(final.round, MAX_ROUNDS)} round${final.round === 1 ? '' : 's'}.`),
     h('table', { class: 'stats' },
       h('tr', null, h('th'), h('th', { style: { color: TEAM_COLOR[0] } }, TEAM_NAME[0]), h('th', { style: { color: TEAM_COLOR[1] } }, TEAM_NAME[1])),
       row('Damage dealt', st.dmg), row('Healing', st.heal), row('Enemies downed', st.downs), row('Revives', st.revives), row('Combos', final.combos)),

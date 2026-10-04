@@ -1,37 +1,53 @@
 import { expect, test } from 'vitest';
-import { createBattle, mulberry32 } from '../engine/index';
-import type { MapId } from '../engine/index';
-import { endChip, roundHazard, timeline } from './rules';
+import { MAPS, MAX_ROUNDS, createBattle, idx, mulberry32, threatName } from '../engine/index';
+import type { BattleState, MapId } from '../engine/index';
+import { endChip, roundHazard, stormSteps, timeline } from './rules';
 
 const empty = (map: MapId) => createBattle({ map, starter: 0, teams: [[], []] }, mulberry32(1));
 
-test('the storm timeline lists each strike line with its rounds', () => {
-  expect(timeline(empty('storm'))).toEqual([
-    { when: 'Rounds 1, 5, 9…', what: 'The edges: columns 1, 2, 11, 12' },
-    { when: 'Rounds 2, 6, 10…', what: 'The center: columns 6, 7' },
-    { when: 'Rounds 3, 7, 11…', what: 'The midline: rows 6, 7' },
-    { when: 'Rounds 4, 8, 12…', what: 'The backlines: rows 1, 2, 11, 12' },
+interface Staged { s: BattleState; round: number }
+
+/** The Span with every tile solid but (0, 0) and (1, 0), so exactly those two can fall, at the round row 0 crumbles. */
+function twoTiles(): Staged {
+  const s = empty('span');
+  s.terr = s.terr.map(() => '#');
+  s.terr[idx(0, 0)] = '.';
+  s.terr[idx(1, 0)] = '.';
+  const round = Array.from({ length: MAX_ROUNDS }, (_, i) => i + 1).find(r => threatName(s, r) !== null);
+
+  if (round === undefined) throw new Error('row 0 of the Span never falls');
+
+  return { s, round };
+}
+
+test('a storm cycle lists each line\'s first three rounds and its columns and rows counted from 1', () => {
+  expect(stormSteps([{ name: 'West', cols: [0, 4] }, { name: 'Cross', cols: [11], rows: [2] }])).toEqual([
+    { when: 'Rounds 1, 3, 5…', what: 'West: columns 1, 5' },
+    { when: 'Rounds 2, 4, 6…', what: 'Cross: columns 12, rows 3' },
   ]);
 });
 
-test('the crumble timeline counts the tiles that fall each time', () => {
-  expect(timeline(empty('span'))).toEqual([
-    { when: 'End of round 3', what: 'The side bridges crumble: 12 tiles' },
-    { when: 'End of round 5', what: 'The back rows crumble: 20 tiles' },
-    { when: 'End of round 7', what: 'The back rows crumble: 20 tiles' },
-    { when: 'End of round 9', what: 'The plateaus crumble: 24 tiles' },
-  ]);
+test('the crumble timeline counts the tiles that fall, from the current round on, and skips rounds where nothing falls', () => {
+  const { s, round } = twoTiles();
+  expect(timeline(s)).toEqual([{ when: `End of round ${round}`, what: `${threatName(s, round)}: 2 tiles` }]);
+  s.round = round + 1;
+  expect(timeline(s)).toEqual([]);
+});
+
+test('the round banner and the end chip name what falls, and stay quiet on a round where nothing does', () => {
+  const { s, round } = twoTiles();
+  expect(roundHazard(s, round)).toBe(`⬇ ${threatName(s, round)}: 2 tiles fall at round end`);
+  expect(roundHazard(s, round + 1)).toBe(null);
+  s.round = round;
+  expect(endChip(s)).toEqual({ icon: '⬇', text: '2 tiles fall' });
+  s.round = round + 1;
+  expect(endChip(s)).toBe(null);
 });
 
 test('the altar chip shows both favors against the goal', () => {
-  const s = empty('altar');
-  s.favor = [2, 1];
-  expect(endChip(s)).toEqual({ icon: '☀', text: 'Blue 2 · Red 1 of 5' });
-});
+  const s = empty('altar'), rule = MAPS.altar.rule;
 
-test('the round banner names the coming hazard, and crumble rounds without falls stay quiet', () => {
-  expect(roundHazard(empty('storm'), 3)).toBe('⚡ Lightning at round end: the midline');
-  expect(roundHazard(empty('span'), 1)).toBe(null);
-  expect(endChip(empty('span'))).toBe(null);
-  expect(roundHazard(empty('span'), 3)).toBe('⬇ The side bridges crumble: 12 tiles fall at round end');
+  if (rule.kind !== 'altar') throw new Error('the Sun Altar has an altar rule');
+  s.favor = [2, 1];
+  expect(endChip(s)).toEqual({ icon: '☀', text: `Blue 2 · Red 1 of ${rule.goal}` });
 });

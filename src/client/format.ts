@@ -1,4 +1,4 @@
-import { COMBO_INFO, COVERAGE, MAPS, PAIRS, SKILLS, STATUS, callTiles, getUnit, unitAt } from '../engine/index';
+import { BLEED, COMBO_INFO, COVERAGE, MAPS, PAIRS, SHARE, SKILLS, STATUS, callTiles, getUnit, part, unitAt } from '../engine/index';
 import type { BattleEvent, BattleState, CallSkill, DamageKind, OverReason, Team, TerrainChange, Unit, UnitId } from '../engine/index';
 import { TEAMS, TEAM_NAME } from './theme';
 
@@ -70,7 +70,7 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
       return { tone: teamOf(s, e.id), text: `${who} takes ${e.amount}${DAMAGE_WORD[e.kind]} damage${blocked}.` };
     }
 
-    case 'shared': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} takes half the blow for ${name(s, e.id)}.` };
+    case 'shared': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} takes ${part(SHARE)} the blow for ${name(s, e.id)}.` };
     case 'heal': return e.amount > 0 ? { tone: teamOf(s, e.id), text: `${name(s, e.id)} heals ${e.amount}.` } : null;
     case 'shield': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} gains a ${e.amount} shield.` };
     case 'status': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is ${STATUS[e.key].name}.` };
@@ -78,7 +78,7 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'steam': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is Wet: the flames turn to steam.` };
     case 'cleanse': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is cleansed of debuffs.` };
     case 'combo': return { tone: 'combo', text: `⚡ ${comboCredit(e, s)}` };
-    case 'downed': return { tone: 'sys', text: `${name(s, e.id)} is DOWNED! Help them up within 2 of their turns.` };
+    case 'downed': return { tone: 'sys', text: `${name(s, e.id)} is DOWNED! Help them up within ${BLEED} of their turns.` };
     case 'revive': return { tone: 'sys', text: `${name(s, e.id)} is back on their feet${e.by !== null && e.by !== e.id ? ` thanks to ${name(s, e.by)}` : ''}!` };
     case 'death': return { tone: 'sys', text: `${name(s, e.id)} ${DEATH_WORD[e.cause]}.` };
     case 'bleed': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is bleeding out: ${e.left} turn${e.left === 1 ? '' : 's'} left.` };
@@ -92,7 +92,7 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'favor': return e.team === null ? null : { tone: toneOf(e.team), text: `${TEAM_NAME[e.team]} holds the altar: favor ${e.favor[0]}–${e.favor[1]}.` };
     case 'roundEnd': return e.burnt.length ? { tone: 'sys', text: `The fire burns away ${e.burnt.length} tile${e.burnt.length === 1 ? '' : 's'} of grass.` } : null;
     case 'call': return { tone: toneOf(e.team), text: `${SKILLS[e.skill].name} is called: it lands at the start of ${name(s, e.id)}'s next turn.` };
-    case 'land': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s ${SKILLS[e.skill].name} lands${e.power < 1 ? ' at half power' : ''}!` };
+    case 'land': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s ${SKILLS[e.skill].name} lands${e.power < 1 ? ` at ${part(e.power)} power` : ''}!` };
     case 'fizzle': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s Call fizzles.` };
     case 'thread': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} ties a Thread to ${name(s, e.to)}.` };
     case 'snap': return { tone: teamOf(s, e.by), text: `${name(s, e.by)}'s Thread to ${name(s, e.to)} breaks.` };
