@@ -1,4 +1,4 @@
-import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, TREES, canDrop, canTake, partyBonuses, roleOf } from '../../engine/index';
+import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, SKILL_PICKS, TREES, canDrop, canTake, partyBonuses, roleOf } from '../../engine/index';
 import type { ClassId, NodeDef, NodeId, PairDef, Role, SkillId, Team } from '../../engine/index';
 import { h } from '../dom';
 import type { Child } from '../dom';
@@ -117,10 +117,10 @@ function classSec(l: Loadout): HTMLElement {
 
 function skillSec(l: Loadout): HTMLElement {
   const m = l.member, last = m.skills[m.skills.length - 1];
-  const d = detailLine(() => (last ? [h('b', null, `${SKILLS[last].icon} ${SKILLS[last].name}. `), SKILLS[last].text] : ['Pick three skills.']));
+  const d = detailLine(() => (last ? [h('b', null, `${SKILLS[last].icon} ${SKILLS[last].name}. `), SKILLS[last].text] : [`Pick ${SKILL_PICKS} skills.`]));
   const C = CLASSES[m.cls], innate = SKILLS[C.innate];
   return h('section', { class: 'sec' },
-    h('h3', null, 'Skills', h('small', null, `${m.skills.length} of 3 picked · `, h('span', { class: 'sets' }, 'blue sets up'), ', ', h('span', { class: 'pays' }, 'orange pays off'))),
+    h('h3', null, 'Skills', h('small', null, `${m.skills.length} of ${SKILL_PICKS} picked · `, h('span', { class: 'sets' }, 'blue sets up'), ', ', h('span', { class: 'pays' }, 'orange pays off'))),
     h('div', { class: 'kit', id: 'ed-skills' },
       d.hover(h('div', { class: 'skc on innate', style: { '--kc': skillColor(C.innate) }, data: { skill: C.innate } },
         h('span', { class: 'ic' }, innate.icon), h('span', { class: 'nm' }, innate.name), h('span', { class: 'bdg' }, h('i', { class: 'innate' }, 'INNATE'))), () => skillInfo(C.innate)),

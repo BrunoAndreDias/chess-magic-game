@@ -1,4 +1,4 @@
-import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, actedThisRound, callTiles, getUnit, holders, idx, moveOf, roleOf, soulAt, soulCap, threadCap, undying } from '../engine/index';
+import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, UNDYING_MOVE, actedThisRound, callTiles, getUnit, holders, idx, moveOf, roleOf, soulAt, soulCap, threadCap, undying } from '../engine/index';
 import type { BattleState, StatusKey, Unit } from '../engine/index';
 import { h } from './dom';
 import type { Child } from './dom';
@@ -39,7 +39,7 @@ function mechanicLines(s: BattleState, u: Unit): HTMLElement[] {
   for (const c of s.calls) if (c.by === u.id) out.push(h('div', { style: { color: '#c9bfff' } }, `☄ ${SKILLS[c.skill].name} called: lands at the start of its next turn.`));
   const cap = soulCap(s, u);
   if (cap) out.push(h('div', { class: 'souls' }, `👻 Holds ${u.souls} of ${cap} Souls: each Rite spends one.`));
-  if (undying(u)) out.push(h('div', { class: 'souls' }, 'Undying: still takes its turns while Downed (move 1, one skill), spending a Soul instead of bleeding.'));
+  if (undying(u)) out.push(h('div', { class: 'souls' }, `Undying: still takes its turns while Downed (move ${UNDYING_MOVE}, one skill), spending a Soul instead of bleeding.`));
   if (s.phase.kind === 'act' && u.life.kind !== 'dead') out.push(h('div', { class: 'm' }, actedThisRound(s, u.id) ? '🔔 Late: already acted this round.' : '🔔 Early: hasn’t acted yet this round.'));
   return out;
 }

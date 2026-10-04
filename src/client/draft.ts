@@ -1,4 +1,4 @@
-import { CLASSES, MAP_ORDER, POINTS, TREES, lineup, newMember } from '../engine/index';
+import { CLASSES, MAP_ORDER, POINTS, SKILL_PICKS, TREES, lineup, newMember } from '../engine/index';
 import type { BattleSetup, ClassId, ClassSkillId, MapId, MemberBuild, NodeId, PickState, Pos, Team } from '../engine/index';
 import type { Seats } from '../host/match';
 
@@ -49,17 +49,17 @@ export function recommended(m: Member, cls: ClassId = m.cls): Member {
   return { ...m, cls, skills: C.defaults.slice(), tree: C.tree.slice() };
 }
 
-/** Picking a fourth skill drops the oldest pick; the last one can't be dropped. */
+/** Picking a skill past SKILL_PICKS drops the oldest pick; the last one can't be dropped. */
 export function toggleSkill(m: Member, id: ClassSkillId): Member {
   if (m.skills.includes(id)) return m.skills.length > 1 ? { ...m, skills: m.skills.filter(s => s !== id) } : m;
-  const keep = m.skills.length >= 3 ? m.skills.slice(1) : m.skills;
+  const keep = m.skills.length >= SKILL_PICKS ? m.skills.slice(1) : m.skills;
   return { ...m, skills: [...keep, id] };
 }
 
-/** 3 random skills of its class, a keystone path and the other 2 points in a second path. */
+/** SKILL_PICKS random skills of its class, a keystone path and the other 2 points in a second path. */
 export function randomMember(m: Member, rnd: () => number): Member {
   const cls = m.cls, C = CLASSES[cls];
-  const skills = C.skills.slice().sort(() => rnd() - 0.5).slice(0, 3);
+  const skills = C.skills.slice().sort(() => rnd() - 0.5).slice(0, SKILL_PICKS);
   const paths = TREES[cls], key = Math.floor(rnd() * paths.length), dip = (key + 1 + Math.floor(rnd() * (paths.length - 1))) % paths.length;
   const tree: NodeId[] = [...(paths[key]?.nodes ?? []), ...(paths[dip]?.nodes ?? [])].map(n => n.id).slice(0, POINTS);
   return { ...m, cls, skills, tree };

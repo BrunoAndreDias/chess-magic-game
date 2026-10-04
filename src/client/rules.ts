@@ -1,5 +1,5 @@
-import { MAPS, MAX_ROUNDS, N, TERRAIN, doomed, threat, threatened, threatName } from '../engine/index';
-import type { BattleState, MapId, Pos, TerrainChar, Unit } from '../engine/index';
+import { MAPS, MAX_ROUNDS, N, TERRAIN, WET_SHOCK, doomed, threat, threatened, threatName } from '../engine/index';
+import type { BattleState, MapId, Pos, StormLine, TerrainChar, Unit } from '../engine/index';
 import type { Highlight } from './board';
 import { BIOMES, css } from './biome';
 import { h } from './dom';
@@ -28,13 +28,17 @@ function crumbleSteps(s: BattleState): { round: number; tiles: Pos[] }[] {
 const list = (ns: readonly number[]) => ns.map(n => n + 1).join(', ');
 
 export interface Step { when: string; what: string }
+/** A storm cycle as steps: each line's first three rounds and the columns and rows it strikes, counted from 1. */
+export function stormSteps(cycle: readonly StormLine[]): Step[] {
+  return cycle.map((l, i) => ({
+    when: `Rounds ${[0, 1, 2].map(k => i + 1 + k * cycle.length).join(', ')}…`,
+    what: `${l.name}: ${[l.cols ? `columns ${list(l.cols)}` : '', l.rows ? `rows ${list(l.rows)}` : ''].filter(Boolean).join(', ')}`,
+  }));
+}
 export function timeline(s: BattleState): Step[] {
   const r = ruleOf(s);
   switch (r.kind) {
-    case 'storm': return r.cycle.map((l, i) => ({
-      when: `Rounds ${[0, 1, 2].map(k => i + 1 + k * r.cycle.length).join(', ')}…`,
-      what: `${l.name}: ${[l.cols ? `columns ${list(l.cols)}` : '', l.rows ? `rows ${list(l.rows)}` : ''].filter(Boolean).join(', ')}`,
-    }));
+    case 'storm': return stormSteps(r.cycle);
     case 'crumble': return crumbleSteps(s).map(c => ({ when: `End of round ${c.round}`, what: `${r.names[c.round] ?? 'Tiles crumble'}: ${c.tiles.length} tiles` }));
     case 'altar': return [
       { when: 'Every round end', what: 'More characters standing on the altar: +1 favor. A tie scores nothing.' },
@@ -95,7 +99,7 @@ export function hazardTip(s: BattleState, x: number, z: number): HTMLElement | n
   if (at === null) return null;
   const when = at === s.round ? 'this round' : `round ${at}`;
   switch (r.kind) {
-    case 'storm': return h('div', null, h('b', { style: { color: '#e2b8ff' } }, '⚡ Struck'), ` at the end of ${when}: ${r.dmg}, ${Math.round(r.dmg * 1.5)} if Wet.`);
+    case 'storm': return h('div', null, h('b', { style: { color: '#e2b8ff' } }, '⚡ Struck'), ` at the end of ${when}: ${r.dmg}, ${Math.round(r.dmg * WET_SHOCK)} if Wet.`);
     case 'crumble': return h('div', null, h('b', { style: { color: '#e2b8ff' } }, '⬇ Falls'), ` into the abyss at the end of ${when}.`);
     case 'altar': return null;
   }
