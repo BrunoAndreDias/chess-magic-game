@@ -18,6 +18,10 @@ interface Source { scene: THREE.Group; clips: THREE.AnimationClip[]; height: num
 const SOURCES = new Map<ClassId, Source>();
 /** Stands in for every `void` material: black that no light, fog or tone mapping can shade. */
 const VOID = keep(new THREE.MeshBasicMaterial({ name: 'void', color: 0x000000, fog: false }));
+/** Stands in for a `spirit` material: its atlas colour added to whatever is behind, unlit and unfogged, so black is clear. */
+const spirit = (m: THREE.MeshStandardMaterial): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({
+  name: 'spirit', map: m.map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false,
+});
 
 /** Fetches every class figure once; call before the first `buildModel`. */
 export async function loadFigures(): Promise<void> {
@@ -29,6 +33,10 @@ export async function loadFigures(): Promise<void> {
       o.castShadow = true;
       o.geometry.userData.shared = true;
       if ((o.material as THREE.Material).name === 'void') o.material = VOID;
+      if ((o.material as THREE.Material).name === 'spirit') {
+        o.material = spirit(o.material as THREE.MeshStandardMaterial);
+        o.castShadow = false;
+      }
       keep(o.material as THREE.Material);
     });
     SOURCES.set(cls, { scene: g.scene, clips: g.animations, height: new THREE.Box3().setFromObject(g.scene).max.y });
