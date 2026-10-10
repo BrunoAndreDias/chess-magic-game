@@ -2,15 +2,17 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CLASS_ORDER } from '../../engine/index';
 import type { ClassId, Team } from '../../engine/index';
+import { rig } from './acts';
+import type { Rig } from './acts';
 import { TEAM_HEX, glow, hex, keep } from './art';
 
-/** What the board needs from a figure: `main` flashes on a hit (its emissive is reset to 0 after), `weapon` bobs on a cast, `height` places labels and effects, `idle` runs every frame with the clock in seconds. */
+/** What the board needs from a figure: `main` flashes on a hit (its emissive is reset to 0 after), `weapon` bobs on a cast without a clip, `height` places labels and effects, `rig` ticks every frame with the clock in seconds and plays the action clips. */
 export interface Figure {
   body: THREE.Group;
   main: THREE.MeshStandardMaterial;
   height: number;
   weapon: THREE.Object3D;
-  idle: ((time: number) => void) | null;
+  rig: Rig;
 }
 
 /** A class's loaded .glb, built by art/build.sh from art/figures/<class>.py. Its conventions are documented in art/figures/common.py. */
@@ -45,6 +47,8 @@ export async function loadFigures(): Promise<void> {
 
       for (const x of [o.material].flat()) keep(x);
     });
+    // GLTFLoader drops animation extras; an action clip's `strike` lives there (art/figures/common.py).
+    g.animations.forEach((clip, i) => { Object.assign(clip.userData, g.parser.json.animations?.[i]?.extras); });
     SOURCES.set(cls, { scene: g.scene, clips: g.animations, height: new THREE.Box3().setFromObject(g.scene).max.y });
   }));
 }
@@ -87,14 +91,6 @@ export function buildModel(cls: ClassId, team: Team): Figure {
   const weapon = body.getObjectByName('weapon');
 
   if (!main || !weapon) throw new Error(`figure ${cls} needs a 'main' material and a 'weapon' object`);
-  let idle: Figure['idle'] = null;
 
-  if (src.clips.length) {
-    const mixer = new THREE.AnimationMixer(body);
-
-    for (const clip of src.clips) mixer.clipAction(clip).play();
-    idle = t => { mixer.setTime(t); };
-  }
-
-  return { body, main, height: src.height, weapon, idle };
+  return { body, main, height: src.height, weapon, rig: rig(body, src.clips) };
 }

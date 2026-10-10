@@ -3,6 +3,7 @@ import { CLASSES, CLASS_ORDER, MAP_ORDER } from '../engine/index';
 import type { Team } from '../engine/index';
 import { BIOMES } from './biome';
 import { TEAM_HEX, basic, decal, mat, mesh } from './board/art';
+import type { Rig } from './board/acts';
 import { buildModel, loadFigures } from './board/models';
 import { byId } from './dom';
 import { installErrorOverlay } from './overlay';
@@ -37,15 +38,15 @@ function lit(s: THREE.Scene, b = B): void {
   s.add(sun);
 }
 
-const idles: ((time: number) => void)[] = [];
+const rigs: Rig[] = [];
 
 function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x: number, z: number, turn: number): void {
-  const root = new THREE.Group(), { body, idle } = buildModel(cls, team);
+  const root = new THREE.Group(), { body, rig } = buildModel(cls, team);
   root.add(body, decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[team], 0.35), 0.02));
   root.position.set(x, 0, z);
   root.rotation.y = turn;
 
-  if (idle) idles.push(idle);
+  rigs.push(rig);
   s.add(root);
 }
 
@@ -107,7 +108,7 @@ function frame(t: number): void {
 
   if (renderer.getSize(new THREE.Vector2()).x !== w) renderer.setSize(w, h, false);
 
-  for (const f of idles) f(t / 1000);
+  for (const r of rigs) r.tick(t / 1000);
   closeCam.aspect = w / split;
   closeCam.updateProjectionMatrix();
   // The battle camera's 45° spans the whole window; this strip shows the same pixels per metre.

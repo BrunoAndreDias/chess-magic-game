@@ -725,7 +725,10 @@ ARMS = {
     'l': (Vector((0.2, 0.0, 0.99)), Vector((0.262, 0.0, 0.8)), Vector((0.285, -0.06, 0.65)),
           (0.07, 0.074, 0.08, 0.09, 0.1, 0.112, 0.118), 5),
 }
+# The right sleeve and fist hang from a shoulder pivot, so an action can raise the crook without tearing it from the hand.
+arm = []
 for side, (s, e, w, radii, hem) in ARMS.items():
+    made = set(bpy.data.objects)
     path = bezier(s, s.lerp(e, 0.8), e.lerp(w, 0.3), w + (w - e) * 0.08, 6)
     sl = sweep(f'sleeve_{side}', path, radii, 14, MAIN, caps=False, levels=1, mask=lambda i, hem=hem: float(i >= hem))
     solidify(sl, 0.014, inner=DARK)
@@ -735,10 +738,16 @@ for side, (s, e, w, radii, hem) in ARMS.items():
     cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (radii[-1] - 0.006)
             for a in [2 * math.pi * k / 48 for k in range(49)]]
     hi(sweep('cuff_braid', cuff, 0.004, 6, DULL))
+    if side == 'r':
+        arm += set(bpy.data.objects) - made
 
 POLE = Vector((0.05, 0.0, 1.0)).normalized()
 CUFFS = {side: (w + (w - e) * 0.08, w - e) for side, (s, e, w, _, _) in ARMS.items()}
+made = set(bpy.data.objects)
 RIGHT_HAND = fist(*CUFFS['r'], POLE, 0.027, GLOVE, detail='glove', seam=LEATHER)
+shoulder = empty('arm_r', ARMS['r'][0])
+for ob in arm + list(set(bpy.data.objects) - made - {shoulder}):
+    parent(ob, shoulder)
 # The left arm hangs and its fist closes on the top of the bead loop, which drops from under the knuckles.
 LEFT_HAND = fist(*CUFFS['l'], Vector((-1, 0, 0)), 0.006, GLOVE, right=False, detail='glove', seam=LEATHER) \
     - Vector((0.001, -0.01, -0.02))
@@ -759,7 +768,7 @@ loop(beads, 'rotation_euler', 0, [0.0, 0.07, 0.0, -0.07], 80)
 loop(beads, 'rotation_euler', 1, [0.0, -0.04, 0.0, 0.04], 120)
 
 # The crook: the weapon pivots at the right-hand grip. Its hook curls out past the head and hangs the bell.
-weapon = empty('weapon', RIGHT_HAND)
+weapon = empty('weapon', RIGHT_HAND, shoulder)
 
 
 def part(ob):
@@ -862,6 +871,98 @@ loop(ribbons, 'rotation_euler', 1, [0.0, 0.07, 0.0, -0.05], 84)
 for ob in list(bpy.data.objects):
     if ob.parent is None and ob is not breath:
         parent(ob, breath)
+
+# Actions, keyed as offsets from rest. The figure faces -Y: +x on `breath` leans it forward, -x on the shoulder lifts the
+# hand, +x on `weapon` tips the crook forward and -y out to the right, -x on the bell swings it forward.
+R, S = 'rotation_euler', 'scale'
+act('cast', 10, {
+    (shoulder, R, 0): [(0, 0), (6, -0.55), (12, -0.5), (18, 0)],
+    (weapon, R, 0): [(0, 0), (6, 0.35), (9, 0.6), (12, 0.4), (18, 0)],
+    (weapon, R, 1): [(0, 0), (6, -0.1), (10, 0.08), (18, 0)],
+    (breath, R, 0): [(0, 0), (6, -0.05), (10, 0.08), (18, 0)],
+    (swing, R, 0): [(0, 0), (5, 0.5), (10, -0.75), (13, 0.45), (15, -0.25), (18, 0)],
+    (swing, R, 1): [(0, 0), (5, -0.4), (10, 0.7), (13, -0.35), (15, 0.15), (18, 0)],
+    (clapper, R, 0): [(0, 0), (6, 0.3), (9, 0.6), (10, -0.7), (12, 0.5), (14, -0.3), (18, 0)],
+    (ribbons, R, 0): [(0, 0), (8, -0.4), (11, 0.5), (18, 0)],
+    (ribbons, R, 1): [(0, 0), (6, 0.3), (10, -0.6), (13, 0.4), (18, 0)],
+})
+act('attack', 7, {
+    (shoulder, R, 0): [(0, 0), (4, -0.35), (7, 0.25), (10, 0.1), (14, 0)],
+    (weapon, R, 0): [(0, 0), (4, -0.3), (7, 0.85), (10, 0.4), (14, 0)],
+    (breath, R, 0): [(0, 0), (4, -0.06), (7, 0.12), (14, 0)],
+    (swing, R, 0): [(0, 0), (4, 0.4), (7, -0.2), (8, -0.9), (11, 0.3), (14, 0)],
+    (clapper, R, 0): [(0, 0), (5, 0.4), (8, -0.8), (10, 0.4), (14, 0)],
+    (ribbons, R, 1): [(0, 0), (4, 0.3), (8, -0.5), (14, 0)],
+})
+# Toll: the crook hoisted high with the bell drawn in, a held beat at the top, then one great swing out and forward.
+act('toll', 21, {
+    (shoulder, R, 0): [(0, 0), (10, -1.15), (18, -1.15), (22, -1.05), (32, 0)],
+    (weapon, R, 0): [(0, 0), (10, 0.75), (18, 0.75), (22, 0.85), (32, 0)],
+    (weapon, R, 1): [(0, 0), (10, -0.25), (18, -0.25), (22, -0.15), (32, 0)],
+    (breath, R, 0): [(0, 0), (10, -0.08), (18, -0.08), (22, 0.06), (32, 0)],
+    (breath, S, 2): [(0, 0), (10, 0.04), (18, 0.04), (22, -0.02), (32, 0)],
+    (swing, R, 0): [(0, 0), (10, 0.3), (17, 0.4), (21, -0.7), (25, 0.35), (28, -0.15), (32, 0)],
+    (swing, R, 1): [(0, 0), (10, -0.2), (17, -0.3), (21, 1.1), (25, -0.45), (28, 0.2), (32, 0)],
+    (clapper, R, 1): [(0, 0), (12, -0.3), (18, -0.5), (20, -0.7), (21, 0.9), (24, -0.5), (27, 0.2), (32, 0)],
+    (ribbons, R, 1): [(0, 0), (12, 0.2), (21, -0.7), (25, 0.4), (32, 0)],
+})
+act('peal', 5, {
+    (shoulder, R, 0): [(0, 0), (4, -0.45), (18, -0.45), (22, 0)],
+    (weapon, R, 0): [(0, 0), (4, 0.3), (18, 0.3), (22, 0)],
+    (weapon, R, 1): [(0, 0), (3, 0.18), (6, -0.18), (9, 0.18), (12, -0.18), (15, 0.18), (18, -0.1), (22, 0)],
+    (swing, R, 0): [(0, 0), (5, -0.3), (11, 0.3), (17, -0.2), (22, 0)],
+    (swing, R, 1): [(0, 0), (4, -0.5), (7, 0.5), (10, -0.5), (13, 0.5), (16, -0.5), (19, 0.3), (22, 0)],
+    (clapper, R, 1): [(0, 0), (5, 0.6), (8, -0.6), (11, 0.6), (14, -0.6), (17, 0.6), (20, -0.3), (22, 0)],
+    (ribbons, R, 1): [(0, 0), (5, 0.4), (8, -0.4), (11, 0.4), (14, -0.4), (17, 0.3), (22, 0)],
+})
+# Knell: the crook raised back over the shoulder and brought down hard.
+act('knell', 11, {
+    (shoulder, R, 0): [(0, 0), (7, -0.75), (11, 0.3), (14, 0.25), (20, 0)],
+    (weapon, R, 0): [(0, 0), (7, -0.1), (11, 1.0), (14, 0.9), (20, 0)],
+    (breath, R, 0): [(0, 0), (7, -0.1), (11, 0.16), (14, 0.14), (20, 0)],
+    (breath, S, 2): [(0, 0), (7, 0.03), (11, -0.06), (14, -0.05), (20, 0)],
+    (swing, R, 0): [(0, 0), (7, 0.5), (10, 0.3), (12, -0.6), (15, 0.3), (20, 0)],
+    (clapper, R, 0): [(0, 0), (8, 0.4), (11, -0.8), (14, 0.4), (20, 0)],
+})
+act('hit', 2, {
+    (breath, R, 0): [(0, 0), (2, -0.14), (6, 0.03), (12, 0)],
+    (shoulder, R, 0): [(0, 0), (2, 0.15), (7, 0), (12, 0)],
+    (weapon, R, 0): [(0, 0), (2, -0.25), (6, 0.1), (12, 0)],
+    (swing, R, 0): [(0, 0), (2, 0.6), (5, -0.45), (8, 0.3), (10, -0.12), (12, 0)],
+    (swing, R, 1): [(0, 0), (3, -0.3), (6, 0.25), (9, -0.1), (12, 0)],
+    (clapper, R, 0): [(0, 0), (2, -0.6), (4, 0.6), (6, -0.5), (8, 0.3), (12, 0)],
+    (beads, R, 0): [(0, 0), (2, 0.4), (5, -0.3), (9, 0.1), (12, 0)],
+})
+# Move loops while the unit travels: a waddle with the bell trailing and the ribbons streaming back.
+act('move', 0, {
+    (breath, R, 0): [(0, 0.05), (6, 0.07), (12, 0.05)],
+    (breath, R, 1): [(0, 0), (3, 0.06), (6, 0), (9, -0.06), (12, 0)],
+    (swing, R, 0): [(0, 0.2), (6, -0.1), (12, 0.2)],
+    (swing, R, 1): [(0, 0), (3, -0.15), (6, 0), (9, 0.15), (12, 0)],
+    (clapper, R, 0): [(0, -0.2), (6, 0.2), (12, -0.2)],
+    (ribbons, R, 0): [(0, 0.3), (6, 0.2), (12, 0.3)],
+    (ribbons, R, 1): [(0, 0), (3, 0.15), (9, -0.15), (12, 0)],
+})
+# Down holds its last frame while the unit is downed; rise starts from that frame.
+DOWNED = {(breath, S, 2): -0.2, (breath, R, 0): -0.15, (shoulder, R, 0): 0.5, (weapon, R, 1): -0.9, (weapon, R, 0): 0.3}
+act('down', 10, {
+    (breath, S, 2): [(0, 0), (5, -0.12), (14, DOWNED[breath, S, 2])],
+    (breath, R, 0): [(0, 0), (5, 0.08), (14, DOWNED[breath, R, 0])],
+    (shoulder, R, 0): [(0, 0), (5, -0.2), (14, DOWNED[shoulder, R, 0])],
+    (weapon, R, 1): [(0, 0), (6, -0.2), (14, DOWNED[weapon, R, 1])],
+    (weapon, R, 0): [(0, 0), (14, DOWNED[weapon, R, 0])],
+    (swing, R, 0): [(0, 0), (6, -0.4), (10, 0.3), (14, 0)],
+    (clapper, R, 0): [(0, 0), (7, 0.5), (10, -0.4), (14, 0)],
+})
+act('rise', 8, {
+    (breath, S, 2): [(0, DOWNED[breath, S, 2]), (8, 0.04), (14, 0)],
+    (breath, R, 0): [(0, DOWNED[breath, R, 0]), (8, 0.05), (14, 0)],
+    (shoulder, R, 0): [(0, DOWNED[shoulder, R, 0]), (8, -0.3), (14, 0)],
+    (weapon, R, 1): [(0, DOWNED[weapon, R, 1]), (8, 0.1), (14, 0)],
+    (weapon, R, 0): [(0, DOWNED[weapon, R, 0]), (8, 0), (14, 0)],
+    (swing, R, 0): [(0, 0), (6, 0.5), (10, -0.3), (14, 0)],
+    (clapper, R, 0): [(0, 0), (8, 0.5), (11, -0.3), (14, 0)],
+})
 
 meshes = bake(fill='#4a2c14')
 tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)

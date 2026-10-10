@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Team } from '../../engine/index';
+import type { Rig } from '../board/acts';
 import { buildModel } from '../board/models';
 import { disposeTree, glow, hex, mat, mesh, seeded } from '../board/art';
 import { CREST } from '../crest';
@@ -39,7 +40,7 @@ interface Pose { x: number; z: number; scale: number; turn: number }
 
 interface Fire { light: THREE.PointLight; flames: THREE.Object3D[]; sprite: THREE.Sprite }
 
-interface Figure { key: string; root: THREE.Group; body: THREE.Group; idle: ((time: number) => void) | null; from: Pose; to: Station; t: number; ph: number; locked: boolean }
+interface Figure { key: string; root: THREE.Group; body: THREE.Group; rig: Rig; from: Pose; to: Station; t: number; ph: number; locked: boolean }
 
 /** The class-glow light set around the front figure: a rim behind it, a pool under it, and the lock-in burst. */
 interface Aura { rim: THREE.PointLight; pool: THREE.Sprite; flash: THREE.PointLight; burst: THREE.Sprite; ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; key: string; warm: number }
@@ -197,12 +198,12 @@ export class Lineup {
       if (f && f.key !== key) { disposeTree(f.root); f = null; }
 
       if (!f) {
-        const { body, idle } = buildModel(m.cls, team), root = new THREE.Group();
+        const { body, rig } = buildModel(m.cls, team), root = new THREE.Group();
         root.add(body);
         root.traverse(o => { SLOT_OF.set(o, slot); });
         this.#scene.add(root);
         const prev = this.#figs[slot];
-        f = { key, root, body, idle, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false };
+        f = { key, root, body, rig, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false };
         this.#figs[slot] = f;
 
         return;
@@ -300,7 +301,7 @@ export class Lineup {
       if (f.to === FRONT && f.t >= 1 && !f.locked && !still) r.rotation.y += 0.32 * Math.sin(time * 0.55 + f.ph);
 
       if (beat?.slot === slot) chosenMotion(f, b);
-      f.idle?.(time);
+      f.rig.tick(time);
     }
 
     this.#stepAura(dt, time, bt, b);
