@@ -1,6 +1,6 @@
-"""The Astromancer, an Eclipse Seer of the Last Almanac. A snug indigo hood frames a smooth gold mask
-engraved with one closed eye, behind it a tall stiff fan collar lined in the team colour, and round the head an
-armillary of three tilted gold rings turning about a small eclipsed sun (a black disc in a lilac corona). A violet robe
+"""The Astromancer, an Eclipse Seer of the Last Almanac. A snug indigo hood frames silver hair and a gold mask
+moulded to her face, engraved with one closed eye and strapped on at the temples; behind it a tall stiff fan collar
+lined in the team colour, and round the head an armillary of three tilted gold rings turning about a small eclipsed sun (a black disc in a lilac corona). A violet robe
 flares to the ground over a dark hem embroidered with a gold star chart; a team sash at the waist. The right hand holds
 an astrolabe sceptre, a flat engraved disc on a slender rod; the left hand is raised with a planet hovering over it,
 and star shards drift round the body. Painted by lookdev and baked from a high-poly twin."""
@@ -45,6 +45,8 @@ GLOVE = paint('glove', '#e4dcee', '#6a5a8a', '#ffffff', cavity=0.6, edge=0.4, mo
 LINING = paint('lining', '#9a7ae0', '#5a3eb0', '#d0c0ff', rough=0.9, cavity=0.3, edge=0.3, streak=0.4)
 MASKM = paint('mask', '#e8b648', '#7a4c14', '#fff0b0', metal=True, cavity=0.6, edge=1.0, mottle=0.04, texel=3)
 INLAY = paint('mask_inlay', '#3a2008', '#120800', '#8a5a20', metal=True, cavity=0.3, edge=0.8, mottle=0.04, texel=3)
+# Silver hair: pale and cool, so it fills the hood round the warm gold mask instead of leaving a dark ring.
+HAIR = paint('hair', '#b4a4e4', '#4a3a80', '#f0e8ff', rough=0.8, cavity=0.35, edge=0.3, streak=0.5, mottle=0.04)
 SPIRIT = paint('spirit', '#a888f0', '#2a1a60', '#e6d8ff', cavity=0.2, edge=0.0, mottle=0.06, accent='#000000', keep=True)
 GEM = paint('gem', '#b08cff', '#4a2a9a', '#efe4ff', cavity=0.2, edge=0.4, mottle=0.04, glow=0.9)
 VOID = void()
@@ -466,16 +468,16 @@ for j in (0, C_COLS - 1):
 for j in range(3, C_COLS - 3, 3):
     hi(sweep('collar_rib', [collar_at(i, j, 0.003) for i in range(5)], 0.003, 4, GOLD))
 
-# The head: an indigo hood with an oval opening onto the void, and in it a smooth gold mask engraved with one closed
-# eye: she sees the future, not the present. The hood rises to a soft peak that leans back, gathers in folds round the
-# throat, and a gold seam runs over its crown from the brow to the nape.
+# The head: an indigo hood with an oval opening, filled by a head of silver hair and a gold mask moulded to the
+# face, engraved with one closed eye: she sees the future, not the present. The hood rises to a soft peak that
+# leans back, gathers in folds round the throat, and a gold seam runs over its crown from the brow to the nape.
 before_head = set(bpy.data.objects)
 HC = Vector((0, -0.02, 1.2))
 HOOD = [(0.09, 1.0), (0.11, 1.05), (0.132, 1.1), (0.143, 1.16), (0.146, 1.22), (0.14, 1.28), (0.124, 1.33),
         (0.098, 1.37), (0.062, 1.405), (0.028, 1.435), (0.0, 1.45)]
 HSY = 0.96
 HSIDES = 24
-OW, OZ, OH = 0.1, 1.19, 0.12
+OW, OZ, OH = 0.112, 1.185, 0.132
 
 
 def hood_at(a, z, out=0.0):
@@ -496,10 +498,9 @@ hood = lathe('hood', HOOD, HSIDES, HOODC, levels=1,
              shape=lambda i, j, x, y, z: hood_at(math.pi / HSIDES + 2 * math.pi * j / HSIDES, z))
 drop_faces(hood, lambda c: not in_face(c))
 solidify(hood, 0.02, inner=VOID)
-blob('void', (0, HC.y + 0.02, 1.2), 0.12, VOID, scale=(1.0, 0.9, 1.05))
-rim = [hood_front(OW * 1.05 * math.cos(t), OZ + OH * 1.05 * math.sin(t), 0.004) for t in RIM]
+rim = [hood_front(OW * 1.04 * math.cos(t), OZ + OH * 1.04 * math.sin(t), 0.004) for t in RIM]
 sweep('hood_rim', rim, 0.014, 8, HOODC, caps=False)
-sweep('hood_piping', [hood_front(OW * 1.28 * math.cos(t), OZ + OH * 1.22 * math.sin(t), 0.006) for t in RIM],
+sweep('hood_piping', [hood_front(OW * 1.16 * math.cos(t), OZ + OH * 1.13 * math.sin(t), 0.006) for t in RIM],
       0.0045, 6, GOLD, caps=False)
 CROWN = [1.345, 1.37, 1.395, 1.415, 1.432, 1.444]
 sweep('hood_seam', [hood_at(0, z, 0.006) for z in CROWN] + [hood_at(0, 1.45, 0.006) + Vector((0, 0.01, 0.002))] +
@@ -508,32 +509,86 @@ for sx in (-1, 1):
     hi(sweep('hood_welt', [hood_at(sx * math.pi / 2, z, 0.002) for z in (1.04, 1.12, 1.2, 1.28, 1.34, 1.39, 1.425)],
              0.004, 6, HOODC))
 
-M = Vector((0, -0.124, 1.185))
-MW, MH = 0.084, 0.104
+# The head fills the hood: a skull narrowing to the jaw, with a brow, a short nose, cheekbones, lips and a chin. The
+# mask is moulded over that face and its rim curls down into it, so it sits on the head instead of floating in the dark.
+M = Vector((0, -0.045, 1.185))
+RX, RY, RZ = 0.11, 0.112, 0.142
 
 
-def mheight(x, z):
-    u, v = x / MW, z / MH
-    rr = u * u + v * v
-    dome = 0.03 * max(0.0, 1 - u * u) ** 0.7 + 0.01 * max(0.0, 1 - v * v)
-    nose = 0.008 * math.exp(-(x / 0.009) ** 2) * smoothstep(0.03, 0.0, z) * smoothstep(-0.05, -0.03, z)
-    brow = 0.004 * math.exp(-((z - 0.03) / 0.012) ** 2)
-    return dome + nose + brow - 0.02 * smoothstep(0.75, 1.0, rr)
+def jaw(z):
+    return 1 - 0.24 * smoothstep(-0.01, -RZ, z)
+
+
+def bump(dx, sx, dz, sz):
+    return math.exp(-(dx / sx) ** 2 - (dz / sz) ** 2)
+
+
+def features(x, z):
+    """How far the face stands out of the skull at (x, z) about M."""
+    ax = abs(x)
+    brow = 0.006 * math.exp(-((z - 0.042) / 0.013) ** 2) * max(0.0, 1 - (x / 0.07) ** 2)
+    t = smoothstep(-0.012, -0.05, z) * smoothstep(-0.066, -0.053, z)
+    nose = 0.014 * t * math.exp(-(x / (0.007 + 0.006 * t)) ** 2)
+    cheek = 0.007 * bump(ax - 0.05, 0.02, z + 0.03, 0.018)
+    hollow = -0.004 * bump(ax - 0.045, 0.018, z + 0.066, 0.016)
+    lips = 0.004 * bump(x, 0.02, z + 0.077, 0.007) - 0.002 * bump(x, 0.017, z + 0.078, 0.0022)
+    chin = 0.008 * bump(x, 0.022, z + 0.104, 0.013)
+    return brow + nose + cheek + hollow + lips + chin
+
+
+def skull_at(ph, z, out=0.0):
+    """The skull at azimuth `ph` (0 = front) and height z about M, pushed `out` along its normal."""
+    def at(ph, z):
+        s = math.sqrt(max(0.0, 1 - (z / RZ) ** 2))
+        return Vector((M.x + RX * jaw(z) * s * math.sin(ph), M.y - RY * s * math.cos(ph), M.z + z))
+    c = at(ph, z)
+    n = (at(ph + 1e-3, z) - c).cross(at(ph, z + 1e-3) - c).normalized()
+    return c + n * out
+
+
+def skull_ph(x, z):
+    return math.asin(max(-1.0, min(1.0, x / (RX * jaw(z) * math.sqrt(max(1e-6, 1 - (z / RZ) ** 2))))))
 
 
 def on_mask(x, z, out=0.0):
-    return Vector((M.x + x, M.y - mheight(x, z) - out, M.z + z))
+    """A point on the mask, moulded over the face 4 mm out, `out` further forward."""
+    s = max(0.0, 1 - (x / (RX * jaw(z))) ** 2 - (z / RZ) ** 2)
+    return Vector((M.x + x, M.y - RY * math.sqrt(s) - features(x, z) - 0.004 - out, M.z + z))
 
 
-def mask_at(i, j, n=16):
-    a, b = -1 + 2 * j / (n - 1), -1 + 2 * i / (n - 1)
-    x, z = a * math.sqrt(1 - b * b / 2) * MW, b * math.sqrt(1 - a * a / 2) * MH
-    return on_mask(x * (1 - 0.15 * smoothstep(0.0, -MH, z)), z)
+M_TOP, M_BOT, M_W = 0.107, -0.117, 0.084
+N = 13
 
 
-grid('mask', 16, 16, mask_at, MASKM, levels=1)
+def mask_xz(a, b):
+    """(a, b) in the unit square to (x, z) on the face: an oval that narrows to the chin."""
+    x, v = a * math.sqrt(1 - b * b / 2), b * math.sqrt(1 - a * a / 2)
+    z = (M_TOP + M_BOT) / 2 + v * (M_TOP - M_BOT) / 2
+    return x * M_W * jaw(z), z
+
+
+def under_mask(c):
+    """Whether a skull face lies hidden under the mask."""
+    x, z = c.x - M.x, c.z - M.z
+    v = (z - (M_TOP + M_BOT) / 2) / ((M_TOP - M_BOT) / 2)
+    return c.y < M.y - 0.04 and (x / (M_W * jaw(z))) ** 2 + v * v < 0.7
+
+
+SK_Z = [RZ * math.cos(math.pi * i / 13) for i in range(1, 13)]
+skull = grid('skull', len(SK_Z), 22, lambda i, j: skull_at(2 * math.pi * j / 22, SK_Z[-1 - i]), HAIR, levels=0,
+             wrap=True)
+drop_faces(skull, lambda c: c.y < M.y + 0.05 and not under_mask(c))
+
+
+def mask_at(i, j):
+    a, b = -1 + 2 * j / (N - 1), -1 + 2 * i / (N - 1)
+    return on_mask(*mask_xz(a, b), -0.007 * smoothstep(0.75, 1.0, max(abs(a), abs(b))))
+
+
+grid('mask', N, N, mask_at, MASKM, levels=1)
+
 # The closed eye: a heavy lid inlaid in indigo enamel, bowed down like a sleeper's, lashes hanging from its gold-dark
-# edge and rays fanning over the brow, a lilac tear beneath. Dark on gold, so the eye still reads at battle zoom.
+# edge and rays fanning over the brow. Dark on gold, so the eye still reads at battle zoom.
 EYE_Z, EYE_W = 0.014, 0.044
 
 
@@ -554,9 +609,30 @@ for t in [math.radians(d) for d in (20, 55, 90, 125, 160)]:
     hi(sweep('brow_ray', [on_mask(0.05 * math.cos(t), EYE_Z + 0.014 + 0.03 * math.sin(t), 0.0012),
                           on_mask(0.066 * math.cos(t), EYE_Z + 0.014 + 0.05 * math.sin(t), 0.0008)],
              [0.0022, 0.0008], 4, INLAY))
-TEAR = on_mask(0.0, -0.036, 0.004)
-blob('tear', TEAR, 0.009, GEM, scale=(0.8, 0.5, 1.2), subdiv=2)
-glow(TEAR + Vector((0, -0.012, 0)), LILAC, 0.03, name='glow_tear')
+
+# Silver hair parted under the hood's brow falls past the mask's temples to below the jaw, filling the hood round the
+# face. Fine strands are painted into the skull; five locks a side give it body.
+for sx in (-1, 1):
+    for k in range(10):
+        hi(sweep('strand', [skull_at(sx * (0.1 + 0.09 * k + (0.85 - 0.03 * k) * smoothstep(0, 0.35, m / 8)),
+                                     0.125 - 0.24 * m / 8, 0.001) for m in range(9)], 0.003, 4, HAIR))
+    for k, (ph0, ph1, w) in enumerate(((0.1, 1.0, 0.016), (0.32, 1.12, 0.018), (0.56, 1.25, 0.018),
+                                       (0.8, 1.4, 0.018), (1.05, 1.6, 0.016))):
+        ts = [m / 6 for m in range(7)]
+        sweep('lock', [skull_at(sx * (ph0 + (ph1 - ph0) * smoothstep(0, 0.35, t)), 0.125 - 0.255 * t,
+                                0.004 + 0.0025 * k + 0.006 * math.sin(math.pi * t)) for t in ts],
+              [w * (1 - 0.55 * t ** 2) for t in ts], 6, HAIR, squash=0.55)
+
+# The mask is pinned at temple and jaw with gold studs; a gold strap runs from each temple stud over the hair and back
+# into the hood.
+for sx in (-1, 1):
+    for b in (0.35, -0.6):
+        x, z = mask_xz(sx, b)
+        blob('mask_stud', on_mask(x, z, 0.001), 0.0075, GOLD, subdiv=2)
+    x, z = mask_xz(sx, 0.35)
+    ph0 = skull_ph(abs(x), z)
+    sweep('mask_strap', [skull_at(sx * (ph0 + (2.2 - ph0) * k / 8), z, 0.03) for k in range(9)], 0.0026, 6, GOLD,
+          squash=3.2)
 
 # The head tips back a little, proud, and so the mask turns up to a camera looking down on the board.
 NECKP = Vector((0, -0.02, 1.02))
