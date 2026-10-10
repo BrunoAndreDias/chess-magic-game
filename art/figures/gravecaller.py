@@ -11,6 +11,7 @@ import bmesh
 import bpy
 from mathutils import Vector, noise
 from common import *
+from hands import fist
 from lookdev import bake, hi, mark, paint
 
 reset()
@@ -557,45 +558,19 @@ for side, (s, e, w, radii, hem) in ARMS.items():
             for a in [2 * math.pi * k / 48 for k in range(49)]]
     hi(sweep('cuff_braid', cuff, 0.004, 6, GOLD))
 
-RIGHT_HAND = Vector((-0.325, -0.21, 0.99))
-LEFT_HAND = Vector((0.3, -0.085, 0.61))
 POLE = Vector((0.09, 0.0, 1.0)).normalized()
 
 
-def hand(center, around, wrap):
-    """A bony hand: a palm and four knuckled fingers curling about `around` (a direction), closing on a grip of
-    radius `wrap`."""
-    side = around.cross(Vector((0, -1, 0))).normalized()
-    blob('palm', center + side * (wrap + 0.016), 0.027, BONE, scale=(0.7, 1.0, 1.15), subdiv=3)
-    for k in range(4):
-        h = (k - 1.5) * 0.017
-        arc = [center + around * h + (side * math.cos(a) + around.cross(side) * math.sin(a)) * (wrap + 0.008)
-               for a in [math.radians(d) for d in (10, 70, 130, 185)]]
-        sweep('finger', arc, [0.0105, 0.0095, 0.009, 0.007], 6, BONE)
-        blob('knuckle', arc[1], 0.011, BONE, subdiv=1)
-    thumb = [center + side * (wrap + 0.012) + Vector((0, -0.02, 0.02)), center + Vector((0, -wrap - 0.012, 0.022))]
-    sweep('thumb', thumb, [0.011, 0.008], 6, BONE)
+def sleeve_end(side):
+    """Where a sleeve's opening is, and the way its forearm points."""
+    s, e, w, _, _ = ARMS[side]
+    return w + (w - e) * 0.08, w - e
 
 
-def fist(center, around, wrap, back):
-    """A bony fist closed on a pole along `around` of radius `wrap`: the back of the hand on the `back` side, four
-    knuckled fingers wrapping the far side and coming round to meet the thumb."""
-    back = (back - around * back.dot(around)).normalized()
-    q = back.cross(around)
-    blob('palm', center + back * (wrap + 0.018), 0.03, BONE, scale=(1.0, 0.7, 1.25), subdiv=3)
-    for k in range(4):
-        h = (0.75 - 0.5 * k) * 0.038
-        arc = [center + around * h + (back * math.cos(a) + q * math.sin(a)) * (wrap + 0.011)
-               for a in [math.radians(d) for d in (20, 75, 135, 200, 265, 300)]]
-        sweep('finger', arc, [0.013, 0.0125, 0.012, 0.0115, 0.0105, 0.008], 6, BONE)
-        blob('knuckle', arc[1], 0.0135, BONE, subdiv=1)
-    thumb = [center + back * (wrap + 0.02) + around * 0.045,
-             center + (back * math.cos(-0.9) + q * math.sin(-0.9)) * (wrap + 0.012) + around * 0.05,
-             center + (back * math.cos(-1.6) + q * math.sin(-1.6)) * (wrap + 0.01) + around * 0.04]
-    sweep('thumb', thumb, [0.013, 0.011, 0.008], 6, BONE)
-
-
-fist(RIGHT_HAND, POLE, 0.024, Vector((0.1, -1, 0)))
+RIGHT_HAND = fist(*sleeve_end('r'), POLE, 0.03, BONE, detail='bone')
+# The left arm hangs, and its fist closes on the crossbar of the soul bell's bail, thumb forward.
+BAIL = Vector((0, -1, 0))
+LEFT_HAND = fist(*sleeve_end('l'), BAIL, 0.005, BONE, right=False, detail='bone')
 
 # Scythe: the weapon pivots at the right-hand grip; the pole leans in so the great crescent hangs over the hood.
 weapon = empty('weapon', RIGHT_HAND)
@@ -662,13 +637,16 @@ for k, (dx, drop, mat) in enumerate(((-0.05, 0.2, TASSEL), (-0.12, 0.3, TASSEL),
         part(sweep('tassel_strand', [knot, knot + spread - Vector((0, 0, 0.04)), knot + spread * 1.6 - Vector((0, 0, 0.085))],
                    [0.005, 0.004, 0.002], 4, mat))
 
-# The soul bell hangs from the left hand by a short chain and swings.
-hand(LEFT_HAND, Vector((0, 0, 1)), 0.012)
+# The soul bell hangs below the left fist: a gold bail whose crossbar the fist holds, its arms passing outside the
+# fist down to a short chain, the bell swinging under it.
 swing = empty('bell_swing', LEFT_HAND)
-B = LEFT_HAND - Vector((0, 0, 0.1))
+B = LEFT_HAND - Vector((0, 0, 0.12))
+APEX = LEFT_HAND - Vector((0, 0, 0.065))
+BAIL_PATH = [APEX + BAIL * 0.004, LEFT_HAND + BAIL * 0.05 - Vector((0, 0, 0.03)), LEFT_HAND + BAIL * 0.056,
+             LEFT_HAND - BAIL * 0.056, LEFT_HAND - BAIL * 0.05 - Vector((0, 0, 0.03)), APEX - BAIL * 0.004]
 for ob in (
-    link('bell_ring', LEFT_HAND + Vector((0, 0, -0.015)), (math.pi / 2, 0, 0), GOLD, size=0.018),
-    limb('bell_chain', LEFT_HAND - Vector((0, 0, 0.03)), B + Vector((0, 0, 0.01)), 0.004, 0.004, SILVER, sides=4),
+    sweep('bell_bail', BAIL_PATH, 0.004, 6, GOLD),
+    limb('bell_chain', APEX, B + Vector((0, 0, 0.01)), 0.004, 0.004, SILVER, sides=4),
     lathe('bell_cap', [(0.0, B.z + 0.02), (0.022, B.z + 0.012), (0.034, B.z - 0.004), (0.036, B.z - 0.012)], 12, GOLD,
           shape=lambda i, j, x, y, z: (x + B.x, y + B.y, z)),
     lathe('bell_body', [(0.0, B.z - 0.002), (0.034, B.z - 0.008), (0.042, B.z - 0.045), (0.052, B.z - 0.09), (0.072, B.z - 0.125),

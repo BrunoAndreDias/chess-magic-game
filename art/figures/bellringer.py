@@ -14,6 +14,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector, noise
 from common import *
+from hands import fist
 from lookdev import bake, hi, mark, paint
 
 reset()
@@ -49,7 +50,7 @@ COIFC = paint('coif', '#5a2216', '#160604', '#8e4a32', rough=0.9, edge=0.8, stre
               relief=creases((5, 5, 5), 0.003))
 DARK = paint('robe_dark', '#2a1a0c', '#0a0603', '#4a3020', rough=0.9, streak=0.5, grime=0.4, relief=CLOTH)
 LEATHER = paint('leather', '#5e3b22', '#24130b', '#a8784a', edge=0.9, mottle=0.14, relief=grain(45, 0.0012))
-GLOVE = paint('glove', '#4a2e1a', '#1a0d06', '#8a6040', edge=0.9, mottle=0.1, relief=grain(60, 0.0008))
+GLOVE = paint('glove', '#4a2e1a', '#1a0d06', '#8a6040', edge=0.9, mottle=0.1, relief=grain(60, 0.0008), texel=2)
 BRASS = paint('brass', '#e0a830', '#2a1402', '#fff0a8', metal=True, cavity=0.5, edge=1.0, mottle=0.06, relief=hammered)
 GOLD = paint('trim', '#f0c050', '#5a340c', '#fff6c8', metal=True, cavity=0.35, edge=1.0, mottle=0.06)
 DULL = paint('dull_brass', '#9a6a1c', '#2a1404', '#e8c070', metal=True, cavity=0.4, edge=1.0, mottle=0.05)
@@ -296,39 +297,6 @@ def chain(top, drop, sway, count):
         ob.rotation_euler = d.to_track_quat('Y', 'Z').to_euler()
         ob.rotation_euler.rotate_axis('Y', yaw)
     return pts[-1]
-
-
-def hand(center, around, wrap):
-    """A gloved hand: a palm and four knuckled fingers curling about `around` (a direction), closing on a grip of
-    radius `wrap`."""
-    side = around.cross(Vector((0, -1, 0))).normalized()
-    blob('palm', center + side * (wrap + 0.016), 0.027, GLOVE, scale=(0.7, 1.0, 1.15), subdiv=3)
-    for k in range(4):
-        h = (k - 1.5) * 0.017
-        arc = [center + around * h + (side * math.cos(a) + around.cross(side) * math.sin(a)) * (wrap + 0.008)
-               for a in [math.radians(d) for d in (10, 70, 130, 185)]]
-        sweep('finger', arc, [0.0105, 0.0095, 0.009, 0.007], 6, GLOVE)
-        blob('knuckle', arc[1], 0.011, GLOVE, subdiv=1)
-    thumb = [center + side * (wrap + 0.012) + Vector((0, -0.02, 0.02)), center + Vector((0, -wrap - 0.012, 0.022))]
-    sweep('thumb', thumb, [0.011, 0.008], 6, GLOVE)
-
-
-def fist(center, around, wrap, back):
-    """A gloved fist closed on a pole along `around` of radius `wrap`: the back of the hand on the `back` side, four
-    knuckled fingers wrapping the far side and coming round to meet the thumb."""
-    back = (back - around * back.dot(around)).normalized()
-    q = back.cross(around)
-    blob('palm', center + back * (wrap + 0.018), 0.03, GLOVE, scale=(1.0, 0.7, 1.25), subdiv=3)
-    for k in range(4):
-        h = (0.75 - 0.5 * k) * 0.038
-        arc = [center + around * h + (back * math.cos(a) + q * math.sin(a)) * (wrap + 0.011)
-               for a in [math.radians(d) for d in (20, 75, 135, 200, 265, 300)]]
-        sweep('finger', arc, [0.013, 0.0125, 0.012, 0.0115, 0.0105, 0.008], 6, GLOVE)
-        blob('knuckle', arc[1], 0.0135, GLOVE, subdiv=1)
-    thumb = [center + back * (wrap + 0.02) + around * 0.045,
-             center + (back * math.cos(-0.9) + q * math.sin(-0.9)) * (wrap + 0.012) + around * 0.05,
-             center + (back * math.cos(-1.6) + q * math.sin(-1.6)) * (wrap + 0.01) + around * 0.04]
-    sweep('thumb', thumb, [0.013, 0.011, 0.008], 6, GLOVE)
 
 
 breath = loop(empty('breath'), 'scale', 2, [1.0, 1.015], 96)
@@ -768,11 +736,12 @@ for side, (s, e, w, radii, hem) in ARMS.items():
             for a in [2 * math.pi * k / 48 for k in range(49)]]
     hi(sweep('cuff_braid', cuff, 0.004, 6, DULL))
 
-RIGHT_HAND = Vector((-0.325, -0.21, 0.97))
-LEFT_HAND = Vector((0.295, -0.08, 0.6))
 POLE = Vector((0.05, 0.0, 1.0)).normalized()
-fist(RIGHT_HAND, POLE, 0.022, Vector((0.1, -1, 0)))
-hand(LEFT_HAND, Vector((0, 0, 1)), 0.012)
+CUFFS = {side: (w + (w - e) * 0.08, w - e) for side, (s, e, w, _, _) in ARMS.items()}
+RIGHT_HAND = fist(*CUFFS['r'], POLE, 0.027, GLOVE, detail='glove', seam=LEATHER)
+# The left arm hangs and its fist closes on the top of the bead loop, which drops from under the knuckles.
+LEFT_HAND = fist(*CUFFS['l'], Vector((-1, 0, 0)), 0.006, GLOVE, right=False, detail='glove', seam=LEATHER) \
+    - Vector((0.001, -0.01, -0.02))
 
 # Prayer beads drop from the left hand in a long loop, with a small brass bell where the loop closes.
 beads = empty('beads', LEFT_HAND)
