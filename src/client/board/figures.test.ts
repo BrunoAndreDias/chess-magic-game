@@ -18,9 +18,11 @@ function gltf(path: string): Gltf {
   return JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString('utf8'));
 }
 
+const figure = (cls: string): Gltf => gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
+
 test('every class figure carries what buildModel reads: main and team materials and a weapon node', () => {
   const missing = CLASS_ORDER.flatMap(cls => {
-    const j = gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
+    const j = figure(cls);
     const mats = new Set(j.materials?.map(m => m.name)), nodes = new Set(j.nodes?.map(n => n.name));
 
     return [...['main', 'team'].filter(m => !mats.has(m)), ...(nodes.has('weapon') ? [] : ['weapon'])].map(x => `${cls}: ${x}`);
@@ -29,20 +31,21 @@ test('every class figure carries what buildModel reads: main and team materials 
   expect(missing).toEqual([]);
 });
 
-test('every weapon keeps its own rotation identity, since the cast pose overwrites its x tilt', () => {
-  const turned = CLASS_ORDER.filter(cls => {
-    const j = gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
-    const q = j.nodes?.find(n => n.name === 'weapon')?.rotation ?? [0, 0, 0, 1];
+test('every figure that casts without a clip keeps its weapon rotation identity, since the procedural cast bob overwrites its x tilt', () => {
+  const procedural = CLASS_ORDER.filter(cls => !(figure(cls).animations ?? []).some(a => a.name === 'cast'));
+
+  const turned = procedural.filter(cls => {
+    const q = figure(cls).nodes?.find(n => n.name === 'weapon')?.rotation ?? [0, 0, 0, 1];
 
     return q.some((v, i) => Math.abs(v - (i === 3 ? 1 : 0)) > 1e-6);
   });
 
-  expect(turned).toEqual([]);
+  expect([procedural, turned]).toEqual([['astromancer', 'weaver', 'gravecaller'], []]);
 });
 
 test('every glow empty carries the colour and size its halo is built from', () => {
   const bad = CLASS_ORDER.flatMap(cls => {
-    const j = gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
+    const j = figure(cls);
 
     return (j.nodes ?? []).filter(n => n.name?.startsWith('glow'))
       .filter(n => !/^#[0-9a-f]{6}$/i.test(String(n.extras?.color)) || !(Number(n.extras?.size) > 0))
@@ -53,18 +56,16 @@ test('every glow empty carries the colour and size its halo is built from', () =
 });
 
 test('the gravecaller face is the void material, not a painted surface the lights can shade', () => {
-  const j = gltf(new URL('../../../public/models/gravecaller.glb', import.meta.url).pathname);
+  const j = figure('gravecaller');
   expect(j.materials?.map(m => m.name)).toContain('void');
 });
 
 test('the gravecaller ghost skulls, and only they, draw with the spirit material loadFigures makes additive', () => {
-  const j = gltf(new URL('../../../public/models/gravecaller.glb', import.meta.url).pathname);
+  const j = figure('gravecaller');
   const mats = (mesh: number) => j.meshes?.[mesh]?.primitives.map(p => j.materials?.[p.material ?? -1]?.name) ?? [];
   const spirit = (j.nodes ?? []).filter(n => n.mesh !== undefined && mats(n.mesh).includes('spirit'));
   expect(spirit.map(n => n.name?.replace(/\.\d+/, ''))).toEqual(['skull_face_mesh', 'skull_face_mesh']);
 });
-
-const figure = (cls: string): Gltf => gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
 
 test('the bellringer alone authors action clips, told apart from its idle clips by name', () => {
   const acts = Object.fromEntries(CLASS_ORDER.map(cls => [cls, (figure(cls).animations ?? []).flatMap(a => a.name ?? []).filter(isAct).sort()]));

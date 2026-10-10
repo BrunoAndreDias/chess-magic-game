@@ -4,7 +4,8 @@ What the game reads from a figure (src/client/board/models.ts):
 - a material named `team`, recoloured blue or red per unit; author it in any colour;
 - a material named `main`, the class body; a hit flashes its emission, so give it none;
 - a material named `void` (see `void()`), drawn unlit pure black whatever the lights: a face lost in shadow;
-- an object named `weapon`, tilted on its local x and lifted when the unit casts; put its origin at the grip and keep its own x rotation 0 (the cast overwrites it), rotating its children instead;
+- an object named `weapon`, its origin at the grip. A figure without a `cast` clip tilts it on its local x and lifts it
+  when the unit casts, so keep its own rotation identity (that bob overwrites its x) and rotate its children instead;
 - a material named `spirit`, drawn unlit and additive with no depth write or fog: spirit light that glows and never hides
   what is behind it. Its (baked) colour is the light it adds, so black is fully clear; fade a part out by painting it toward black;
 - a clip named after an action (`cast`, `attack`, `hit`, `move`, `down`, `rise`) or a skill id (`toll`, `knell`, ...) is a
