@@ -40,8 +40,9 @@ DARK = paint('robe_dark', '#1c1240', '#06040e', '#3a2a70', rough=0.9, streak=0.5
 GOLD = paint('gold', '#e8b648', '#5a340c', '#fff4c0', metal=True, cavity=0.4, edge=1.0, mottle=0.06, relief=hammered)
 DULL = paint('dull_gold', '#a07a28', '#2a1404', '#e8c870', metal=True, cavity=0.4, edge=1.0, mottle=0.05)
 ENAMEL = paint('enamel', '#241650', '#0a0620', '#4a3a8a', cavity=0.5, edge=0.6, mottle=0.06)
-SKIN = paint('skin', '#e6cbb8', '#8a5e58', '#fff0e4', cavity=0.6, edge=0.3, mottle=0.05)
-GLOVE = SKIN
+# Pearl gloves: lighter than the violet sleeves and cooler than the gold, so the hands read as two pale points.
+GLOVE = paint('glove', '#e4dcee', '#6a5a8a', '#ffffff', cavity=0.6, edge=0.4, mottle=0.05)
+LINING = paint('lining', '#9a7ae0', '#5a3eb0', '#d0c0ff', rough=0.9, cavity=0.3, edge=0.3, streak=0.4)
 MASKM = paint('mask', '#e8b648', '#7a4c14', '#fff0b0', metal=True, cavity=0.6, edge=1.0, mottle=0.04, texel=3)
 INLAY = paint('mask_inlay', '#3a2008', '#120800', '#8a5a20', metal=True, cavity=0.3, edge=0.8, mottle=0.04, texel=3)
 SPIRIT = paint('spirit', '#a888f0', '#2a1a60', '#e6d8ff', cavity=0.2, edge=0.0, mottle=0.06, accent='#000000', keep=True)
@@ -246,19 +247,79 @@ def interp(table, z):
     return pts[-1][0]
 
 
-def hand(center, around, wrap):
-    """A gloved hand: a palm and four knuckled fingers curling about `around` (a direction), closing on a grip of
-    radius `wrap`."""
-    side = around.cross(Vector((0, -1, 0))).normalized()
-    blob('palm', center + side * (wrap + 0.016), 0.027, GLOVE, scale=(0.7, 1.0, 1.15), subdiv=3)
-    for k in range(4):
-        h = (k - 1.5) * 0.017
-        arc = [center + around * h + (side * math.cos(a) + around.cross(side) * math.sin(a)) * (wrap + 0.008)
-               for a in [math.radians(d) for d in (10, 70, 130, 185)]]
-        sweep('finger', arc, [0.0105, 0.0095, 0.009, 0.007], 6, GLOVE)
-        blob('knuckle', arc[1], 0.011, GLOVE, subdiv=1)
-    thumb = [center + side * (wrap + 0.012) + Vector((0, -0.02, 0.02)), center + Vector((0, -wrap - 0.012, 0.022))]
-    sweep('thumb', thumb, [0.011, 0.008], 6, GLOVE)
+def oriented(ob, x, y, z):
+    """Turns `ob` so its local x, y and z axes lie along the given directions."""
+    ob.rotation_euler = Matrix((x, y, z)).transposed().to_euler()
+    return ob
+
+
+def chain(base, d, bend, lengths, curls):
+    """Joint points from `base` along `d`, each segment turned from the one before by its curl about `bend`."""
+    pts = [base]
+    for length, curl in zip(lengths, curls):
+        d = Matrix.Rotation(curl, 3, bend) @ d
+        pts.append(pts[-1] + d * length)
+    return pts
+
+
+def digit(joints, r):
+    """A gloved finger through its joints, knuckle to tip: it swells at each knuckle, thins along each phalanx and
+    ends in a rounded tip."""
+    path, radii = [], []
+    for k, (a, b) in enumerate(zip(joints, joints[1:])):
+        taper = 1 - 0.1 * k
+        path += [a, a.lerp(b, 0.5)]
+        radii += [r * taper * 1.1, r * taper * 0.86]
+    tip = joints[-1] + (joints[-1] - joints[-2]).normalized() * r * 0.45
+    return sweep('finger', path + [joints[-1], tip], radii + [r * 0.72, r * 0.42], 8, GLOVE)
+
+
+def forearm(start, wrist, r):
+    """The gloved forearm from inside the sleeve to the wrist, with a gold band where the glove's cuff ends."""
+    sweep('forearm', [start, start.lerp(wrist, 0.6), wrist], [r * 1.15, r * 1.08, r * 0.92], 10, GLOVE)
+    d = (wrist - start).normalized()
+    band = start.lerp(wrist, 0.45)
+    side = d.cross(Vector((0, 0, 1))).normalized()
+    up = side.cross(d)
+    sweep('glove_band', [band + (side * math.cos(a) + up * math.sin(a)) * r * 1.16
+                         for a in [2 * math.pi * k / 20 for k in range(21)]], 0.004, 6, GOLD, caps=False)
+
+
+def fist(center, around, back, wrap, r):
+    """A gloved fist closed on a rod along `around` of radius `wrap`: the back of the hand toward `back`, four fingers
+    wrapping round the rod's front, and the thumb coming round the other way to lie over the index finger.
+    Returns the wrist."""
+    back = (back - around * back.dot(around)).normalized()
+    front = around.cross(back)
+    reach = wrap + r
+
+    def at(deg, h, out=0.0):
+        a = math.radians(deg)
+        return center + around * h + (back * math.cos(a) + front * math.sin(a)) * (reach + out)
+
+    oriented(blob('palm', at(-30, 0.0, 0.002), 0.034, GLOVE, scale=(0.55, 1.0, 1.15), subdiv=2), back, -front, around)
+    for h, k in ((0.027, 1.0), (0.009, 1.04), (-0.009, 1.0), (-0.026, 0.86)):
+        digit([at(deg, h * k) for deg in (12, 78, 136, 190)], r * k)
+    blob('thumb_pad', at(-55, 0.016, 0.004), 0.017, GLOVE, scale=(1, 1, 1.2), subdiv=2)
+    digit([at(-60, 0.022, 0.004), at(-125, 0.034, 0.008), at(-185, 0.034, 0.013), at(-228, 0.028, 0.014)], r * 1.1)
+    return at(-30, -0.004) - front * 0.032
+
+
+def open_hand(wrist, fwd, up, r):
+    """A gloved hand held out palm up from `wrist` along `fwd`: four fingers fanned and curled gently up, as if
+    cradling something, the thumb turned out to the side. Returns the centre of the palm."""
+    side = fwd.cross(up).normalized()
+    up = side.cross(fwd).normalized()
+    palm = wrist + fwd * 0.03
+    oriented(blob('palm', palm, 0.034, GLOVE, scale=(1.15, 1.0, 0.4), subdiv=2), side, fwd, up)
+    for h, spread, k in ((-0.027, -24, 1.0), (-0.009, -8, 1.06), (0.009, 8, 1.0), (0.026, 24, 0.86)):
+        d = Matrix.Rotation(math.radians(spread), 3, up) @ fwd
+        digit(chain(wrist + fwd * 0.058 + side * h + up * 0.003, d, side, [0.026 * k, 0.019 * k, 0.015 * k],
+                    [0.2, 0.42, 0.38]), r * k)
+    blob('thumb_pad', wrist + fwd * 0.018 - side * 0.03 + up * 0.002, 0.016, GLOVE, scale=(1, 1.3, 0.8), subdiv=2)
+    d = (-side * 0.7 + fwd * 0.65 + up * 0.15).normalized()
+    digit(chain(wrist + fwd * 0.02 - side * 0.036, d, (fwd - up).normalized(), [0.022, 0.017], [0.3, 0.4]), r * 1.15)
+    return palm
 
 
 def torus(name, loc, rot, major, minor, mat, segs=48, minor_segs=6):
@@ -486,33 +547,32 @@ for ob in set(bpy.data.objects) - before_head:
 # palm up, with a small planet hovering over it.
 ARMS = {
     'r': (Vector((-0.16, 0.0, 0.93)), Vector((-0.27, -0.02, 0.72)), Vector((-0.29, -0.14, 0.78)),
-          (0.058, 0.06, 0.064, 0.07, 0.076, 0.084, 0.09), 5),
+          (0.058, 0.06, 0.064, 0.068, 0.072, 0.076, 0.08), 5),
     'l': (Vector((0.16, 0.0, 0.93)), Vector((0.29, 0.0, 0.76)), Vector((0.29, -0.13, 0.9)),
-          (0.058, 0.06, 0.064, 0.07, 0.076, 0.084, 0.09), 5),
+          (0.058, 0.06, 0.064, 0.068, 0.072, 0.076, 0.08), 5),
 }
+CUFFS = {}
 for sd, (s, e, w, radii, hem) in ARMS.items():
     path = bezier(s, s.lerp(e, 0.8), e.lerp(w, 0.3), w + (w - e) * 0.08, 6)
     sl = sweep(f'sleeve_{sd}', path, radii, 14, MAIN, caps=False, levels=1, mask=lambda i, hem=hem: float(i >= hem))
-    solidify(sl, 0.012, inner=DARK)
+    solidify(sl, 0.012, inner=LINING)
     sl.modifiers['solid'].use_even_offset = False
     _, fr = frames(path)
     cuff = [path[-1] + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (radii[-1] + 0.002)
             for a in [2 * math.pi * k / 40 for k in range(41)]]
     sweep('cuff', cuff, 0.006, 6, GOLD, caps=False)
+    # An undersleeve funnels from the cuff down to the forearm, so the open sleeve shows lit lining, not a dark hole.
+    sweep('undersleeve', [path[-1].lerp(path[-2], 0.15), path[-1].lerp(path[-2], 0.75)], [radii[-1] - 0.012, 0.03],
+          14, LINING, caps=False)
+    CUFFS[sd] = path[-2]
 
-RIGHT_HAND = Vector((-0.3, -0.225, 0.8))
-LEFT_HAND = Vector((0.29, -0.215, 0.97))
+RIGHT_HAND = Vector((-0.305, -0.24, 0.8))
 POLE = Vector((-0.04, 0.0, 1.0)).normalized()
-hand(RIGHT_HAND, POLE, 0.013)
-blob('wrist', RIGHT_HAND + Vector((0.01, 0.04, -0.01)), 0.03, SKIN, subdiv=2)
-blob('palm_l', LEFT_HAND, 0.03, SKIN, scale=(1.1, 1.2, 0.55), subdiv=2)
-for k in range(4):
-    a = math.radians(-50 + 33 * k)
-    base = LEFT_HAND + Vector((0.026 * math.sin(a), -0.026 * math.cos(a), 0.004))
-    sweep('finger_l', [base, base + Vector((0.026 * math.sin(a), -0.026 * math.cos(a), 0.016))], [0.009, 0.006], 6,
-          SKIN)
-sweep('thumb_l', [LEFT_HAND + Vector((-0.024, -0.004, 0.0)), LEFT_HAND + Vector((-0.042, -0.02, 0.018))],
-      [0.009, 0.006], 6, SKIN)
+GRIP = 0.017
+forearm(CUFFS['r'], fist(RIGHT_HAND, POLE, Vector((-1, 0.25, 0)), GRIP, 0.0115), 0.022)
+L_WRIST = CUFFS['l'] + Vector((0.03, -0.09, 0.055))
+forearm(CUFFS['l'], L_WRIST, 0.022)
+LEFT_HAND = open_hand(L_WRIST, Vector((0.6, -0.8, 0.0)).normalized(), Vector((0.05, -0.2, 1)), 0.0095)
 
 planet = empty('planet', LEFT_HAND + Vector((0, 0, 0.12)))
 P = planet.location.copy()
@@ -600,6 +660,7 @@ part(sweep('rod', [pole_at(0.06), pole_at(0.8), pole_at(TOP)], [0.011, 0.013, 0.
 part(sweep('butt', [pole_at(0.02), pole_at(0.06)], [0.006, 0.016], 8, GOLD))
 for z, h in ((0.06, 0.02), (0.74, 0.025), (0.86, 0.025), (TOP - 0.03, 0.04)):
     part(sweep('ferrule', [pole_at(z), pole_at(z + h / 2), pole_at(z + h)], [0.015, 0.019, 0.015], 10, GOLD))
+part(sweep('grip', [pole_at(0.765), pole_at(0.8), pole_at(0.86)], [GRIP, GRIP + 0.001, GRIP], 10, ENAMEL))
 part(blob('knop', pole_at(TOP + 0.015), 0.024, GOLD, scale=(1, 1, 0.8), subdiv=2))
 DR = 0.12
 DC = pole_at(TOP + 0.03 + DR)
