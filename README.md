@@ -31,5 +31,5 @@ MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI i
 - `src/engine` holds the rules. They are pure and deterministic: every random choice takes a seeded `Rng`, and every change goes through `apply(state, command)`.
 - `src/host/match.ts` is the authority that holds the real game state. It decides which player may send each command and plays the AI seats. It has no DOM, so it can move to a server unchanged.
 - `src/client` is the browser game. `board/` draws the 3D scene from states and events, and `screens/` holds the menus and HUD. The client only sends commands to the Match.
-- `art/` builds the class figures in Blender: `art/figures/<class>.py` per class, `art/build.sh` writes `public/models/<class>.glb`, and `art/figures/common.py` documents the glb contract the client loads.
+- `art/` builds the class figures in Blender: `art/figures/<class>.py` per class, `art/build.sh` writes `public/models/<class>.glb`, and `art/figures/common.py` documents the glb contract the client loads. `art/splash.sh` renders each built figure into `public/splash/<class>.webp`, the art the picks screen shows for a class.
 - `docs/classes.md` is the rules spec and `docs/world.md` the lore (lands and orders).
