@@ -556,7 +556,7 @@ for t in [math.radians(d) for d in (20, 55, 90, 125, 160)]:
              [0.0022, 0.0008], 4, INLAY))
 TEAR = on_mask(0.0, -0.036, 0.004)
 blob('tear', TEAR, 0.009, GEM, scale=(0.8, 0.5, 1.2), subdiv=2)
-glow(TEAR + Vector((0, -0.02, 0)), LILAC, 0.06, name='glow_tear')
+glow(TEAR + Vector((0, -0.012, 0)), LILAC, 0.03, name='glow_tear')
 
 # The head tips back a little, proud, and so the mask turns up to a camera looking down on the board.
 NECKP = Vector((0, -0.02, 1.02))
