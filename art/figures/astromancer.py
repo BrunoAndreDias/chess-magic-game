@@ -6,6 +6,7 @@ import bmesh
 import bpy
 from mathutils import Vector
 from common import *
+from hands import fist, hand
 
 FRONT = Vector((0, -1, 0))
 
@@ -220,19 +221,22 @@ for s in (-1, 1):
     ribbon(f'tail{s}', tail, [Vector((0, 1, 0.6)), Vector((0, 0.5, 1)), Vector((0, 1, 0.4)), Vector((0, 1, 0)), Vector((0, 1, -0.1))], [0.075, 0.08, 0.08, 0.085, 0.09], 0.012, team, par=hat)
 loop(hat, 'rotation_euler', 0, [0.0, 0.035, 0.0, -0.025], 120)
 
-# Arms: flared sleeves with gold cuffs and white gloves. Right arm reaches out with a spell; left holds the staff.
-GRIP = Vector((0.34, -0.1, 0.6))
-CAST = Vector((-0.36, -0.2, 0.6))
-for s, hand in ((1, GRIP), (-1, CAST)):
+# Arms: flared sleeves with gold cuffs and white gloves. The right hand is held out palm up with a spell; the left
+# holds the staff.
+HOLD = Vector((0.34, -0.1, 0.6))
+OPEN = Vector((-0.36, -0.2, 0.6))
+cuffs = {}
+for s, hand_at in ((1, HOLD), (-1, OPEN)):
     sh = Vector((s * 0.17, 0.0, 0.73))
-    wrist = hand - (hand - sh).normalized() * 0.05
+    wrist = hand_at - (hand_at - sh).normalized() * 0.05
     mid = sh.lerp(wrist, 0.5) + Vector((0, 0, -0.02))
     tube(f'sleeve{s}', [(sh, 0.08), (mid, 0.09), (wrist, 0.13)], robe, segs=7, cap0=True, cap1=False)
-    tube(f'cuff{s}', [(wrist - (hand - sh).normalized() * 0.012, 0.133), (wrist + (hand - sh).normalized() * 0.012, 0.136)], gold, segs=7, cap0=False, cap1=False)
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.055, location=hand)
-    assign(flat(bpy.context.object), skin)
+    tube(f'cuff{s}', [(wrist - (hand_at - sh).normalized() * 0.012, 0.133), (wrist + (hand_at - sh).normalized() * 0.012, 0.136)], gold, segs=7, cap0=False, cap1=False)
+    cuffs[s] = (wrist, hand_at - sh)
+GRIP = fist(*cuffs[1], Vector((0, 0, 1)), 0.026, skin, right=False, size=0.014, sides=5, smooth=False)
+CAST = hand(*cuffs[-1], Vector((0, 0, 1)), skin, right=True, curl=0.45, size=0.014, sides=5, smooth=False) + Vector((0, 0, 0.04))
 
-# Spell sparks circling the open hand.
+# Spell sparks circling above the open palm.
 orbit = empty('orbit', CAST + Vector((0, 0, 0.02)))
 bm = bmesh.new()
 for k in range(3):
