@@ -64,10 +64,11 @@ def scaled(col, k):
 
 
 def paint(name, base, shade, light, rough=0.8, cavity=0.75, edge=0.5, mottle=0.12, streak=0.0, grime=0.0,
-          accent=None, metal=False, glow=0.0, keep=False, relief=None):
+          accent=None, metal=False, glow=0.0, keep=False, relief=None, texel=1.0):
     """A material whose colour is painted by nodes and baked. `keep` keeps it as its own material in the glb (the game
     reads `main` and `team` by name; `glow` materials emit their atlas colour); every other one merges into `paint`.
-    `relief(co, normal, mask)` pushes the high-poly twin's surface out along its normal, in metres, at world point `co`."""
+    `relief(co, normal, mask)` pushes the high-poly twin's surface out along its normal, in metres, at world point `co`.
+    `texel` scales its share of the atlas: 3 gives a face that the camera comes close to three times the detail."""
     base, shade, light = rgb(base), rgb(shade), rgb(light)
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     m.use_nodes = True
@@ -113,7 +114,7 @@ def paint(name, base, shade, light, rough=0.8, cavity=0.75, edge=0.5, mottle=0.1
     emit = g.node('ShaderNodeEmission', [(0, col), (1, 1.0)])
     out = g.node('ShaderNodeOutputMaterial')
     nt.links.new(emit.outputs[0], out.inputs['Surface'])
-    SPECS[name] = dict(rough=rough, glow=glow, keep=keep or glow > 0, relief=relief)
+    SPECS[name] = dict(rough=rough, glow=glow, keep=keep or glow > 0, relief=relief, texel=texel)
     return m
 
 
@@ -216,6 +217,16 @@ def bake(size=2048, margin=16, samples=48, fill='#1c3229', extra=2, cage=0.02, r
     _select(meshes, meshes[0])
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004, scale_to_bounds=False)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for o in meshes:
+        uv = o.data.uv_layers.active.data
+        texel = [SPECS.get(m.name, {}).get('texel', 1.0) for m in o.data.materials]
+        for poly in o.data.polygons:
+            k = texel[poly.material_index] if texel else 1.0
+            if k != 1.0:
+                for li in poly.loop_indices:
+                    uv[li].uv *= k
+    bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.uv.pack_islands(rotate=True, margin=0.006)
     bpy.ops.object.mode_set(mode='OBJECT')
 

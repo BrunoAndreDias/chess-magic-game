@@ -1,9 +1,9 @@
 """The Bellringer: a monk of the Unslept Hour whose great helm is a brass bell. A team band rings the bell's waist, the
-hanging loop crowns it, and an arch cut into its front opens onto shadow, where a bronze mask with eyes etched wide open
-burns amber. A squared ochre mantle with brass piping over a dark umber robe, two team stoles down the front pinned by
-a clock-face clasp, a hem embroidered with hourglasses, an hourglass at the hip and prayer beads with a little bell in
-the left hand. The right hand holds a shepherd's crook whose hook hangs a lantern-bell. Smooth subdivided forms,
-painted by lookdev and baked from a high-poly twin."""
+hanging loop crowns it, and an arch cut into its front opens onto shadow, where a carved brass mask stares out with
+amber eyes held open for ever, a sunburst of lashes round each. A squared ochre mantle with brass piping over a dark
+umber robe, two team stoles down the front pinned by a clock-face clasp, a hem embroidered with hourglasses, an
+hourglass at the hip and prayer beads with a little bell in the left hand. The right hand holds a shepherd's crook
+whose hook hangs a lantern-bell. Smooth subdivided forms, painted by lookdev and baked from a high-poly twin."""
 import math
 import os
 import sys
@@ -50,17 +50,12 @@ GLOVE = paint('glove', '#4a2e1a', '#1a0d06', '#8a6040', edge=0.9, mottle=0.1, re
 BRASS = paint('brass', '#e0a830', '#2a1402', '#fff0a8', metal=True, cavity=0.5, edge=1.0, mottle=0.06, relief=hammered)
 GOLD = paint('trim', '#f0c050', '#5a340c', '#fff6c8', metal=True, cavity=0.35, edge=1.0, mottle=0.06)
 DULL = paint('dull_brass', '#9a6a1c', '#2a1404', '#e8c070', metal=True, cavity=0.4, edge=1.0, mottle=0.05)
-# Blackened bronze, so the amber eyes carry the face and the honed brass rim outlines it against the void.
-MASK = paint('mask', '#5a3414', '#160a02', '#c08a48', metal=True, cavity=0.6, edge=0.6, mottle=0.05,
-             relief=grain(90, 0.0004))
 WOOD = paint('oak', '#8a5a2e', '#2e180a', '#c8925a', streak=1.0, mottle=0.2, edge=0.6, relief=creases((70, 70, 5), 0.0015))
 BEAD = paint('bead', '#5a2a14', '#1c0a04', '#b06a3a', edge=0.8, mottle=0.08)
 # Glass and sand glow with their own colour: kept saturated and dim, so they read amber, not as a pale white blot.
 GLASS = paint('lantern_glass', '#c85a06', '#5a1c02', '#ff9a20', cavity=0.1, edge=0.0, mottle=0.06, glow=0.9)
 SAND = paint('sand', '#d87818', '#6a2c06', '#ffb040', cavity=0.2, edge=0.3, mottle=0.08, glow=0.9)
 VOID = void()
-# Emission at 1 is exactly amber; the game has no tone mapping, so anything stronger clips toward white.
-EYES = material('eyes', '#3a1800', rough=0.5, emit='#ff9a18', strength=1.0)
 
 AMBER = '#ffb640'
 
@@ -335,9 +330,11 @@ def fist(center, around, wrap, back):
 
 breath = loop(empty('breath'), 'scale', 2, [1.0, 1.015], 96)
 
-# Robe: long and closed, narrow at the waist, falling straight to a heavy hem that pools a little at the feet.
+# Robe: long and closed, narrow at the waist, falling straight to a heavy hem that pools a little at the feet. Its
+# neck stops under the top of the void that fills the bell's mouth (LIP + 0.09 below), or it shows through the arch
+# beside the mask.
 ROBE_R = [(0.325, 0.03), (0.31, 0.1), (0.275, 0.26), (0.235, 0.44), (0.198, 0.6), (0.182, 0.7), (0.186, 0.8),
-          (0.196, 0.9), (0.198, 0.98), (0.17, 1.06), (0.12, 1.11)]
+          (0.196, 0.9), (0.198, 0.98), (0.17, 1.06), (0.12, 1.08)]
 SY = 0.84
 RSIDES = 36
 TEAR = (0.0, 0.02, 0.006, 0.0, 0.03, 0.01, 0.0, 0.016, 0.024)
@@ -529,33 +526,107 @@ loop(cords, 'rotation_euler', 1, [0.0, 0.03, 0.0, -0.03], 96)
 blob('void', (0, 0.045, LIP + 0.21), 0.17, VOID, scale=(1.0, 0.95, 1.15))
 blob('void', (0, 0.0, LIP + 0.02), 0.2, VOID, scale=(1.35, 1.15, 0.35))
 
-# The mask, set back in the dark: bronze, its eyes etched wide open and burning, a stitched mouth, and the hour hands
-# engraved on its brow. A honed brass rim round its edge cuts it out of the shadow even at battle zoom.
+# The mask, set back in the dark: carved brass whose eyes are held open for ever. Each eye sits deep in a socket
+# behind a dark brass rim, its amber iris lit from within round a pupil, and a sunburst of lashes radiates round it. The
+# hour hands are inlaid on the brow and the mouth is a seam sewn shut. The mask's planes (brow, nose, cheeks, lips) are
+# in its low-poly surface; the bake gives it three times the body's texel density, so it holds up close.
 M = Vector((0, -0.152, LIP + 0.19))
-MW, MH = 0.078, 0.098
-blob('mask', M, 0.1, MASK, scale=(MW / 0.1, 0.4, MH / 0.1), subdiv=3)
-blob('mask_brow', M + Vector((0, -0.02, 0.03)), 0.078, MASK, scale=(1.0, 0.3, 0.3), subdiv=2)
-sweep('mask_rim', [M + Vector((MW * 1.03 * math.sin(t), -0.014, MH * 1.03 * math.cos(t)))
-                   for t in [2 * math.pi * k / 40 for k in range(41)]], 0.01, 6, GOLD, caps=False)
-for sx in (-0.038, 0.038):
-    e = M + Vector((sx, -0.04, 0.012))
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.029, minor_radius=0.005, major_segments=16, minor_segments=6,
-                                     location=e, rotation=(math.pi / 2, 0, 0))
-    assign(smooth(bpy.context.object), DULL).name = 'eye_ring'
-    blob('eye', e + Vector((0, 0.002, 0)), 0.028, EYES, scale=(1, 0.4, 1), subdiv=2)
+MW, MH = 0.08, 0.098
+EX, EZ, SOCKET = 0.038, 0.01, 0.028
+
+
+def bump(t):
+    return math.exp(-t * t)
+
+
+def plane(x, z):
+    """Height of the mask's carved planes above its back, before the sockets are cut."""
+    u, v = x / MW, z / MH
+    dome = 0.024 * max(0.0, 1 - u * u) ** 0.6 + 0.008 * max(0.0, 1 - v * v)
+    brow = 0.005 * bump((z - EZ - 0.026) / 0.011) * smoothstep(MW * 0.95, MW * 0.6, abs(x))
+    nose = (0.005 + 0.012 * smoothstep(EZ + 0.01, -0.03, z)) * bump(x / (0.008 + 0.004 * smoothstep(0, -0.03, z))) \
+        * smoothstep(EZ + 0.025, EZ, z) * smoothstep(-0.045, -0.03, z)
+    cheeks = 0.006 * bump(math.hypot((abs(x) - 0.045) / 0.018, (z + 0.026) / 0.014))
+    lips = 0.004 * bump(x / 0.03) * bump((z + 0.064) / 0.014)
+    return dome + brow + nose + cheeks + lips
+
+
+def chin(z):
+    return 1 - 0.16 * smoothstep(0.0, -MH, z)
+
+
+def height(x, z):
+    rr = (x / (MW * chin(z))) ** 2 + (z / MH) ** 2
+    socket = math.hypot(abs(x) - EX, z - EZ)
+    # The edge rolls back into the dark, so no camera sees behind the mask.
+    return plane(x, z) - 0.014 * smoothstep(SOCKET + 0.004, SOCKET - 0.008, socket) - 0.02 * smoothstep(0.7, 1.0, rr)
+
+
+def on_mask(x, z, out=0.0):
+    return Vector((M.x + x, M.y - height(x, z) - out, M.z + z))
+
+
+def mask_at(i, j, n=18):
+    """The unit square mapped onto the mask's oval, so a quad grid covers it with no pole at the centre."""
+    a, b = -1 + 2 * j / (n - 1), -1 + 2 * i / (n - 1)
+    x, z = a * math.sqrt(1 - b * b / 2) * MW, b * math.sqrt(1 - a * a / 2) * MH
+    return on_mask(x * chin(z), z)
+
+
+def mouth_line(x):
+    return -0.064 - 0.005 * (x / 0.028) ** 2
+
+
+def seam(co, n, mask):
+    """The high-poly twin's mouth, a seam cut into the brass, and a little hammering."""
+    x, z = co.x - M.x, co.z - M.z
+    return -0.006 * bump((z - mouth_line(x)) / 0.0022) * smoothstep(0.03, 0.024, abs(x)) + 0.0004 * noise.noise(co * 90)
+
+
+MASK = paint('mask', '#b07a2c', '#6a4214', '#f6d07a', metal=True, cavity=0.6, edge=1.0, mottle=0.05, relief=seam,
+             texel=3)
+INLAY = paint('mask_inlay', '#6a4418', '#1e0e02', '#d8a858', metal=True, cavity=0.4, edge=1.0, mottle=0.05, texel=3)
+# The iris emits its own baked colour at 0.9: the game has no tone mapping, so anything past 1 clips toward white.
+EYES = paint('eyes', '#ffa41c', '#b84a04', '#ffd06a', cavity=0.7, edge=0.0, mottle=0.04, glow=0.9, texel=3)
+PUPIL = paint('pupil', '#1a0800', '#080200', '#3a1404', cavity=0.0, edge=0.0, mottle=0.0)
+
+grid('mask', 18, 18, mask_at, MASK, levels=1)
+for sx in (-EX, EX):
+    rim = Vector((M.x + sx, M.y - plane(sx, EZ), M.z + EZ))
+    blob('eye', rim + Vector((0, 0.012, 0)), SOCKET * 0.95, EYES, scale=(1, 0.5, 1), subdiv=3)
+    front = rim + Vector((0, 0.012 - SOCKET * 0.95 * 0.5, 0))
+
+    def iris(r, t):
+        return front + Vector((SOCKET * r * math.cos(t), 0.0006 + 0.0054 * r * r, SOCKET * r * math.sin(t)))
+    # A dark pupil, limbal ring and fine streaks, so the iris reads as an eye, not a lamp.
+    hi(blob('pupil', front - Vector((0, 0.0008, 0)), SOCKET * 0.24, PUPIL, scale=(1, 0.2, 1), subdiv=2))
+    hi(sweep('limbus', [iris(0.86, 2 * math.pi * k / 40) for k in range(41)], 0.0018, 4, PUPIL, caps=False))
+    for k in range(18):
+        t = 2 * math.pi * k / 18
+        hi(sweep('iris_streak', [iris(0.34, t), iris(0.7, t + 0.08)], [0.0007, 0.0004], 4, PUPIL))
+    bpy.ops.mesh.primitive_torus_add(major_radius=SOCKET + 0.002, minor_radius=0.0055, major_segments=16, minor_segments=6,
+                                     location=rim - Vector((0, 0.001, 0)), rotation=(math.pi / 2, 0, 0))
+    assign(smooth(bpy.context.object), INLAY).name = 'eye_rim'
+    r0, r1 = SOCKET + 0.008, SOCKET + 0.03
     for k in range(10):
-        a = 2 * math.pi * k / 10
-        d = Vector((math.cos(a), 0, math.sin(a)))
-        hi(sweep('lash', [e + d * 0.036 + Vector((0, 0.002, 0)), e + d * 0.043 + Vector((0, 0.006, 0))],
-                 [0.0045, 0.0022], 4, DULL))
-    glow(e + Vector((0, -0.03, 0)), AMBER, 0.08, name='glow_eye')
-hi(sweep('mouth', [M + Vector((-0.026, -0.036, -0.066)), M + Vector((0, -0.039, -0.07)), M + Vector((0.026, -0.036, -0.066))],
-         0.003, 4, DULL))
+        a = 2 * math.pi * (k + 0.5) / 10
+        pts = [on_mask(sx + math.cos(a) * r, EZ + math.sin(a) * r, 0.0025 + 0.002 * (r1 - r) / (r1 - r0))
+               for r in (r0, (r0 + r1) / 2, r1)]
+        hi(sweep('lash', pts, [0.0052, 0.0034, 0.001], 4, INLAY, squash=0.7))
+    glow(rim + Vector((0, -0.03, 0)), AMBER, 0.08, name='glow_eye')
+
 for k in range(5):
-    x = -0.02 + 0.01 * k
-    hi(sweep('mouth_stitch', [M + Vector((x, -0.038, -0.06)), M + Vector((x, -0.04, -0.079))], 0.0022, 4, DULL))
-hi(sweep('hour_hand', [M + Vector((0, -0.038, 0.045)), M + Vector((0, -0.034, 0.085))], 0.003, 4, DULL))
-hi(sweep('minute_hand', [M + Vector((0, -0.038, 0.045)), M + Vector((0.03, -0.032, 0.075))], 0.0025, 4, DULL))
+    x = -0.022 + 0.011 * k
+    z = mouth_line(x)
+    hi(sweep('mouth_stitch', [on_mask(x, z + 0.008, 0.0004), on_mask(x, z, 0.0016), on_mask(x, z - 0.008, 0.0004)],
+             0.0015, 4, INLAY))
+
+HZ = EZ + 0.036
+for dx, dz, r in ((0.0, 0.044, 0.0038), (0.014, 0.03, 0.003)):
+    hi(sweep('clock_hand', [on_mask(dx * t, HZ + dz * t, 0.0016) for t in (0.0, 0.5, 1.0)], [r, r * 0.9, r * 0.35], 4,
+             INLAY))
+    hi(blob('hand_tip', on_mask(dx * 0.78, HZ + dz * 0.78, 0.0018), r * 1.4, INLAY, scale=(1, 0.5, 1), subdiv=1))
+hi(blob('arbor', on_mask(0, HZ, 0.001), 0.0055, INLAY, scale=(1, 0.5, 1), subdiv=2))
 
 # Team stoles: two broad bands from under the bell, over the mantle and down the front of the robe.
 for sx in (-1, 1):
