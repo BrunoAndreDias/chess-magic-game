@@ -498,7 +498,7 @@ const SKILL_TABLE = {
   harvest: { name: 'Harvest', icon: '🌾', target: 'self', cd: 2, free: true, innate: true, cls: 'gravecaller', color: '#9fe0b8',
     text: `Free. Gather every Soul within ${HARVEST_RANGE}. You also gather a Soul by ending a move on it. You hold ${SOULS}.` },
   lastrites: { name: 'Last Rites', icon: '🕯️', target: 'downed', range: K.lastrites.range, cd: 3, rite: true, cls: 'gravecaller', color: '#fff3b0',
-    text: `Rite. A Downed ally within ${K.lastrites.range} stands up at ${pct(K.lastrites.hp)} HP.` },
+    text: `Rite. A Downed ally within ${K.lastrites.range} stands up at ${pct(K.lastrites.hp)} HP, paid from your own HP (never your last).` },
   bonewall: { name: 'Bone Wall', icon: '🦴', target: 'tile', range: 3, cd: 2, empty: true, map: true, rite: true, cls: 'gravecaller', color: '#e8e2d0',
     text: `Rite. A wall of 3 tiles across your line, for ${K.bonewall.turns} rounds. It blocks moves and sight, and breaks Threads. Tiles with units are skipped.` },
   wither: { name: 'Wither', icon: '🥀', target: 'enemy', range: 3, cd: 3, rite: true, cls: 'gravecaller', color: '#b89a6a', sets: ['Withered → REAP'],
@@ -530,7 +530,7 @@ const SKILL_TABLE = {
     text: `A ${K.bellguard.shield} shield. Until your next turn, enemies that hit you are Hushed.` },
 
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
-    text: `Pull a Downed ally next to you back up at ${pct(K.helpup.hp)} HP.` },
+    text: `Pull a Downed ally next to you back up at ${pct(K.helpup.hp)} HP, paid from your own HP (never your last).` },
 
   basic_astromancer: basicSkill('astromancer'),
   basic_weaver: basicSkill('weaver'),

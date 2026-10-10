@@ -267,12 +267,15 @@ function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
   ev.push({ type: 'shield', id: o.id, amount: amt });
 }
 
-/** Stands a Downed ally up at `frac` of its max HP, more while its party has a Ferryman; a Psychopomp's touch adds a shield. */
+/** Stands a Downed ally up at `frac` of its max HP, more while its party has a Ferryman, paid from the caster's own HP (never its last); a Psychopomp's touch adds a shield. */
 function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
   if (s.units.some(f => f.team === src.team && isAlive(f) && f.mods.ferryman)) frac = Math.max(frac, NODE_N.g_ferry.hp);
   o.life = { kind: 'up' };
   delete o.st.encased;
-  o.hp = Math.max(1, Math.round(o.maxHp * frac));
+  const give = Math.min(Math.max(1, Math.round(o.maxHp * frac)), src.hp - 1);
+  src.hp -= give;
+  ev.push({ type: 'damage', id: src.id, amount: give, absorbed: 0, kind: 'drain' });
+  o.hp = give;
   s.stats.revives[o.team]++;
   ev.push({ type: 'revive', id: o.id, by: src.id });
 

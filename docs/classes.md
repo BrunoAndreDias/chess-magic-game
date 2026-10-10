@@ -49,7 +49,7 @@ No class counters another outright, but each has a lever on another. The Bellrin
 
 | Skill | Kind | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|---|
-| **Last Rites** | Rite | 3 | A Downed ally within 3 stands up at 40% HP. | *Second Wind*: also a 20 shield | *Long Reach*: range 5 |
+| **Last Rites** | Rite | 3 | A Downed ally within 3 stands up at 40% HP, paid from your own HP (never your last). | *Second Wind*: also a 20 shield | *Long Reach*: range 5 |
 | **Bone Wall** | Rite | 2 | A wall of 3 tiles across your line to an empty tile within 3, for 2 rounds. It blocks moves and sight, and breaks Threads like a wall. Tiles with units are skipped. | *Ossuary*: 4 tiles | *Spiked*: 8 to enemies who start a turn next to it |
 | **Wither** | Rite | 3 | An enemy within 3 is **Withered** for 2 turns: it can't be healed or shielded, and a hit that leaves it at 20% HP or less Downs it (**REAP**). | *Rot*: also Poisoned | *Mark*: its Down drops 2 Souls |
 | **Soul Bolt** | Instant | 2 | Range 4, line of sight: 14, plus 6 for each Soul you hold. Spends none. | *Piercing*: hits the unit behind too | *Hungry*: on a Down, gather its Soul |
@@ -63,7 +63,7 @@ No class counters another outright, but each has a lever on another. The Bellrin
 |---|---|---|---|
 | **Lich** | Tank | +25 HP. Hold +1 Soul. Start your turn with a 6 shield per Soul you hold. | **Undying**: while Downed you still take turns (move 1, then one skill but not your basic). Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal. |
 | **Reaper** | Damage | Soul Bolt +4. Harvest range +2. Soul Burst +8. | **Reap**: enemies at 20% HP or less that you hit are Downed at once (REAP), and every Down you cause hands you a Soul directly. |
-| **Psychopomp** | Support | Last Rites range +2. +20 HP. Allies you stand up get a 20 shield. | **Ferryman**: Downed allies within 2 of you don't bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at 60% HP. |
+| **Psychopomp** | Support | Last Rites range +2. +20 HP. Allies you stand up get a 20 shield. | **Ferryman**: Downed allies within 2 of you don't bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at 60% HP, still paid from their own HP. |
 
 ### On each map
 

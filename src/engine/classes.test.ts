@@ -61,8 +61,8 @@ describe('rites', () => {
 
     expect(apply(scene(0), cast(1, 'lastrites', 5, 1))).toEqual({ ok: false, error: 'lastrites is not usable now' });
     const r = run(scene(1), cast(1, 'lastrites', 5, 1));
-    expect(r.events.slice(1)).toEqual([{ type: 'spend', id: 1 }, { type: 'revive', id: 2, by: 1 }]);
-    expect([unit(r.state, 1).souls, unit(r.state, 2).hp, unit(r.state, 2).life]).toEqual([0, 68, { kind: 'up' }]);
+    expect(r.events.slice(1)).toEqual([{ type: 'spend', id: 1 }, { type: 'damage', id: 1, amount: 68, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
+    expect([unit(r.state, 1).souls, unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life]).toEqual([0, 92, 68, { kind: 'up' }]);
   });
 
   test('Bone Wall raises 3 tiles across the caster\'s line, skipping the tile with a unit, and nobody walks through it', () => {
@@ -147,8 +147,8 @@ describe('psychopomp', () => {
     const r = run(s0, begin);
     expect(r.events.slice(1, 3)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'activate', id: 4, team: 1, qi: 1 }]);
     const up = run(r.state, end(4), cast(2, 'helpup', 5, 1));
-    expect(up.events.at(-1)).toEqual({ type: 'revive', id: 1, by: 2 });
-    expect(unit(up.state, 1).hp).toBe(102);
+    expect(up.events.slice(-2)).toEqual([{ type: 'damage', id: 2, amount: 102, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 1, by: 2 }]);
+    expect([unit(up.state, 1).hp, unit(up.state, 2).hp]).toEqual([102, 68]);
   });
 });
 

@@ -63,8 +63,22 @@ describe('life', () => {
   test('Help Up revives at 30% of max HP', () => {
     const s0 = stage({ a: [bare('astromancer'), bare('weaver')], b: [bare('astromancer')], life: { 2: { kind: 'downed', bleed: 2 } } });
     const r = run(s0, begin, cast(1, 'helpup', 1, 0));
-    expect(r.events.at(-1)).toEqual({ type: 'revive', id: 2, by: 1 });
-    expect([unit(r.state, 2).hp, unit(r.state, 2).maxHp, unit(r.state, 2).life]).toEqual([51, 170, { kind: 'up' }]);
+    expect(r.events.slice(-2)).toEqual([{ type: 'damage', id: 1, amount: 51, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
+    expect([unit(r.state, 2).hp, unit(r.state, 2).maxHp, unit(r.state, 2).life, unit(r.state, 1).hp]).toEqual([51, 170, { kind: 'up' }, 89]);
+  });
+
+  test('Help Up gives only what the caster can spare: at 20 HP the ally stands at 19 and the caster at 1', () => {
+    const s0 = stage({ a: [bare('astromancer'), bare('weaver')], b: [bare('astromancer')], hp: { 1: 20 }, life: { 2: { kind: 'downed', bleed: 2 } } });
+    const r = run(s0, begin, cast(1, 'helpup', 1, 0));
+    expect(r.events.slice(-2)).toEqual([{ type: 'damage', id: 1, amount: 19, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
+    expect([unit(r.state, 1).hp, unit(r.state, 2).hp]).toEqual([1, 19]);
+  });
+
+  test('Help Up is refused when the caster is at 1 HP and works at 2', () => {
+    const scene = (hp: number) => run(stage({ a: [bare('astromancer'), bare('weaver')], b: [bare('astromancer')], hp: { 1: hp }, life: { 2: { kind: 'downed', bleed: 2 } } }), begin).state;
+    expect(apply(scene(1), cast(1, 'helpup', 1, 0))).toEqual({ ok: false, error: 'helpup is not usable now' });
+    const r = run(scene(2), cast(1, 'helpup', 1, 0));
+    expect([unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life]).toEqual([1, 1, { kind: 'up' }]);
   });
 });
 

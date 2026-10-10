@@ -314,6 +314,8 @@ export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
 
   if (u.st.hush && !sk.basic) return false;
 
+  if (sk.target === 'downed' && u.hp < 2) return false;
+
   if (id === 'overture') return s.units.some(a => a.team === u.team && nextTurn(s, a.id) >= 0);
 
   if (sk.rite && u.souls < 1) return false;
