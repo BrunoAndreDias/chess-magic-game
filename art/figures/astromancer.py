@@ -747,7 +747,8 @@ for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, flock):
         parent(ob, breath)
 
-meshes = bake(fill='#3a1e8a')
+# A 12px margin still covers the 6px half-gap between islands, and keeps the atlases inside the 3 MB budget.
+meshes = bake(fill='#3a1e8a', margin=12)
 tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
 print(f'astromancer: {tris} triangles, {len(meshes)} meshes')
 finish()
