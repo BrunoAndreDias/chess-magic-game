@@ -282,7 +282,7 @@ def forearm(start, wrist, r):
     side = d.cross(Vector((0, 0, 1))).normalized()
     up = side.cross(d)
     sweep('glove_band', [band + (side * math.cos(a) + up * math.sin(a)) * r * 1.16
-                         for a in [2 * math.pi * k / 20 for k in range(21)]], 0.004, 6, GOLD, caps=False)
+                         for a in [2 * math.pi * k / 16 for k in range(17)]], 0.004, 4, GOLD, caps=False)
 
 
 def fist(center, around, back, wrap, r):
@@ -371,8 +371,8 @@ lathe('robe', ROBE_R, RSIDES, MAIN, sy=SY, shape=robe_shape, levels=1,
       mask=lambda i, j: float(ROBE_R[i][1] < HEM_TOP))
 HEM = [k / 240 for k in range(241)]
 RIM = [2 * math.pi * k / 48 for k in range(49)]
-sweep('hem_lip', [robe_at(u, 0.02, 0.006) for u in HEM[::2]], 0.014, 8, GOLD, caps=False)
-sweep('hem_band', [robe_at(u, HEM_TOP + 0.004, 0.004) for u in HEM[::2]], 0.008, 6, GOLD, caps=False)
+sweep('hem_lip', [robe_at(u, 0.02, 0.006) for u in HEM[::3]], 0.014, 8, GOLD, caps=False)
+sweep('hem_band', [robe_at(u, HEM_TOP + 0.004, 0.004) for u in HEM[::3]], 0.008, 6, GOLD, caps=False)
 
 # The star chart: constellations of gold stars joined by fine threads, drawn on the hem band. Positions come from a
 # fixed hash, so every build embroiders the same sky.
@@ -466,36 +466,47 @@ for j in (0, C_COLS - 1):
 for j in range(3, C_COLS - 3, 3):
     hi(sweep('collar_rib', [collar_at(i, j, 0.003) for i in range(5)], 0.003, 4, GOLD))
 
-# The head: a snug indigo hood with an oval opening onto the void, and in it a smooth gold mask engraved with one
-# closed eye: she sees the future, not the present.
+# The head: an indigo hood with an oval opening onto the void, and in it a smooth gold mask engraved with one closed
+# eye: she sees the future, not the present. The hood rises to a soft peak that leans back, gathers in folds round the
+# throat, and a gold seam runs over its crown from the brow to the nape.
 before_head = set(bpy.data.objects)
 HC = Vector((0, -0.02, 1.2))
 HOOD = [(0.09, 1.0), (0.11, 1.05), (0.132, 1.1), (0.143, 1.16), (0.146, 1.22), (0.14, 1.28), (0.124, 1.33),
-        (0.096, 1.37), (0.052, 1.395), (0.0, 1.402)]
+        (0.098, 1.37), (0.062, 1.405), (0.028, 1.435), (0.0, 1.45)]
 HSY = 0.96
+HSIDES = 24
 OW, OZ, OH = 0.1, 1.19, 0.12
+
+
+def hood_at(a, z, out=0.0):
+    """The hood's surface at angle `a` round it (0 = front) and height z, pushed `out` along it."""
+    r = (interp(HOOD, z) + out) * (1 + 0.07 * smoothstep(1.12, 1.0, z) * math.sin(6 * a))
+    return Vector((r * math.sin(a), HC.y - r * HSY * math.cos(a) + 0.05 * smoothstep(1.3, 1.45, z), z))
+
+
+def hood_front(x, z, out=0.0):
+    return hood_at(math.asin(max(-1.0, min(1.0, x / (interp(HOOD, z) + out)))), z, out)
 
 
 def in_face(c):
     return c.y < HC.y - 0.06 and (c.x / OW) ** 2 + ((c.z - OZ) / OH) ** 2 < 1
 
 
-hood = lathe('hood', HOOD, 32, HOODC, sy=HSY, phase=math.pi / 32, levels=1,
-             shape=lambda i, j, x, y, z: (x, y + HC.y, z))
+hood = lathe('hood', HOOD, HSIDES, HOODC, levels=1,
+             shape=lambda i, j, x, y, z: hood_at(math.pi / HSIDES + 2 * math.pi * j / HSIDES, z))
 drop_faces(hood, lambda c: not in_face(c))
 solidify(hood, 0.02, inner=VOID)
 blob('void', (0, HC.y + 0.02, 1.2), 0.12, VOID, scale=(1.0, 0.9, 1.05))
-
-
-def hood_front(x, z, out=0.0):
-    r = interp(HOOD, z) + out
-    return Vector((x, HC.y - math.sqrt(max(r * r - x * x, 0.0)) * HSY, z))
-
-
 rim = [hood_front(OW * 1.05 * math.cos(t), OZ + OH * 1.05 * math.sin(t), 0.004) for t in RIM]
 sweep('hood_rim', rim, 0.014, 8, HOODC, caps=False)
-hi(sweep('hood_piping', [hood_front(OW * 1.28 * math.cos(t), OZ + OH * 1.22 * math.sin(t), 0.006) for t in RIM],
-         0.0035, 6, GOLD, caps=False))
+sweep('hood_piping', [hood_front(OW * 1.28 * math.cos(t), OZ + OH * 1.22 * math.sin(t), 0.006) for t in RIM],
+      0.0045, 6, GOLD, caps=False)
+CROWN = [1.345, 1.37, 1.395, 1.415, 1.432, 1.444]
+sweep('hood_seam', [hood_at(0, z, 0.006) for z in CROWN] + [hood_at(0, 1.45, 0.006) + Vector((0, 0.01, 0.002))] +
+      [hood_at(math.pi, z, 0.006) for z in reversed(CROWN + [1.3, 1.24, 1.17, 1.1, 1.04])], 0.0045, 6, GOLD)
+for sx in (-1, 1):
+    hi(sweep('hood_welt', [hood_at(sx * math.pi / 2, z, 0.002) for z in (1.04, 1.12, 1.2, 1.28, 1.34, 1.39, 1.425)],
+             0.004, 6, HOODC))
 
 M = Vector((0, -0.124, 1.185))
 MW, MH = 0.084, 0.104
@@ -521,19 +532,29 @@ def mask_at(i, j, n=16):
 
 
 grid('mask', 16, 16, mask_at, MASKM, levels=1)
-# The closed eye: a lid line bowed down like a sleeper's, lashes hanging from it, a lilac tear beneath.
-EYE_Z = 0.012
-lid = [on_mask(x, EYE_Z - 0.012 * (1 - (x / 0.034) ** 2), 0.001) for x in [-0.034 + 0.068 * k / 12 for k in range(13)]]
-sweep('eye_lid', lid, [0.0026 + 0.0018 * math.sin(math.pi * k / 12) for k in range(13)], 6, INLAY)
-for k in range(1, 12, 2):
-    x = -0.034 + 0.068 * k / 12
-    z = EYE_Z - 0.012 * (1 - (x / 0.034) ** 2)
-    hi(sweep('lash', [on_mask(x, z, 0.0015), on_mask(x * 1.15, z - 0.013, 0.001)], [0.0022, 0.0008], 4, INLAY))
+# The closed eye: a heavy lid inlaid in indigo enamel, bowed down like a sleeper's, lashes hanging from its gold-dark
+# edge and rays fanning over the brow, a lilac tear beneath. Dark on gold, so the eye still reads at battle zoom.
+EYE_Z, EYE_W = 0.014, 0.044
+
+
+def lid_z(x, lift):
+    return EYE_Z + lift * (1 - (x / EYE_W) ** 2)
+
+
+EYE_X = [EYE_W * (2 * k / 14 - 1) for k in range(15)]
+grid('eye_lid_fill', 4, 15, lambda i, j: on_mask(EYE_X[j], lid_z(EYE_X[j], 0.008 - 0.025 * i / 3), 0.0012), ENAMEL,
+     levels=0)
+sweep('eye_lid', [on_mask(x, lid_z(x, -0.017), 0.0018) for x in EYE_X],
+      [0.0028 + 0.0028 * math.sin(math.pi * k / 14) for k in range(15)], 6, INLAY)
+for k in range(1, 14, 2):
+    x = EYE_X[k]
+    z = lid_z(x, -0.017)
+    sweep('lash', [on_mask(x, z, 0.002), on_mask(x * 1.18, z - 0.017, 0.0014)], [0.0028, 0.001], 4, INLAY)
 for t in [math.radians(d) for d in (20, 55, 90, 125, 160)]:
-    hi(sweep('brow_ray', [on_mask(0.045 * math.cos(t), EYE_Z + 0.012 + 0.03 * math.sin(t), 0.0012),
-                          on_mask(0.06 * math.cos(t), EYE_Z + 0.012 + 0.05 * math.sin(t), 0.0008)],
-             [0.0018, 0.0008], 4, INLAY))
-TEAR = on_mask(0.0, -0.03, 0.004)
+    hi(sweep('brow_ray', [on_mask(0.05 * math.cos(t), EYE_Z + 0.014 + 0.03 * math.sin(t), 0.0012),
+                          on_mask(0.066 * math.cos(t), EYE_Z + 0.014 + 0.05 * math.sin(t), 0.0008)],
+             [0.0022, 0.0008], 4, INLAY))
+TEAR = on_mask(0.0, -0.036, 0.004)
 blob('tear', TEAR, 0.009, GEM, scale=(0.8, 0.5, 1.2), subdiv=2)
 glow(TEAR + Vector((0, -0.02, 0)), LILAC, 0.06, name='glow_tear')
 
@@ -704,10 +725,12 @@ part(glow(DC + Vector((0, -0.04, 0)), LILAC, 0.16, name='glow_astrolabe'))
 # Star shards and two small planets drift round the body, each on its own bob, the whole flock wheeling slowly.
 flock = empty('flock')
 spin(flock, axis=2, period=288, turns=-1)
-DRIFT = ((0.6, 0.5, 0.42, 'shard'), (1.9, 0.82, 0.44, 'shard'), (2.9, 0.36, 0.46, 'planet'), (3.7, 1.02, 0.4, 'shard'),
-         (4.6, 0.6, 0.45, 'shard'), (5.5, 0.28, 0.44, 'planet'))
-for k, (a, z, r, kind) in enumerate(DRIFT):
-    p = Vector((r * math.sin(a), -r * math.cos(a) * 0.9, z))
+# Each orbit (angle, height, radius, bob) keeps out of the band the arms, hands, planet and sceptre head sweep through
+# (0.62 to 1.18 high): the shards ride above or below it, and wide enough to pass the sceptre rod.
+DRIFT = ((0.6, 0.5, 0.47, 0.035, 'shard'), (1.9, 1.24, 0.47, 0.025, 'shard'), (2.9, 0.34, 0.46, 0.035, 'planet'),
+         (3.7, 0.54, 0.47, 0.03, 'shard'), (4.6, 1.25, 0.47, 0.025, 'shard'), (5.5, 0.26, 0.46, 0.04, 'planet'))
+for k, (a, z, r, rise, kind) in enumerate(DRIFT):
+    p = Vector((r * math.sin(a), -r * math.cos(a), z))
     bob = parent(empty(f'drift{k}', p), flock)
     if kind == 'shard':
         ob = blob('shard', p, 0.042, SPIRIT, scale=(0.45, 0.45, 1.6), subdiv=1)
@@ -718,7 +741,7 @@ for k, (a, z, r, kind) in enumerate(DRIFT):
     else:
         parent(blob('planet_small', p, 0.026, GOLD if k == 2 else ENAMEL, subdiv=2), bob)
         parent(torus('planet_small_ring', p, (1.2, 0.3, 0), 0.042, 0.003, GOLD, segs=24, minor_segs=4), bob)
-    loop(bob, 'location', 2, [z, z + 0.035 * (1 + k % 2)], 60 + 12 * k)
+    loop(bob, 'location', 2, [z, z + rise], 60 + 12 * k)
 
 for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, flock):
