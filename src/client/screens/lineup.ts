@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import type { Team } from '../../engine/index';
 import { buildModel } from '../board/models';
-import { disposeTree, glow, mat, mesh, seeded } from '../board/art';
+import { disposeTree, glow, hex, mat, mesh, seeded } from '../board/art';
+import { CREST } from '../crest';
 import type { Draft } from '../draft';
+import { BEAT_SEC, lockBeat } from './beat';
+import type { Beat } from './beat';
 
 /** Where a party member stands: index 0 is the front spot for the selected one, then back-right, back-left. */
 interface Station { x: number; z: number; scale: number; turn: number }
@@ -13,10 +16,29 @@ const STATIONS: readonly Station[] = [
 ];
 const SWAP_SEC = 0.4;
 const FIRE = new THREE.Vector3(0, 0, 0.2);
+const FRONT = STATIONS[0]!;
+/** The resting camera, and where the lock-in beat pushes it: close on the front figure, looking up at it. */
+const CAM = { from: new THREE.Vector3(0, 3.1, 7.6), at: new THREE.Vector3(0, 0.85, 0.2) };
+const PUSH = { from: new THREE.Vector3(-0.5, 1.7, 5.4), at: new THREE.Vector3(0.15, 1.3, FRONT.z) };
+const LOOK = new THREE.Vector3();
+/** Seconds for the class aura to warm to full after the front figure changes. */
+const WARM_SEC = 0.9;
 
 interface Pose { x: number; z: number; scale: number; turn: number }
 interface Fire { light: THREE.PointLight; flames: THREE.Object3D[]; sprite: THREE.Sprite }
-interface Figure { key: string; root: THREE.Group; body: THREE.Group; idle: ((time: number) => void) | null; from: Pose; to: Station; t: number; ph: number }
+interface Figure { key: string; root: THREE.Group; body: THREE.Group; idle: ((time: number) => void) | null; from: Pose; to: Station; t: number; ph: number; locked: boolean }
+/** The class-glow light set around the front figure: a rim behind it, a pool under it, and the lock-in burst. */
+interface Aura { rim: THREE.PointLight; pool: THREE.Sprite; flash: THREE.PointLight; burst: THREE.Sprite; ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; key: string; warm: number }
+
+/**
+ * The figure's "chosen" motion during the lock-in beat, applied over its resting pose each frame.
+ * Procedural for now. When models.ts exposes one-shot clips, start the figure's `cast` clip here instead.
+ */
+function chosenMotion(f: Figure, b: Beat): void {
+  f.root.position.y += b.lift;
+  f.root.rotation.y += b.spin;
+  f.body.scale.y *= b.squash;
+}
 
 const ease = (t: number): number => 1 - (1 - t) ** 3;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -28,6 +50,10 @@ export class Lineup {
   readonly #camera = new THREE.PerspectiveCamera(36, 1, 0.1, 60);
   readonly #figs: (Figure | null)[] = [null, null, null];
   readonly #fire: Fire;
+  readonly #aura: Aura;
+  readonly #still = window.matchMedia('(prefers-reduced-motion: reduce)');
+  /** The running lock-in beat, timed on the wall clock so it ends with the draft's hold even when frames are slow. */
+  #beat: { slot: number; start: number } | null = null;
   readonly #ray = new THREE.Raycaster();
   readonly #resize: ResizeObserver;
   readonly #off: (() => void)[] = [];
@@ -55,8 +81,9 @@ export class Lineup {
     s.add(spot, spot.target);
 
     this.#fire = this.#buildCamp();
-    this.#camera.position.set(0, 3.1, 7.6);
-    this.#camera.lookAt(0, 0.4, 0.2);
+    this.#aura = this.#buildAura();
+    this.#camera.position.copy(CAM.from);
+    this.#camera.lookAt(CAM.at);
 
     this.#resize = new ResizeObserver(() => this.#fit());
     this.#resize.observe(canvas);
@@ -111,9 +138,32 @@ export class Lineup {
     return { light, flames, sprite };
   }
 
-  /** Brings the scene in line with the draft: rebuilds members whose class or team changed and walks everyone to their spot. */
-  sync(draft: Draft): void {
+  #buildAura(): Aura {
+    const rim = new THREE.PointLight(0xffffff, 0, 4.5, 1.4);
+    rim.position.set(0.15, 2.1, FRONT.z - 0.75);
+    const flash = new THREE.PointLight(0xffffff, 0, 6, 1.5);
+    flash.position.set(0, 1.2, FRONT.z + 0.6);
+    const pool = glow(0xffffff, 3.2, 0);
+    pool.position.set(FRONT.x, 0.04, FRONT.z);
+    const burst = glow(0xffffff, 1, 0);
+    burst.position.set(FRONT.x, 1.1, FRONT.z + 0.2);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(FRONT.x, 0.03, FRONT.z);
+    this.#scene.add(rim, flash, pool, burst, ring);
+    return { rim, pool, flash, burst, ring, key: '', warm: 0 };
+  }
+
+  /** Plays the lock-in beat on the member in `slot`: the camera pushes in, the class glow bursts and the figure does its chosen motion. */
+  lockIn(slot: number): void {
+    this.#beat = { slot, start: performance.now() };
+  }
+
+  /** Brings the scene in line with the draft: rebuilds members whose class or team changed and walks everyone to their spot. `locked` is per slot of the shown team. */
+  sync(draft: Draft, locked: readonly boolean[]): void {
     const team: Team = draft.sel.team;
+    const front = draft.teams[team][draft.sel.slot];
+    if (front) this.#tint(`${team}:${draft.sel.slot}:${front.cls}`, CREST[front.cls].glow);
     draft.teams[team].forEach((m, slot) => {
       const to = STATIONS[(slot - draft.sel.slot + 3) % 3]!, key = `${team}:${m.cls}`;
       let f = this.#figs[slot];
@@ -124,13 +174,42 @@ export class Lineup {
         root.traverse(o => { o.userData.slot = slot; });
         this.#scene.add(root);
         const prev = this.#figs[slot];
-        f = { key, root, body, idle, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1 };
+        f = { key, root, body, idle, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false };
         this.#figs[slot] = f;
         return;
       }
+      f.locked = locked[slot] ?? false;
       if (f.to !== to) { f.from = pose(f); f.to = to; f.t = 0; }
     });
     this.#place();
+  }
+
+  /** Recolours the aura for a new front figure and lets it warm up from dark. */
+  #tint(key: string, css: string): void {
+    const a = this.#aura;
+    if (a.key === key) return;
+    a.key = key;
+    a.warm = 0;
+    const c = hex(css);
+    a.rim.color.setHex(c);
+    a.flash.color.setHex(c);
+    a.pool.material.color.setHex(c);
+    a.burst.material.color.setHex(c);
+    a.ring.material.color.setHex(c);
+  }
+
+  #stepAura(dt: number, time: number, bt: number, b: Beat): void {
+    const a = this.#aura, still = this.#still.matches;
+    a.warm = Math.min(1, a.warm + dt / WARM_SEC);
+    const w = a.warm * a.warm * (3 - 2 * a.warm), breathe = still ? 1 : 0.9 + 0.1 * Math.sin(time * 1.3);
+    a.rim.intensity = (9 + 14 * b.flare) * w * breathe;
+    a.pool.material.opacity = (0.2 + 0.35 * b.flare) * w;
+    a.flash.intensity = 26 * b.flare;
+    const grow = Math.min(1, Math.max(0, bt) / 0.9);
+    a.burst.material.opacity = 0.95 * b.flare;
+    a.burst.scale.setScalar(1 + 3.5 * grow);
+    a.ring.material.opacity = b.flare > 0 && !still ? 0.9 * (1 - grow) : 0;
+    a.ring.scale.setScalar(0.3 + 2.4 * (1 - (1 - grow) ** 2));
   }
 
   #hit(ev: PointerEvent): number | null {
@@ -144,7 +223,7 @@ export class Lineup {
     const w = this.canvas.clientWidth, hh = this.canvas.clientHeight;
     if (!w || !hh) return;
     this.#renderer.setSize(w, hh, false);
-    const c = this.#camera, aspect = w / hh, halfWidth = 2.85, dist = c.position.length();
+    const c = this.#camera, aspect = w / hh, halfWidth = 2.85, dist = CAM.from.length();
     c.aspect = aspect;
     c.fov = Math.max(34, THREE.MathUtils.radToDeg(2 * Math.atan(halfWidth / (dist * aspect))));
     c.updateProjectionMatrix();
@@ -167,8 +246,10 @@ export class Lineup {
     this.#raf = requestAnimationFrame(this.#frame);
     const dt = Math.min(0.05, (now - this.#last) / 1000);
     this.#last = now;
-    const time = (this.#time += dt);
-    for (const f of this.#figs) {
+    const time = (this.#time += dt), still = this.#still.matches;
+    const beat = this.#beat, bt = beat ? (now - beat.start) / 1000 : -1, b = lockBeat(bt, still);
+    if (bt >= BEAT_SEC) this.#beat = null;
+    for (const [slot, f] of this.#figs.entries()) {
       if (!f) continue;
       f.t = Math.min(1, f.t + dt / SWAP_SEC);
       const k = ease(f.t), r = f.root;
@@ -177,8 +258,14 @@ export class Lineup {
       r.rotation.y = lerp(f.from.turn, f.to.turn, k);
       f.body.position.y = Math.sin(time * 1.6 + f.ph) * 0.02;
       f.body.scale.y = 1 + Math.sin(time * 1.6 + f.ph + 0.8) * 0.012;
+      if (f.to === FRONT && f.t >= 1 && !f.locked && !still) r.rotation.y += 0.32 * Math.sin(time * 0.55 + f.ph);
+      if (beat?.slot === slot) chosenMotion(f, b);
       f.idle?.(time);
     }
+    this.#stepAura(dt, time, bt, b);
+    this.#camera.position.lerpVectors(CAM.from, PUSH.from, b.push);
+    this.#camera.lookAt(LOOK.lerpVectors(CAM.at, PUSH.at, b.push));
+    this.plates.style.opacity = String(1 - 0.9 * b.push);
     const fl = this.#fire;
     fl.light.intensity = 7 * (0.85 + 0.12 * Math.sin(time * 9) + 0.07 * Math.sin(time * 23));
     fl.sprite.scale.setScalar(2.1 + 0.18 * Math.sin(time * 11));

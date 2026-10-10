@@ -69,16 +69,7 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
 .sec h3 { font-size: 15px; margin: 0 0 6px; display: flex; gap: 10px; align-items: baseline; color: #e9d7b4; letter-spacing: .02em }
 .sec h3 small { font: 12px -apple-system, system-ui, sans-serif; color: var(--muted) }
 .ccards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
-.ccard { display: flex; flex-direction: column; align-items: center; gap: 1px; background: #19141d; border: 1px solid var(--line); border-radius: 10px; padding: 7px 4px 6px; min-width: 0 }
-.ccard:hover { background: #231c27; border-color: color-mix(in srgb, var(--cc) 50%, var(--line)) }
-.ccard.on { background: color-mix(in srgb, var(--cc) 16%, #19141d); border-color: var(--cc); box-shadow: 0 0 0 1px var(--cc), 0 0 18px color-mix(in srgb, var(--cc) 30%, transparent) }
-.ccard .ic { font-size: 22px; line-height: 1.1 }
-.ccard .nm { font-weight: 700; font-size: 13px }
-.ccard .rl { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--cc) }
 .cls-line { margin: 7px 2px 0; font-size: 12.5px; line-height: 1.4 }
-.su-cls { flex-direction: row; justify-content: flex-start; align-items: center; gap: 10px; padding: 7px 12px; cursor: default }
-.su-cls .seat { margin-left: auto; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gold) }
-.su-cls:hover { background: color-mix(in srgb, var(--cc) 16%, #19141d); border-color: var(--cc) }
 .kit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px }
 .skc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; background: #17131b; border: 1px solid var(--line); border-radius: 10px; padding: 5px 2px; opacity: .55; filter: saturate(.5) }
 .skc:hover { opacity: .9; filter: none }
@@ -134,8 +125,9 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #241f2c; border: 1p
   .link { height: 6px }
   .detail { min-height: 0; margin-top: 4px; padding: 0 8px; border-block-width: 3px }
   .sec h3 { margin-bottom: 5px }
-  .ccard, .skc { padding: 4px 3px }
-  .ccard .ic, .skc .ic { font-size: 17px }
+  .skc { padding: 4px 3px }
+  .skc .ic { font-size: 17px }
+  .ccard { height: 96px }
   .cls-line { margin-top: 5px; font-size: 12px }
   .treewrap { padding: 6px 6px 4px }
   .treewrap .bn { padding-bottom: 3px; margin-bottom: 3px }
@@ -189,12 +181,78 @@ select { background: #1a1621; color: var(--text); border: 1px solid var(--line);
 .pk-seat.wait { opacity: .5 }
 .pk-seat.wait .nm { color: var(--muted); font-size: 14px }
 .pk-seat.locked { background: color-mix(in srgb, var(--cc) 12%, rgba(25, 20, 29, .9)) }
-.pk-seat.fresh { animation: landed .5s ease-out }
 .pk-seat.now { background: #241d26; border-color: var(--gold); border-left-color: var(--tc); box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgba(232, 182, 90, .3) }
 .pk-seat.now .nm { color: #fff3dc; font-size: 16px }
-@keyframes landed { from { transform: scale(1.05); box-shadow: 0 0 26px var(--cc) } to { transform: none } }
+/* ---------- champion select: splash cards, the considered hero, the lock-in beat ---------- */
+.ccard { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 0; height: 118px; min-width: 0; padding: 0 4px 8px;
+  background: #0d0a10; border: 1px solid #2c2432; border-radius: 10px; transition: transform .2s cubic-bezier(.2, .7, .2, 1), border-color .2s, box-shadow .2s }
+.ccard .art { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 50% var(--face, 30%); transform: scale(1.12); filter: saturate(.5) brightness(.55); transition: filter .3s, transform .5s cubic-bezier(.2, .7, .2, 1) }
+.ccard::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, transparent 38%, rgba(8, 6, 10, .55) 62%, rgba(8, 6, 10, .95)) }
+.ccard .nm { font: 600 13px/1.15 Georgia, serif; color: #f4ead8; text-shadow: 0 1px 8px #000 }
+.ccard .rl { font-size: 9.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: color-mix(in srgb, var(--glow) 80%, #fff) }
+button.ccard:hover { border-color: color-mix(in srgb, var(--glow) 55%, #2c2432); transform: translateY(-2px) }
+button.ccard:hover .art { filter: saturate(.85) brightness(.82); transform: scale(1.18) }
+.ccard.on { border-color: var(--gold); transform: translateY(-2px); box-shadow: 0 0 0 1px var(--gold), 0 8px 24px -6px color-mix(in srgb, var(--glow) 55%, transparent) }
+.ccard.on .art { filter: none; transform: scale(1.16) }
+.ccard.on::before { content: ''; position: absolute; inset: auto 0 0; height: 3px; z-index: 1; background: linear-gradient(90deg, transparent, var(--glow), transparent) }
+.su-cls { flex-direction: row; justify-content: flex-start; align-items: center; gap: 10px; height: 64px; padding: 0 14px; cursor: default; transform: none }
+.su-cls .art { left: auto; right: 0; width: 70%; object-position: 50% var(--face, 30%); transform: none; filter: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%); mask-image: linear-gradient(90deg, transparent, #000 50%) }
+.su-cls::after { background: linear-gradient(90deg, rgba(8, 6, 10, .95) 25%, transparent 70%) }
+.su-cls .nm { font-size: 18px }
+.su-cls .seat { margin-left: auto; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gold); text-shadow: 0 1px 6px #000 }
+
+.pk-hero { --glow: var(--gold); position: absolute; z-index: 2; isolation: isolate; left: 24px; top: 20px; max-width: min(420px, 52%); pointer-events: none }
+.pk-hero::before { content: ''; position: absolute; z-index: -1; inset: -40px -60px -30px -50px; background: radial-gradient(closest-side, rgba(7, 6, 10, .7), transparent) }
+.pk-hero .ey { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 11px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: color-mix(in srgb, var(--glow) 85%, #fff) }
+.pk-hero .ey::before { content: ''; width: 22px; height: 1px; background: var(--glow); box-shadow: 0 0 8px var(--glow) }
+.pk-hero .dot { opacity: .5 }
+.pk-hero h2 { margin: 6px 0 8px; font: 600 clamp(30px, 2.9vw, 42px)/1 Georgia, "Times New Roman", serif; letter-spacing: .005em; color: #fff7ea;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .85), 0 0 34px color-mix(in srgb, var(--glow) 40%, transparent) }
+.pk-hero .q { max-width: 36ch; margin: 0 0 10px; font: italic 14px/1.4 Georgia, serif; color: #dccfb9; text-shadow: 0 1px 10px #000 }
+.pk-hero .chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { padding: 3px 10px; font-size: 11.5px; font-weight: 600; letter-spacing: .03em; color: var(--text); background: rgba(12, 10, 16, .72); border: 1px solid rgba(255, 255, 255, .12); border-radius: 999px }
+.chip.role { text-transform: capitalize; color: #fff; border-color: color-mix(in srgb, var(--glow) 60%, transparent); background: color-mix(in srgb, var(--glow) 16%, rgba(12, 10, 16, .8)) }
+.chip.own { color: color-mix(in srgb, var(--glow) 85%, #fff) }
+.pk-hero.enter > * { animation: rise .55s cubic-bezier(.2, .7, .2, 1) both }
+.pk-hero.enter > :nth-child(2) { animation-delay: .05s }
+.pk-hero.enter > :nth-child(3) { animation-delay: .12s }
+.pk-hero.enter > :nth-child(4) { animation-delay: .18s }
+@keyframes rise { from { opacity: 0; transform: translateY(10px) } }
+
+.pk-lockin { position: relative; overflow: hidden; display: grid; grid-template-columns: auto auto; column-gap: 14px; align-items: center; text-align: left }
+.btn.primary.pk-lockin { padding: 10px 16px 10px 22px }
+.pk-lockin .big { grid-column: 1; font-size: 18px; font-weight: 800; line-height: 1.05; letter-spacing: .2em; text-transform: uppercase }
+.pk-lockin .who { grid-column: 1; font-size: 12.5px; font-weight: 600; opacity: .75 }
+.pk-lockin kbd { grid-column: 2; grid-row: 1 / 3; color: #1b1405; background: rgba(0, 0, 0, .12); border-color: rgba(27, 20, 5, .35) }
+.pk-lockin:not(:disabled):hover { filter: brightness(1.08); box-shadow: 0 0 26px rgba(232, 182, 90, .45) }
+.pk-lockin:not(:disabled)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .45) 50%, transparent 60%); transform: translateX(-120%); animation: sheen 3.6s ease-in-out 1s infinite; pointer-events: none }
+@keyframes sheen { 0%, 60% { transform: translateX(-120%) } 100% { transform: translateX(120%) } }
+.pk-cta.sealed { border-color: color-mix(in srgb, var(--tc) 45%, var(--line)); background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 20%, #120f16), #100d12 75%); box-shadow: 0 0 34px color-mix(in srgb, var(--tc) 22%, transparent) }
+.pk-cta.sealed .ey { color: color-mix(in srgb, var(--tc) 85%, #fff) }
+.pk-cta.sealed .sub { font: italic 15px Georgia, serif; color: #dccfb9 }
+.pk-cta.sealed .say { animation: rise .45s cubic-bezier(.2, .7, .2, 1) both }
+
+.pk-track { perspective: 800px }
+.pk-seat { position: relative; isolation: isolate; overflow: hidden; transition: opacity .3s, background .3s }
+.pk-seat .art { position: absolute; top: 0; right: 0; z-index: -1; width: 58%; height: 100%; object-fit: cover; object-position: 50% var(--face, 30%); -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%); mask-image: linear-gradient(90deg, transparent, #000 60%) }
+.pk-seat.locked { background: linear-gradient(90deg, color-mix(in srgb, var(--cc) 14%, rgba(22, 18, 26, .97)) 45%, rgba(22, 18, 26, .6)); border-color: color-mix(in srgb, var(--glow) 30%, var(--line)) }
+.pk-seat.locked .nm, .pk-seat.locked .cl { text-shadow: 0 1px 6px #000, 0 0 2px #000 }
+.pk-seat.locked .cl { color: color-mix(in srgb, var(--glow) 80%, #fff) }
+.pk-seat.fresh { animation: seat-flip .7s cubic-bezier(.2, .8, .2, 1) .15s both }
+.pk-seat.fresh::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--glow) 60%, transparent) 50%, transparent 65%); transform: translateX(-110%); animation: sweep .8s ease-out .45s both }
+@keyframes seat-flip { 0% { transform: rotateX(-90deg); opacity: 0 } 55% { transform: rotateX(10deg); opacity: 1; box-shadow: 0 0 30px var(--glow) } 100% { transform: none } }
+@keyframes sweep { to { transform: translateX(110%) } }
+
+.su-act .quiet-btn { padding: 6px 11px; font-size: 13px; color: var(--muted) }
+.su-act .quiet-btn[aria-pressed="true"] { color: var(--text) }
+#picks :is(button, select, input, [tabindex]):focus-visible { outline: 2px solid var(--gold); outline-offset: 2px }
+#picks .ccard:focus-visible { outline-offset: 3px }
+@media (prefers-reduced-motion: reduce) {
+  #picks *, #picks *::before, #picks *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important }
+  .pk-lockin::after { display: none }
+}
 @media (max-width: 1400px) { .skc .nm { white-space: normal; font-size: 11px } .skc .bdg { flex-wrap: wrap } }
-@media (max-width: 1000px) { .pk-body { grid-template-columns: 1fr; grid-auto-rows: auto } .pk-mid .su-stage { min-height: 340px } #picks { overflow: auto } }
+@media (max-width: 1000px) { .pk-body { flex: none; grid-template-columns: 1fr; grid-auto-rows: auto } .pk-side { overflow: visible } .pk-mid .su-stage { min-height: 420px } #picks { overflow: auto } .pk-hero { left: 14px; top: 12px; max-width: 75% } .pk-hero h2 { font-size: 30px } .pk-hero .q { font-size: 13px } }
 
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5 }

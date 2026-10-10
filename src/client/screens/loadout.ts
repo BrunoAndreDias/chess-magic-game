@@ -1,5 +1,6 @@
 import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, SKILL_PICKS, TREES, canDrop, canTake, partyBonuses, roleOf } from '../../engine/index';
 import type { ClassId, NodeDef, NodeId, PairDef, Role, SkillId, Team } from '../../engine/index';
+import { CREST, splash } from '../crest';
 import { h } from '../dom';
 import type { Child } from '../dom';
 import { recommended, toggleSkill } from '../draft';
@@ -100,16 +101,18 @@ function classSec(l: Loadout): HTMLElement {
   const rule = h('p', { class: 'cls-line' }, h('b', null, `${mechanic(m.cls)[0]}. `), mechanic(m.cls)[1], ' ', stats);
   if (!choose) {
     return h('section', { class: 'sec' }, h('h3', null, 'Class', h('small', null, 'locked in the draft')),
-      withTip(h('div', { class: 'ccard on su-cls', id: 'ed-cls', style: { '--cc': C.color }, data: { cls: m.cls } },
-        h('span', { class: 'ic' }, C.icon), h('span', { class: 'nm' }, C.name), h('span', { class: 'rl' }, mechanic(m.cls)[0]), l.seat ? h('span', { class: 'seat' }, `🔒 ${l.seat}`) : null),
+      withTip(h('div', { class: 'ccard on su-cls', id: 'ed-cls', style: { '--cc': C.color, '--glow': CREST[m.cls].glow, '--face': CREST[m.cls].face }, data: { cls: m.cls } },
+        h('img', { class: 'art', src: splash(m.cls), alt: '' }),
+        h('span', { class: 'nm' }, C.name), h('span', { class: 'rl' }, mechanic(m.cls)[0]), l.seat ? h('span', { class: 'seat' }, `🔒 ${l.seat}`) : null),
       () => [h('div', { class: 'tt' }, `${C.icon} ${C.name}`), C.plays]),
       rule);
   }
   return h('section', { class: 'sec' }, h('h3', null, 'Class', h('small', null, 'open until you lock this hero')),
     h('div', { class: 'ccards' }, CLASS_ORDER.map(cid => {
       const K = CLASSES[cid];
-      return withTip(h('button', { class: `ccard${cid === m.cls ? ' on' : ''}`, style: { '--cc': K.color }, data: { cls: cid }, onclick: () => choose(cid) },
-        h('span', { class: 'ic' }, K.icon), h('span', { class: 'nm' }, K.name), h('span', { class: 'rl' }, mechanic(cid)[0])),
+      return withTip(h('button', { class: `ccard${cid === m.cls ? ' on' : ''}`, style: { '--cc': K.color, '--glow': CREST[cid].glow, '--face': CREST[cid].face }, data: { cls: cid }, 'aria-pressed': String(cid === m.cls), onclick: () => choose(cid) },
+        h('img', { class: 'art', src: splash(cid), alt: '' }),
+        h('span', { class: 'nm' }, K.name), h('span', { class: 'rl' }, mechanic(cid)[0])),
       () => [h('div', { class: 'tt' }, `${K.icon} ${K.name}`), K.plays, h('div', { class: 'm' }, `HP ${K.hp} · move ${K.move}`)]);
     })),
     rule);

@@ -5,9 +5,11 @@ One screen drafts the parties. The starter, drawn before it (`#pk-coin`), opens 
 ## Sub-features
 
 - `picks-clock` `#pk-track .pk-seat`: `.locked` seats name hero and class, the `.now` seat says whose pick it is; `#pk-cta` asks the question and holds `#pk-lock` when it is your pick.
-- `picks-lock` `#pk-lock` locks the selected open hero; its plate shows `🔒 <seat>` and the selection moves to the next open hero.
+- `picks-lock` `#pk-lock` (or `Enter` with no button focused) locks the selected open hero; its plate shows `🔒 <seat>`. The lock-in beat follows: `#pk-cta.sealed` reads `Locked in · <seat>`, the lineup camera pushes in with a class-glow burst, the seat flips in (`.pk-seat.fresh`) with its splash (`.pk-seat .art`) and the class's lock sound plays. After 1.6 s (`BEAT_SEC`) the selection moves to the next open hero and AI teams resume.
 - `picks-select` selects a hero by plate, by clicking its figure on the lineup canvas, `ArrowLeft`/`ArrowRight` or `1`–`3`.
-- `picks-class` an open hero's `.ccard[data-cls]` changes its class and resets its build to the recommended one; a locked hero shows `#ed-cls` instead.
+- `picks-class` an open hero's `.ccard[data-cls]` (a splash card, `.on` and `aria-pressed` for the current class; `ArrowUp`/`ArrowDown` cycle it) changes its class and resets its build to the recommended one; a locked hero shows `#ed-cls` instead.
+- `picks-hero` `#pk-hero` on the lineup presents the selected hero's class: order and land, name, line, and role, range, HP and domain chips.
+- `picks-sound` `#pk-sound` (or `M`) mutes the lock sounds; `aria-pressed` is `true` while sound is on, and the choice survives a reload in `localStorage`.
 - `picks-skills` toggles `#ed-skills .skc`; a fourth pick drops the oldest, the innate is always on.
 - `picks-tree` takes and refunds `.treewrap .node`; `.tree .pts b` shows points left. `#ed-rec` (Reset build) restores the recommended build.
 - `picks-control` `#ed-name` renames; `#ed-ctrl` sets one hero Human/AI; `.pk-ctrl[data-team]` sets a whole team, until that team's first lock.
@@ -41,3 +43,5 @@ Preconditions:
 - Making a Red hero Human makes Red a Human team: it then locks by hand and deploys on scout too.
 - `#su-random`, the Change parties starter and New battlefield use `Math.random`; assert shape (3 picks, `.pts b` is `0`), not values.
 - `state()` is null on picks; read the DOM.
+- A screenshot takes seconds under swiftshader, longer than the whole 1.6 s lock-in beat. To film it, `page.clock.install()` before the map screen, `page.clock.pauseAt(...)` before the lock, then `page.clock.runFor(ms)` between shots, and `page.clock.resume()` after.
+- `page.emulateMedia({ reducedMotion: 'reduce' })` gives the reduced-motion beat (no push, spin or flip; a dimmer flare). `page.setViewportSize` checks the narrow layout.
