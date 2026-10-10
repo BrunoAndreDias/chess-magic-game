@@ -4,7 +4,7 @@
 set -e
 cd "$(dirname "$0")/.."
 BLENDER=${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}
-[ $# -gt 0 ] || set -- $(ls art/figures/*.py | xargs -n1 basename | sed 's/\.py$//' | grep -v '^common$')
+[ $# -gt 0 ] || set -- $(ls art/figures/*.py | xargs -n1 basename | sed 's/\.py$//' | grep -vE '^(common|lookdev|hands)$')
 for cls in "$@"; do
   extra=""
   [ -n "$PREVIEW" ] && mkdir -p "$PREVIEW" && extra="--preview $PREVIEW/$cls.png"
