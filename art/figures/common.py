@@ -7,7 +7,10 @@ What the game reads from a figure (src/client/board/models.ts):
 - an object named `weapon`, tilted on its local x and lifted when the unit casts; put its origin at the grip and keep its own x rotation 0 (the cast overwrites it), rotating its children instead;
 - a material named `spirit`, drawn unlit and additive with no depth write or fog: spirit light that glows and never hides
   what is behind it. Its (baked) colour is the light it adds, so black is fully clear; fade a part out by painting it toward black;
-- every animation clip loops as idle motion;
+- a clip named after an action (`cast`, `attack`, `hit`, `move`, `down`, `rise`) or a skill id (`toll`, `knell`, ...) is a
+  one-shot the board plays on that event (see `act()` and src/client/board/acts.ts); its `strike` is the second its blow
+  lands, where the board fires the skill's effect. A skill without its own clip plays `cast` (a basic attack, `attack`
+  then `cast`), and a figure without either keeps the board's procedural motion. Every other clip loops as idle motion;
 - an Empty named `glow...` with custom props `color` ("#rrggbb") and `size` (metres) becomes a soft additive halo.
 
 Units: 1 Blender unit = 1 tile. The figure stands on z = 0, centred on the origin, faces -Y (Blender's front view).
@@ -121,6 +124,35 @@ def spin(obj, axis=2, period=96, turns=1):
             k.interpolation = 'LINEAR'
     obj.rotation_euler[axis] = start
     return obj
+
+
+def act(name, strike, keys):
+    """Authors the action clip `name` from frame 0. `keys` maps (object, path, index) to [(frame, offset from rest)];
+    `strike` is the frame its blow lands. The clip sits on a muted NLA track, so the idle clips stay what plays.
+    Every component of a keyed path gets keys: the exporter fills an unkeyed one from whatever an earlier clip left."""
+    clip = bpy.data.actions.new(name)
+    clip['strike'] = strike / FPS
+    last = max(f for frames in keys.values() for f, _ in frames)
+    keys = dict(keys)
+    for ob, path in {(ob, path) for ob, path, _ in keys}:
+        for index in range(len(getattr(ob, path))):
+            keys.setdefault((ob, path, index), [(0, 0), (last, 0)])
+    for (ob, path, index), frames in keys.items():
+        ad = ob.animation_data or ob.animation_data_create()
+        idle = ad.action
+        ad.action = clip
+        rest = getattr(ob, path)[index]
+        for frame, v in frames:
+            getattr(ob, path)[index] = rest + v
+            ob.keyframe_insert(path, index=index, frame=frame)
+        getattr(ob, path)[index] = rest
+        slot = ad.action_slot
+        ad.action = idle
+        if not any(s.action == clip for t in ad.nla_tracks for s in t.strips):
+            track = ad.nla_tracks.new()
+            track.name, track.mute = name, True
+            track.strips.new(name, 0, clip).action_slot = slot
+    return clip
 
 
 def _fcurves(act):

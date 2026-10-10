@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CLASSES, N, SKILLS, STATUS, getUnit } from '../../engine/index';
 import type { BattleEvent, BattleState, CallSkill, DamageKind, Pos, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
+import { clipFor, weightAt } from './acts';
+import type { Act } from './acts';
 import { TEAM_CSS, TEAM_HEX, hex } from './art';
 import type { Fx } from './fx';
 import type { Marks } from './marks';
@@ -136,9 +138,32 @@ const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vec
   },
 };
 
-async function castPose(c: PlayCtx, v: UnitView): Promise<void> {
+/** A figure's motion for one act: `strike` resolves when its blow lands, `end` when it is over. */
+interface Swing { strike: Promise<void>; end: Promise<void> }
+
+/**
+ * Plays the figure's clip for `act` on the board's clock, or returns null when the figure has none. `span` loops the
+ * clip for that many seconds; `hold` keeps its last frame until another clip starts (a downed figure stays down).
+ */
+function perform(c: PlayCtx, v: UnitView, act: Act, { span, hold = false }: { span?: number; hold?: boolean } = {}): Swing | null {
+  const name = clipFor(v.rig.acts, act), clip = name === null ? undefined : v.rig.acts.get(name);
+  if (name === null || !clip) return null;
+  const { cut, pose } = v.rig.start(name), length = span ?? clip.length;
+  let struck = (): void => {};
+  const strike = new Promise<void>(r => { struck = r; });
+  const end = c.tweens.run(length, p => {
+    const t = p * length;
+    pose(span === undefined ? t : t % clip.length, weightAt(t, length, cut, hold));
+    if (t >= clip.strike) struck();
+  });
+  return { strike, end };
+}
+
+/** The weapon bob of a figure with no clip for its cast: its blow lands as the bob ends. */
+function castPose(c: PlayCtx, v: UnitView): Swing {
   const w = v.weapon, y0 = w.position.y;
-  await c.tweens.run(0.22, p => { w.rotation.x = -Math.sin(p * Math.PI) * 0.7; w.position.y = y0 + Math.sin(p * Math.PI) * 0.12; });
+  const end = c.tweens.run(0.22, p => { w.rotation.x = -Math.sin(p * Math.PI) * 0.7; w.position.y = y0 + Math.sin(p * Math.PI) * 0.12; });
+  return { strike: end, end };
 }
 
 /** One entry per event type: adding an event type to the engine fails compilation here until it has an animation. */
@@ -191,6 +216,7 @@ export const PLAY: Handlers = {
     const v = c.views.get(e.id);
     if (!v) return;
     const step = e.slide ? 0.09 : 0.14, hop = e.slide ? 0.04 : 0.12;
+    if (!e.slide) perform(c, v, 'move', { span: step * (e.path.length - 1) });
     for (let i = 1; i < e.path.length; i++) {
       const a = e.path[i - 1]!, b = e.path[i]!;
       const pa = c.terrain.at(a.x, a.z, 0, false), pb = c.terrain.at(b.x, b.z, 0, false);
@@ -224,7 +250,8 @@ export const PLAY: Handlers = {
     if (!v) return;
     const sk = SKILLS[e.skill], to = c.terrain.at(e.tx, e.tz, 0.8);
     if (sk.target !== 'self') face(v, to.x, to.z);
-    await castPose(c, v);
+    // The effect fires on the blow; the clip's follow-through plays on under the events that follow.
+    await (perform(c, v, e.skill) ?? castPose(c, v)).strike;
     const shot: Shot = { e, c, v, from: above(v, v.height * 0.85), to, color: skillColor(e.skill), basic: !!sk.basic };
     await CAST_FX[CAST_KIND[e.skill]](shot);
   },
@@ -236,6 +263,7 @@ export const PLAY: Handlers = {
     if (e.amount > 0) {
       c.overlay.float(`−${e.amount}`, DAMAGE_COLOR[e.kind], above(v, 1.6), e.amount >= 30);
       c.fx.flash(v.main, 0xff2a1a);
+      if (v.shown.life.kind === 'up') perform(c, v, 'hit');
       if (e.amount >= 30) c.stage.shake(0.18);
     }
     if (e.absorbed > 0) c.overlay.float(`(${e.absorbed} blocked)`, '#e0c477', above(v, 2.1));
@@ -301,7 +329,7 @@ export const PLAY: Handlers = {
     v.shown.hp = 0;
     v.shown.life = { kind: 'downed', bleed: u?.life.kind === 'downed' ? u.life.bleed : 2 };
     c.overlay.float('DOWNED', '#ff5a4a', above(v, 2.2), true);
-    await c.tweens.run(0.4, p => setPose(v, easeInOut(p)));
+    await Promise.all([c.tweens.run(0.4, p => setPose(v, easeInOut(p))), perform(c, v, 'down', { hold: true })?.end]);
     await c.tweens.wait(0.2);
   },
   revive: async (e, c) => {
@@ -313,7 +341,7 @@ export const PLAY: Handlers = {
     c.fx.sparkles(above(v, 0.2), 0xfff3b0, 16);
     void c.fx.burst(above(v, 0.8), 0xfff3b0, 3, 0.5);
     c.overlay.float('BACK UP!', '#fff3b0', above(v, 2.2), true);
-    await c.tweens.run(0.45, p => setPose(v, 1 - easeInOut(p)));
+    await Promise.all([c.tweens.run(0.45, p => setPose(v, 1 - easeInOut(p))), perform(c, v, 'rise')?.end]);
   },
   death: async (e, c) => {
     const v = c.views.get(e.id);

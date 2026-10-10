@@ -1,12 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { CLASS_ORDER } from '../../engine/index';
+import { isAct } from './acts';
 
 /** The glTF JSON chunk of a .glb: magic, version, length, then the first chunk's length and type. */
 interface Gltf {
   nodes?: { name?: string; mesh?: number; rotation?: number[]; extras?: { color?: unknown; size?: unknown } }[];
   meshes?: { primitives: { material?: number }[] }[];
   materials?: { name?: string }[];
+  animations?: { name?: string; extras?: { strike?: unknown }; samplers: { input: number }[] }[];
+  accessors?: { max?: number[] }[];
 }
 
 function gltf(path: string): Gltf {
@@ -52,4 +55,27 @@ test('the gravecaller ghost skulls, and only they, draw with the spirit material
   const mats = (mesh: number) => j.meshes?.[mesh]?.primitives.map(p => j.materials?.[p.material ?? -1]?.name) ?? [];
   const spirit = (j.nodes ?? []).filter(n => n.mesh !== undefined && mats(n.mesh).includes('spirit'));
   expect(spirit.map(n => n.name?.replace(/\.\d+/, ''))).toEqual(['skull_face_mesh', 'skull_face_mesh']);
+});
+
+const figure = (cls: string): Gltf => gltf(new URL(`../../../public/models/${cls}.glb`, import.meta.url).pathname);
+
+test('the bellringer alone authors action clips, told apart from its idle clips by name', () => {
+  const acts = Object.fromEntries(CLASS_ORDER.map(cls => [cls, (figure(cls).animations ?? []).flatMap(a => a.name ?? []).filter(isAct).sort()]));
+  expect(acts).toEqual({
+    astromancer: [], weaver: [], gravecaller: [],
+    bellringer: ['attack', 'cast', 'down', 'hit', 'knell', 'move', 'peal', 'rise', 'toll'],
+  });
+  const idle = (figure('bellringer').animations ?? []).flatMap(a => a.name ?? []).filter(n => !isAct(n)).sort();
+  expect(idle).toEqual(['beadsAction', 'bell_swingAction', 'breathAction', 'clapperAction', 'hourglassAction', 'ribbonsAction']);
+});
+
+test('every action clip strikes within its own length, where the board fires its effect', () => {
+  const bad = CLASS_ORDER.flatMap(cls => {
+    const j = figure(cls);
+    return (j.animations ?? []).filter(a => isAct(a.name ?? '')).filter(a => {
+      const length = Math.max(...a.samplers.map(s => j.accessors?.[s.input]?.max?.[0] ?? 0)), strike = a.extras?.strike;
+      return typeof strike !== 'number' || strike < 0 || strike > length;
+    }).map(a => `${cls}: ${a.name}`);
+  });
+  expect(bad).toEqual([]);
 });
