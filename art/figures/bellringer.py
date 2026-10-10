@@ -1,9 +1,9 @@
-"""The Bellringer: a monk of the Unslept Hour whose great helm is a brass bell. A team band rings the bell's waist, the
-hanging loop crowns it, and an arch cut into its front opens onto shadow, where a carved brass mask stares out with
-amber eyes held open for ever, a sunburst of lashes round each. A squared ochre mantle with brass piping over a dark
-umber robe, two team stoles down the front pinned by a clock-face clasp, a hem embroidered with hourglasses, an
-hourglass at the hip and prayer beads with a little bell in the left hand. The right hand holds a shepherd's crook
-whose hook hangs a lantern-bell. Smooth subdivided forms, painted by lookdev and baked from a high-poly twin."""
+"""The Bellringer: a monk of the Unslept Hour in a padded oxblood coif, a team band round its crown, its face a carved
+brass mask buckled on at the temples that stares out with amber eyes held open for ever, a sunburst of lashes round
+each. A squared ochre mantle with brass piping over a dark umber robe, two team stoles down the front pinned by a
+clock-face clasp, a hem embroidered with hourglasses, an hourglass at the hip and prayer beads with a little bell in the
+left hand. The right hand holds a shepherd's crook whose hook hangs a great brass bell, team ribbons knotted above it.
+Smooth subdivided forms, painted by lookdev and baked from a high-poly twin."""
 import math
 import os
 import sys
@@ -44,6 +44,8 @@ TEAM = paint('team', '#d8d8d8', '#6c6c6c', '#ffffff', rough=0.9, streak=0.5, mot
              relief=creases((3, 3, 26), 0.004))
 ROBE = paint('robe', '#4a2c14', '#120a04', '#7c5432', rough=0.9, edge=0.7, streak=0.6, mottle=0.12, grime=0.4,
              relief=CLOTH)
+COIFC = paint('coif', '#5a2216', '#160604', '#8e4a32', rough=0.9, edge=0.8, streak=0.4, mottle=0.12, grime=0.2,
+              relief=creases((5, 5, 5), 0.003))
 DARK = paint('robe_dark', '#2a1a0c', '#0a0603', '#4a3020', rough=0.9, streak=0.5, grime=0.4, relief=CLOTH)
 LEATHER = paint('leather', '#5e3b22', '#24130b', '#a8784a', edge=0.9, mottle=0.14, relief=grain(45, 0.0012))
 GLOVE = paint('glove', '#4a2e1a', '#1a0d06', '#8a6040', edge=0.9, mottle=0.1, relief=grain(60, 0.0008))
@@ -52,10 +54,10 @@ GOLD = paint('trim', '#f0c050', '#5a340c', '#fff6c8', metal=True, cavity=0.35, e
 DULL = paint('dull_brass', '#9a6a1c', '#2a1404', '#e8c070', metal=True, cavity=0.4, edge=1.0, mottle=0.05)
 WOOD = paint('oak', '#8a5a2e', '#2e180a', '#c8925a', streak=1.0, mottle=0.2, edge=0.6, relief=creases((70, 70, 5), 0.0015))
 BEAD = paint('bead', '#5a2a14', '#1c0a04', '#b06a3a', edge=0.8, mottle=0.08)
-# Glass and sand glow with their own colour: kept saturated and dim, so they read amber, not as a pale white blot.
-GLASS = paint('lantern_glass', '#c85a06', '#5a1c02', '#ff9a20', cavity=0.1, edge=0.0, mottle=0.06, glow=0.9)
+# The throat and the sand glow with their own colour: kept saturated and dim, so they read amber, not as a pale white blot.
+# The bell's throat glows with the hour it holds.
+THROAT = paint('bell_throat', '#c85a06', '#5a1c02', '#ff9a20', cavity=0.3, edge=0.0, mottle=0.06, glow=0.9)
 SAND = paint('sand', '#d87818', '#6a2c06', '#ffb040', cavity=0.2, edge=0.3, mottle=0.08, glow=0.9)
-VOID = void()
 
 AMBER = '#ffb640'
 
@@ -331,8 +333,7 @@ def fist(center, around, wrap, back):
 breath = loop(empty('breath'), 'scale', 2, [1.0, 1.015], 96)
 
 # Robe: long and closed, narrow at the waist, falling straight to a heavy hem that pools a little at the feet. Its
-# neck stops under the top of the void that fills the bell's mouth (LIP + 0.09 below), or it shows through the arch
-# beside the mask.
+# neck runs up inside the coif's collar.
 ROBE_R = [(0.325, 0.03), (0.31, 0.1), (0.275, 0.26), (0.235, 0.44), (0.198, 0.6), (0.182, 0.7), (0.186, 0.8),
           (0.196, 0.9), (0.198, 0.98), (0.17, 1.06), (0.12, 1.08)]
 SY = 0.84
@@ -384,13 +385,13 @@ for sx in (-0.09, 0.09):
     box('boot', (sx, -0.25, 0.035), (0.1, 0.12, 0.07), LEATHER, bevel=0.03, segments=2)
 
 # Squared mantle: a stiff short cape whose cross-section is a rounded square, so the shoulders read flat and wide and
-# stand out under the bell's lip.
+# stand out under the coif's collar.
 MANT = [(0.285, 0.8), (0.3, 0.87), (0.305, 0.95), (0.29, 0.99), (0.22, 1.02), (0.13, 1.05)]
 
 
 def drop(a, z):
     """How far the mantle hangs below its profile: a little at the front, a cape panel at the back that carries the
-    sigil clear of the bell's lip."""
+    sigil clear of the coif's collar."""
     return (0.035 * abs(math.cos(a)) ** 6 + 0.09 * max(0.0, -math.cos(a)) ** 3) * smoothstep(0.95, 0.8, z)
 
 
@@ -414,7 +415,7 @@ RING = [2 * math.pi * k / 160 for k in range(161)]
 for z in (0.815, 0.84):
     hi(sweep('mantle_piping', [mantle_at(a, z, 0.006) for a in RING], 0.004, 6, GOLD))
 hi(sweep('mantle_scroll', [mantle_at(a, 0.8275 + 0.008 * math.sin(a * 30), 0.008) for a in RING], 0.003, 6, GOLD))
-# On the back of the mantle, below the bell's lip, the order's sigil: an hourglass inside a ring, embroidered in brass.
+# On the back of the mantle, below the coif's collar, the order's sigil: an hourglass inside a ring, embroidered in brass.
 SIG = mantle_at(math.pi, 0.9, 0.008)
 hi(sweep('sigil_ring', [SIG + Vector((0.055 * math.cos(t), 0, 0.055 * math.sin(t)))
                         for t in [2 * math.pi * k / 48 for k in range(49)]], 0.005, 6, GOLD))
@@ -422,115 +423,11 @@ for a, b in (((-0.027, 0.038), (0.027, -0.038)), ((0.027, 0.038), (-0.027, -0.03
              ((-0.027, -0.038), (0.027, -0.038))):
     hi(sweep('sigil', [SIG + Vector((a[0], 0, a[1])), SIG + Vector((b[0], 0, b[1]))], 0.005, 6, GOLD))
 
-# The great helm is the bell: hammered brass, a thick flared lip resting over the mantle, raised bands at the sound bow
-# and the waist, and the bell's mouth cut open at the front as an arch onto shadow.
-# Its profile is (radius, height above the lip), so the whole helm sits wherever LIP puts it.
-LIP = 1.0
-BELL = [(r, LIP + h) for r, h in (
-    (0.29, -0.015), (0.305, 0.0), (0.307, 0.02), (0.298, 0.045), (0.278, 0.075), (0.255, 0.11), (0.232, 0.155),
-    (0.213, 0.205), (0.199, 0.255), (0.189, 0.305), (0.182, 0.355), (0.178, 0.405), (0.175, 0.445), (0.171, 0.485),
-    (0.162, 0.525), (0.145, 0.56), (0.115, 0.587), (0.07, 0.603), (0.0, 0.609))]
-W, ZC, ZTOP = 0.14, LIP + 0.14, LIP + 0.34
-
-
-def bell_r(z):
-    return interp(BELL[:-1], z)
-
-
-def opening(x, z):
-    if abs(x) >= W:
-        return False
-    return z < ZC or (x / W) ** 2 + ((z - ZC) / (ZTOP - ZC)) ** 2 < 1
-
-
-helm = drop_faces(lathe('helm', BELL, 32, BRASS, phase=math.pi / 32, levels=1), lambda c: c.y >= 0 or not opening(c.x, c.z))
-bm = bmesh.new()
-bm.from_mesh(helm.data)
-# Snap the cut's ragged edge onto the arch, so the rim below sits flush all the way round.
-for v in bm.verts:
-    if v.is_boundary and v.co.y < -0.05 and v.co.z > LIP - 0.005 and abs(v.co.x) < W * 1.7:
-        x, z = v.co.x, v.co.z
-        if z < ZC:
-            x = math.copysign(W, x)
-        else:
-            k = 1 / math.hypot(x / W, (z - ZC) / (ZTOP - ZC))
-            x, z = x * k, ZC + (z - ZC) * k
-        r = bell_r(z)
-        v.co = Vector((x, -math.sqrt(max(r * r - x * x, 0.0)), z))
-bm.to_mesh(helm.data)
-bm.free()
-# Its inside is the void: a lit lining would show through the arch as a shape around the mask.
-solidify(helm, 0.03, inner=VOID)
-
-
-def on_bell(a, z, out=0.0):
-    r = bell_r(z) + out
-    return Vector((r * math.sin(a), -r * math.cos(a), z))
-
-
-def arch(t, out):
-    """The opening's edge: straight sides from the lip up to ZC, then an elliptic arch."""
-    if t < 1:
-        x, z = -W, LIP + (ZC - LIP) * t
-    elif t < 2:
-        u = math.pi * (t - 1)
-        x, z = -W * math.cos(u), ZC + (ZTOP - ZC) * math.sin(u)
-    else:
-        x, z = W, ZC - (ZC - LIP) * (t - 2)
-    r = bell_r(z) + out
-    return Vector((x, -math.sqrt(max(r * r - x * x, 0)), z))
-
-
-sweep('helm_rim', [arch(3 * k / 40, 0.002) for k in range(41)], 0.012, 8, BRASS)
-A0 = math.asin(W / bell_r(LIP + 0.015)) + 0.06
-sweep('helm_lip', [on_bell(a, LIP + 0.01, 0.004) for a in [A0 + (2 * math.pi - 2 * A0) * k / 48 for k in range(49)]],
-      0.02, 8, BRASS)
-A1 = math.asin(W / bell_r(LIP + 0.115)) + 0.08
-sweep('helm_bow', [on_bell(a, LIP + 0.095, 0.003) for a in [A1 + (2 * math.pi - 2 * A1) * k / 48 for k in range(49)]],
-      0.009, 6, DULL)
-for k in range(24):
-    a = 2 * math.pi * (k + 0.5) / 24
-    if abs(math.remainder(a, 2 * math.pi)) > A1:
-        hi(blob('lip_rivet', on_bell(a, LIP + 0.06, 0.003), 0.007, DULL, subdiv=1))
-
-# Team band round the bell's waist, the part of the figure read first at battle zoom, between two brass bands and
-# studded with the twelve hours.
-WAIST = (LIP + 0.395, LIP + 0.46)
-lathe('helm_team', [(bell_r(WAIST[0]) - 0.002, WAIST[0] - 0.004), (bell_r(WAIST[0]) + 0.008, WAIST[0]),
-                    (bell_r(WAIST[1]) + 0.008, WAIST[1]), (bell_r(WAIST[1]) - 0.002, WAIST[1] + 0.004)], 32, TEAM)
-for z in (WAIST[0] - 0.006, WAIST[1] + 0.006):
-    sweep('helm_band', [on_bell(a, z, 0.006) for a in [2 * math.pi * k / 48 for k in range(49)]], 0.008, 6, DULL,
-          caps=False)
-for k in range(12):
-    blob('hour', on_bell(2 * math.pi * k / 12, sum(WAIST) / 2, 0.01), 0.009, GOLD, subdiv=1)
-
-# The crown: the cast canons and the hanging loop, a team cord through it with two tails down the back.
-lathe('canon', [(0.07, LIP + 0.59), (0.075, LIP + 0.61), (0.06, LIP + 0.63), (0.0, LIP + 0.635)], 16, DULL, levels=1)
-bpy.ops.mesh.primitive_torus_add(major_radius=0.07, minor_radius=0.024, major_segments=20, minor_segments=8,
-                                 location=(0, 0, LIP + 0.7), rotation=(math.pi / 2, 0, 0))
-assign(smooth(bpy.context.object), BRASS).name = 'loop'
-cords = empty('helm_cords', (0, 0.03, LIP + 0.64))
-parent(sweep('cord_wrap', [Vector((0.07 * math.cos(t), 0.0, LIP + 0.7 + 0.07 * math.sin(t)))
-                           for t in [-math.pi / 2 - 0.5 + 1.0 * k / 6 for k in range(7)]], 0.03, 8, TEAM, levels=1), cords)
-for sx, drop in ((-1, 0.0), (1, 0.05)):
-    zs = [LIP + 0.615 - (0.4 + drop) * k / 7 for k in range(8)]
-    path = [on_bell(math.pi + sx * (0.12 + 0.25 * k / 7), z, 0.02 + 0.015 * k / 7) for k, z in enumerate(zs)]
-    path[0] = Vector((sx * 0.02, 0.045, LIP + 0.655))
-    parent(ribbon('cord_tail', path, [0.05, 0.055, 0.06, 0.065, 0.07, 0.075, 0.08, 0.08], (1, 0, 0), TEAM,
-                  notch=0.03, mask=lambda i: 1.0 if i == 6 else 0.0), cords)
-loop(cords, 'rotation_euler', 0, [0.0, 0.04, 0.0, -0.03], 72)
-loop(cords, 'rotation_euler', 1, [0.0, 0.03, 0.0, -0.03], 96)
-
-# Behind the arch: a void the lights cannot touch, and a plug of it filling the bell's mouth so a camera looking
-# through the arch never sees the mantle's top below.
-blob('void', (0, 0.045, LIP + 0.21), 0.17, VOID, scale=(1.0, 0.95, 1.15))
-blob('void', (0, 0.0, LIP + 0.02), 0.2, VOID, scale=(1.35, 1.15, 0.35))
-
-# The mask, set back in the dark: carved brass whose eyes are held open for ever. Each eye sits deep in a socket
+# The mask: carved brass whose eyes are held open for ever. Each eye sits deep in a socket
 # behind a dark brass rim, its amber iris lit from within round a pupil, and a sunburst of lashes radiates round it. The
 # hour hands are inlaid on the brow and the mouth is a seam sewn shut. The mask's planes (brow, nose, cheeks, lips) are
 # in its low-poly surface; the bake gives it three times the body's texel density, so it holds up close.
-M = Vector((0, -0.152, LIP + 0.19))
+M = Vector((0, -0.152, 1.19))
 MW, MH = 0.08, 0.098
 EX, EZ, SOCKET = 0.038, 0.01, 0.028
 
@@ -628,7 +525,104 @@ for dx, dz, r in ((0.0, 0.044, 0.0038), (0.014, 0.03, 0.003)):
     hi(blob('hand_tip', on_mask(dx * 0.78, HZ + dz * 0.78, 0.0018), r * 1.4, INLAY, scale=(1, 0.5, 1), subdiv=1))
 hi(blob('arbor', on_mask(0, HZ, 0.001), 0.0055, INLAY, scale=(1, 0.5, 1), subdiv=2))
 
-# Team stoles: two broad bands from under the bell, over the mantle and down the front of the robe.
+# The head: a padded oxblood coif, squared like the Heights' helms, that wraps the skull, the chin and the neck and
+# spreads into a collar over the mantle. Its face is cut as an oval that the mask fills, its edge a rolled hem,
+# and the mask is buckled on by a leather strap at each temple. A team band rings the crown.
+HY = -0.045
+COIF = [(0.205, 0.95), (0.207, 0.975), (0.19, 1.005), (0.155, 1.035), (0.126, 1.065), (0.122, 1.09), (0.128, 1.12),
+        (0.137, 1.15), (0.143, 1.18), (0.147, 1.21), (0.148, 1.24), (0.145, 1.27), (0.14, 1.3), (0.134, 1.33),
+        (0.126, 1.36), (0.11, 1.39), (0.078, 1.412), (0.0, 1.42)]
+CSY = 0.92
+OW, OZ, OH = 0.096, 1.19, 0.108
+
+
+def coif_at(a, z, out=0.0):
+    """The coif's surface at angle `a` round the head (0 is the front) and height z: a rounded square in plan."""
+    r = interp(COIF[:-1], z) + out
+    k = (abs(math.cos(a)) ** 4 + abs(math.sin(a)) ** 4) ** -0.25
+    k = 1 + (k - 1) * smoothstep(1.4, 1.3, z)
+    return Vector((r * k * math.sin(a), HY - r * k * CSY * math.cos(a), z))
+
+
+def coif_front(x, z, out=0.0):
+    """The point on the coif's front face at sideways offset x: the angle found by bisection."""
+    lo, hi_ = -math.pi / 2, math.pi / 2
+    for _ in range(40):
+        mid = (lo + hi_) / 2
+        if coif_at(mid, z, out).x < x:
+            lo = mid
+        else:
+            hi_ = mid
+    return coif_at((lo + hi_) / 2, z, out)
+
+
+def face_hole(x, z):
+    return abs(x / OW) ** 2.4 + abs((z - OZ) / OH) ** 2.4 < 1
+
+
+def face_edge(t, out=0.0):
+    """The face opening's edge at angle t, on the coif's surface."""
+    c, s = math.cos(t), math.sin(t)
+    k = (abs(c) ** 2.4 + abs(s) ** 2.4) ** (-1 / 2.4)
+    return coif_front(OW * c * k, OZ + OH * s * k, out)
+
+
+def coif_shape(i, j, x, y, z):
+    """Lathe rings onto the coif's rounded square, each ring's radius read as its height off the coif's profile."""
+    return tuple(coif_at(math.atan2(x, -y), z, math.hypot(x, y) - interp(COIF[:-1], z)))
+
+
+coif = drop_faces(lathe('coif', COIF, 32, COIFC, phase=math.pi / 32, shape=coif_shape, levels=1),
+                  lambda c: c.y > HY - 0.05 or not face_hole(c.x, c.z))
+bm = bmesh.new()
+bm.from_mesh(coif.data)
+# Snap the cut's ragged edge onto the oval, so the rim sits flush all the way round.
+for v in bm.verts:
+    if v.is_boundary and v.co.y < HY - 0.05 and v.co.z > 0.99:
+        t = math.atan2((v.co.z - OZ) / OH, v.co.x / OW)
+        v.co = face_edge(t)
+bm.to_mesh(coif.data)
+bm.free()
+# The skull under the coif, wrapped in the same padding, so the gap round the mask shows a head, not a hole.
+blob('skull', (0, HY + 0.005, OZ), 0.1, COIFC, scale=(1.08, 0.98, 1.2), subdiv=3)
+blob('underface', (0, -0.125, OZ), 0.1, COIFC, scale=(1.0, 0.25, 1.15), subdiv=2)
+
+EDGE = [face_edge(2 * math.pi * k / 64, 0.004) for k in range(65)]
+# The cut edge is a rolled hem of the padding, piped in brass on its outer side.
+sweep('face_rim', EDGE, 0.013, 8, COIFC, caps=False)
+hi(sweep('face_piping', [p + (p - Vector((0, p.y, OZ))).normalized() * 0.012 + Vector((0, -0.004, 0)) for p in EDGE],
+         0.0035, 6, GOLD, caps=False))
+hi(sweep('collar_piping', [coif_at(a, 0.958, 0.004) for a in RING], 0.0045, 6, GOLD))
+hi(sweep('collar_piping', [coif_at(a, 0.975, 0.006) for a in RING], 0.003, 6, GOLD))
+# Quilting: the padding stitched in squares, the squared Heights look in cloth.
+for z in (1.04, 1.36):
+    hi(sweep('quilt', [coif_at(a, z, 0.002) for a in RING], 0.0018, 4, DARK))
+for k in range(16):
+    a = 2 * math.pi * (k + 0.5) / 16
+    if abs(math.remainder(a, 2 * math.pi)) > 0.9:
+        hi(sweep('quilt', [coif_at(a, z, 0.002) for z in (1.0, 1.06, 1.12, 1.18, 1.24, 1.3, 1.37)], 0.0018, 4, DARK))
+
+# Team band round the crown, between brass bands and studded with the twelve hours: what reads first up top.
+CROWN = (1.305, 1.36)
+lathe('crown_team', [(interp(COIF, CROWN[0]) - 0.002, CROWN[0] - 0.004), (interp(COIF, CROWN[0]) + 0.007, CROWN[0]),
+                     (interp(COIF, CROWN[1]) + 0.007, CROWN[1]), (interp(COIF, CROWN[1]) - 0.002, CROWN[1] + 0.004)],
+      32, TEAM, phase=math.pi / 32, shape=coif_shape)
+for z in (CROWN[0] - 0.004, CROWN[1] + 0.004):
+    sweep('crown_band', [coif_at(a, z, 0.008) for a in [2 * math.pi * k / 40 for k in range(41)]], 0.0075, 6, DULL,
+          caps=False)
+for k in range(12):
+    blob('hour', coif_at(2 * math.pi * k / 12, sum(CROWN) / 2, 0.009), 0.0085, GOLD, subdiv=1)
+blob('crown_boss', (0, HY, 1.418), 0.026, GOLD, scale=(1, 1, 0.45), subdiv=2)
+
+# The mask's straps: leather from the mask's edge round each temple to a brass buckle on the side of the coif.
+for sx in (-1, 1):
+    path = [Vector((M.x + sx * MW * 0.96, M.y + 0.012, M.z + 0.01))]
+    path += [coif_at(sx * a, M.z + 0.01, 0.006) for a in (0.75, 1.0, 1.25, 1.5, 1.75)]
+    sweep('strap', path, 0.011, 6, LEATHER, squash=0.35)
+    bk = coif_at(sx * 1.2, M.z + 0.01, 0.01)
+    box('strap_buckle', bk, (0.01, 0.034, 0.036), GOLD, rot=(0, 0, sx * 1.2 - math.pi / 2), bevel=0.004)
+
+# Team stoles: two broad bands from under the coif's collar, over the mantle and down the front of the robe.
 for sx in (-1, 1):
     x = 0.075 * sx
     top = [Vector((x, -0.19, 1.0)), Vector((x * 1.05, -0.222, 0.95)), Vector((x * 1.05, -0.236, 0.86))]
@@ -643,7 +637,7 @@ for sx in (-1, 1):
                  GOLD))
     blob('stole_fringe', robe_front(x * 1.08, 0.115, 0.045), 0.013, GOLD, subdiv=1)
 
-# A brass clock-face clasp pins the stoles together on the chest, just under the bell's lip.
+# A brass clock-face clasp pins the stoles together on the chest, just under the collar.
 CL = Vector((0, -0.245, 0.925))
 lathe('clasp', [(0.0, 0.012), (0.046, 0.01), (0.05, 0.0), (0.04, -0.008), (0.0, -0.01)], 20, GOLD,
       shape=lambda i, j, x, y, z: (CL.x + x, CL.y + z, CL.z + y))
@@ -718,7 +712,7 @@ parent(lathe('bead_bell', [(0.0, B.z + 0.004), (0.012, B.z), (0.016, B.z - 0.02)
 loop(beads, 'rotation_euler', 0, [0.0, 0.07, 0.0, -0.07], 80)
 loop(beads, 'rotation_euler', 1, [0.0, -0.04, 0.0, 0.04], 120)
 
-# The crook: the weapon pivots at the right-hand grip. Its hook curls out past the bell and hangs a lantern-bell.
+# The crook: the weapon pivots at the right-hand grip. Its hook curls out past the head and hangs the bell.
 weapon = empty('weapon', RIGHT_HAND)
 
 
@@ -749,30 +743,75 @@ for i in (5, 11):
     part(sweep('hook_band', [HOOK[i].lerp(HOOK[i + 1], 0.3), HOOK[i].lerp(HOOK[i + 1], 0.7)], 0.025, 12, GOLD))
 part(blob('hook_tip', HOOK[-1], 0.02, GOLD, subdiv=2))
 TIP = HOOK[-1]
-swing = part(empty('lantern_swing', TIP))
-L = TIP - Vector((0, 0, 0.1))
+
+# The bell hangs from the hook by its crown loop: hammered brass with a thick flared lip, raised bands at the shoulder
+# and the sound bow, the twelve hours studded round its waist, and a clapper swinging in its glowing throat.
+swing = part(empty('bell_swing', TIP))
+BH, BR = 0.32, 0.162
+B0 = TIP - Vector((0, 0, 0.075 + BH))
+PROFILE = [(0.94, 0.0), (1.0, 0.018), (0.99, 0.055), (0.92, 0.1), (0.83, 0.17), (0.75, 0.26), (0.685, 0.36),
+           (0.64, 0.47), (0.61, 0.58), (0.595, 0.69), (0.585, 0.79), (0.56, 0.87), (0.48, 0.94), (0.33, 0.985),
+           (0.0, 1.0)]
+
+
+WAIST = (BH * 0.47, BH * 0.68)
+
+
+def bell_r(h):
+    return BR * interp(PROFILE[:-1], h / BH)
+
+
+def at_bell(i, j, x, y, z):
+    return (x + B0.x, y + B0.y, z)
+
+
+def bell_ring(name, h, out, radius, mat, sides=6):
+    pts = [Vector((B0.x + (bell_r(h) + out) * math.sin(a), B0.y - (bell_r(h) + out) * math.cos(a), B0.z + h))
+           for a in [2 * math.pi * k / 32 for k in range(33)]]
+    return sweep(name, pts, radius, sides, mat, caps=False)
+
+
+# The throat is its own shallow cone inside the lip, so the bell's shell needs no second skin.
 for ob in (
-    link('lantern_ring', TIP - Vector((0, 0, 0.022)), (math.pi / 2, 0, 0), GOLD, size=0.014),
-    limb('lantern_chain', TIP - Vector((0, 0, 0.03)), L + Vector((0, 0, 0.01)), 0.004, 0.004, DULL, sides=4),
-    lathe('lantern_cap', [(0.0, L.z + 0.02), (0.022, L.z + 0.014), (0.04, L.z - 0.004), (0.046, L.z - 0.02),
-                          (0.05, L.z - 0.03), (0.0, L.z - 0.03)], 14, GOLD,
-          shape=lambda i, j, x, y, z: (x + L.x, y + L.y, z)),
-    lathe('lantern_glass', [(0.0, L.z - 0.025), (0.048, L.z - 0.03), (0.056, L.z - 0.07), (0.068, L.z - 0.11),
-                            (0.086, L.z - 0.15), (0.0, L.z - 0.15)], 14, GLASS,
-          shape=lambda i, j, x, y, z: (x + L.x, y + L.y, z), levels=1),
-    lathe('lantern_lip', [(0.085, L.z - 0.135), (0.094, L.z - 0.148), (0.09, L.z - 0.162), (0.078, L.z - 0.158)], 16, GOLD,
-          shape=lambda i, j, x, y, z: (x + L.x, y + L.y, z)),
-    blob('lantern_clapper', L - Vector((0, 0, 0.175)), 0.017, GOLD, subdiv=1),
+    lathe('bell', [(r * BR, B0.z + h * BH) for r, h in PROFILE], 24, BRASS, shape=at_bell, levels=1),
+    lathe('bell_throat', [(BR * 0.9, B0.z + 0.004), (BR * 0.72, B0.z + BH * 0.2), (BR * 0.5, B0.z + BH * 0.5),
+                          (0.0, B0.z + BH * 0.62)], 24, THROAT, shape=at_bell),
+    bell_ring('bell_lip', 0.022, 0.0, 0.016, BRASS, sides=8),
+    bell_ring('bell_bow', BH * 0.31, 0.002, 0.007, DULL),
+    bell_ring('bell_shoulder', BH * 0.87, 0.002, 0.006, DULL),
+    bell_ring('bell_band', WAIST[0], 0.002, 0.006, DULL),
+    bell_ring('bell_band', WAIST[1], 0.002, 0.006, DULL),
+    lathe('bell_canon', [(0.045, B0.z + BH - 0.004), (0.05, B0.z + BH + 0.012), (0.036, B0.z + BH + 0.028),
+                         (0.0, B0.z + BH + 0.03)], 12, DULL, shape=at_bell, levels=1),
+    link('bell_ring', TIP - Vector((0, 0, 0.022)), (math.pi / 2, 0, 0), GOLD, size=0.016),
 ):
     parent(ob, swing)
-for k in range(6):
-    a = 2 * math.pi * k / 6
-    rib = [Vector((L.x + r * math.sin(a), L.y - r * math.cos(a), L.z + dz)) for r, dz in
-           ((0.05, -0.028), (0.058, -0.07), (0.07, -0.11), (0.088, -0.142))]
-    parent(sweep('lantern_rib', rib, 0.0075, 6, GOLD), swing)
-glow(L - Vector((0, 0, 0.09)), AMBER, 0.5, swing, name='glow_lantern')
-loop(swing, 'rotation_euler', 0, [0.0, 0.1, 0.0, -0.1], 72)
-loop(swing, 'rotation_euler', 1, [0.0, -0.06, 0.0, 0.06], 108)
+bpy.ops.mesh.primitive_torus_add(major_radius=0.026, minor_radius=0.009, major_segments=14, minor_segments=6,
+                                 location=TIP - Vector((0, 0, 0.055)), rotation=(math.pi / 2, 0, math.pi / 2))
+parent(assign(smooth(bpy.context.object), BRASS), swing).name = 'bell_loop'
+for k in range(12):
+    a = 2 * math.pi * k / 12
+    h = sum(WAIST) / 2
+    parent(blob('bell_hour', Vector((B0.x + (bell_r(h) + 0.005) * math.sin(a), B0.y - (bell_r(h) + 0.005) * math.cos(a),
+                                     B0.z + h)), 0.008, GOLD, subdiv=1), swing)
+clapper = parent(empty('clapper', B0 + Vector((0, 0, BH - 0.02))), swing)
+parent(limb('clapper_rod', B0 + Vector((0, 0, BH - 0.02)), B0 + Vector((0, 0, 0.0)), 0.006, 0.006, DULL, sides=6),
+       clapper)
+parent(blob('clapper_ball', B0 - Vector((0, 0, 0.01)), 0.03, DULL, scale=(1, 1, 1.15), subdiv=2), clapper)
+glow(B0 + Vector((0, 0, 0.03)), AMBER, 0.45, swing, name='glow_bell')
+loop(swing, 'rotation_euler', 0, [0.0, 0.08, 0.0, -0.08], 72)
+loop(swing, 'rotation_euler', 1, [0.0, -0.05, 0.0, 0.05], 108)
+loop(clapper, 'rotation_euler', 0, [0.0, -0.1, 0.0, 0.1], 72)
+
+# Two team ribbons knotted over the top of the hook, their tails falling between the shaft and the bell.
+ribbons = part(empty('ribbons', HOOK[9]))
+for dx, length in ((0.035, 0.3), (-0.03, 0.24)):
+    top = HOOK[9] + Vector((0, -0.012, -0.012))
+    path = [top + Vector((dx * k / 5 + 0.01 * math.sin(k), -0.01 * (k % 2), -length * k / 5)) for k in range(6)]
+    parent(ribbon('ribbon', path, [0.032, 0.036, 0.04, 0.042, 0.044, 0.046], (1, 0, 0), TEAM, thickness=0.012,
+                  belly=0.004, notch=0.025), ribbons)
+parent(blob('ribbon_knot', HOOK[9] + Vector((0, -0.016, -0.008)), 0.022, TEAM, scale=(1.2, 0.8, 1), subdiv=2), ribbons)
+loop(ribbons, 'rotation_euler', 1, [0.0, 0.07, 0.0, -0.05], 84)
 
 for ob in list(bpy.data.objects):
     if ob.parent is None and ob is not breath:
