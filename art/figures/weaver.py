@@ -8,6 +8,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 from common import *
+from hands import hand
 
 reset()
 
@@ -244,10 +245,13 @@ bm = bmesh.new()
 for side in (-1, 1):
     tube(bm, [RC + Vector((side * 0.09, -0.01, 0.2)), RC + Vector((side * 0.17, -0.1, 0.13)), GRIP + Vector((side * 0.14, 0.02, 0))], [0.035, 0.032, 0.026], 5)
 parent(mesh_obj('sleeves', bm, ROBE), weapon)
-bm = bmesh.new()
+# Open hands out of the sleeves, palms turned to each other across the silk.
+before = set(bpy.data.objects)
 for side in (-1, 1):
-    bmesh.ops.create_icosphere(bm, subdivisions=1, radius=0.034, matrix=Matrix.Translation(GRIP + Vector((side * 0.14, 0, 0))))
-parent(mesh_obj('hands', bm, HAND), weapon)
+    elbow, wrist = RC + Vector((side * 0.17, -0.1, 0.13)), GRIP + Vector((side * 0.14, 0.02, 0))
+    hand(wrist, wrist - elbow, Vector((-side, 0, 0)), HAND, right=side < 0, curl=0.4, size=0.008, sides=4, smooth=False)
+for ob in [o for o in bpy.data.objects if o not in before]:
+    parent(ob, weapon)
 silk = parent(empty('silk', GRIP), weapon)
 bm = bmesh.new()
 for strand, (dz, dy) in enumerate(((0.0, 0.0), (0.03, -0.015), (-0.025, 0.01))):
