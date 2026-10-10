@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import type { Team } from '../../engine/index';
-import type { Rig } from '../board/acts';
+import type { Pose as ClipPose, Rig } from '../board/acts';
 import { buildModel } from '../board/models';
 import { disposeTree, glow, hex, mat, mesh, seeded } from '../board/art';
 import { CREST } from '../crest';
 import type { Draft } from '../draft';
-import { BEAT_SEC, lockBeat } from './beat';
+import { BEAT_SEC, castAt, lockBeat } from './beat';
 import type { Beat } from './beat';
 
 /** Where a party member stands: index 0 is the front spot for the selected one, then back-right, back-left. */
@@ -40,19 +40,35 @@ interface Pose { x: number; z: number; scale: number; turn: number }
 
 interface Fire { light: THREE.PointLight; flames: THREE.Object3D[]; sprite: THREE.Sprite }
 
-interface Figure { key: string; root: THREE.Group; body: THREE.Group; rig: Rig; from: Pose; to: Station; t: number; ph: number; locked: boolean }
+interface Figure {
+  key: string; root: THREE.Group; body: THREE.Group; rig: Rig; from: Pose; to: Station; t: number; ph: number; locked: boolean;
+  /** The lock-in beat's hold on the figure's `cast` clip, from its first frame until the beat moves on. */
+  cast: ClipPose | null;
+}
 
 /** The class-glow light set around the front figure: a rim behind it, a pool under it, and the lock-in burst. */
 interface Aura { rim: THREE.PointLight; pool: THREE.Sprite; flash: THREE.PointLight; burst: THREE.Sprite; ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; key: string; warm: number }
 
 /**
- * The figure's "chosen" motion during the lock-in beat, applied over its resting pose each frame.
- * Procedural for now. When models.ts exposes one-shot clips, start the figure's `cast` clip here instead.
+ * The figure's "chosen" motion `bt` seconds into the lock-in beat, applied over its resting pose each frame: its `cast`
+ * clip, or the beat's procedural hop for a figure without one. Reduced motion leaves a clip figure in its idle.
  */
-function chosenMotion(f: Figure, b: Beat): void {
-  f.root.position.y += b.lift;
-  f.root.rotation.y += b.spin;
-  f.body.scale.y *= b.squash;
+function chosenMotion(f: Figure, b: Beat, bt: number, reduced: boolean): void {
+  const clip = f.rig.acts.get('cast');
+
+  if (!clip) {
+    f.root.position.y += b.lift;
+    f.root.rotation.y += b.spin;
+    f.body.scale.y *= b.squash;
+
+    return;
+  }
+
+  const at = castAt(bt, clip, reduced);
+
+  if (!at) return;
+  f.cast ??= f.rig.start('cast').pose;
+  f.cast(at.time, at.weight);
 }
 
 const ease = (t: number): number => 1 - (1 - t) ** 3;
@@ -203,7 +219,7 @@ export class Lineup {
         root.traverse(o => { SLOT_OF.set(o, slot); });
         this.#scene.add(root);
         const prev = this.#figs[slot];
-        f = { key, root, body, rig, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false };
+        f = { key, root, body, rig, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false, cast: null };
         this.#figs[slot] = f;
 
         return;
@@ -300,7 +316,12 @@ export class Lineup {
 
       if (f.to === FRONT && f.t >= 1 && !f.locked && !still) r.rotation.y += 0.32 * Math.sin(time * 0.55 + f.ph);
 
-      if (beat?.slot === slot) chosenMotion(f, b);
+      if (beat?.slot === slot) chosenMotion(f, b, bt, still);
+      else if (f.cast) {
+        f.cast(0, 0);
+        f.cast = null;
+      }
+
       f.rig.tick(time);
     }
 

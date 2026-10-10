@@ -1,3 +1,6 @@
+import { weightAt } from '../board/acts';
+import type { ActClip } from '../board/acts';
+
 /** The lock-in beat, `t` seconds after a lock: how far the camera has pushed in, how bright the flare burns, and the figure's chosen motion. */
 export interface Beat {
   /** 0 at the resting camera, 1 pushed in on the figure. */
@@ -13,6 +16,9 @@ export interface Beat {
 }
 
 export const BEAT_SEC = 1.6;
+
+/** The second the figure's chosen motion lands: the hop touches down, or the `cast` clip strikes. */
+const LAND_SEC = 0.5;
 
 const REST: Beat = { push: 0, flare: 0, lift: 0, spin: 0, squash: 1 };
 
@@ -34,14 +40,27 @@ export function lockBeat(t: number, reduced: boolean): Beat {
 
   if (reduced) return { ...REST, flare: r3(flare * 0.6) };
   const push = t < 0.45 ? easeOut(t / 0.45) : t < 1.05 ? 1 : 1 - easeInOut((t - 1.05) / (BEAT_SEC - 1.05));
-  const hop = clamp01((t - 0.12) / 0.38);
+  const hop = clamp01((t - 0.12) / (LAND_SEC - 0.12));
   const squash = t < 0.12 ? 1 - 0.08 * (t / 0.12) : t < 0.2 ? 0.92 + 0.08 * ((t - 0.12) / 0.08) : t >= 0.5 && t < 0.64 ? 1 - 0.05 * Math.sin(Math.PI * (t - 0.5) / 0.14) : 1;
 
   return {
     push: r3(push),
     flare: r3(flare),
-    lift: r3(t < 0.5 ? 0.22 * Math.sin(Math.PI * hop) : 0),
+    lift: r3(t < LAND_SEC ? 0.22 * Math.sin(Math.PI * hop) : 0),
     spin: r3(2 * Math.PI * easeInOut(clamp01((t - 0.12) / 0.58))),
     squash: r3(squash),
   };
+}
+
+/**
+ * Where a figure's `cast` clip stands `t` seconds into the beat: started so its strike lands with the beat, fading in
+ * and out over idle. Null outside the beat and under reduced motion, which leaves the figure in its idle.
+ */
+export function castAt(t: number, clip: ActClip, reduced: boolean): { time: number; weight: number } | null {
+  if (reduced || t < 0 || t >= BEAT_SEC) return null;
+  const time = t - Math.max(0, LAND_SEC - clip.strike);
+
+  if (time < 0) return { time: 0, weight: 0 };
+
+  return { time: r3(time), weight: r3(weightAt(time, clip.length, false, false)) };
 }
