@@ -74,6 +74,15 @@ suite('describe', () => {
     expect(line({ type: 'queue', queue: [{ id: id(1), extra: false }, { id: id(4), extra: false }, { id: id(2), extra: true }] }))
       .toEqual({ tone: 'sys', text: 'The order is now Aldric → Morvath → Seren (extra).' });
   });
+  test('a Mirror says how much it turned back, or that it turned a debuff back', () => {
+    expect(line({ type: 'reflect', id: id(4), to: id(1), amount: 7 })).toEqual({ tone: 't1', text: "Morvath's Mirror turns 7 back on Aldric." });
+    expect(line({ type: 'reflect', id: id(4), to: id(1), amount: 0 })).toEqual({ tone: 't1', text: "Morvath's Mirror turns the debuff back on Aldric." });
+  });
+  test('a broken Doll names the round it reforms, and shattered glass counts its tiles', () => {
+    expect(line({ type: 'break', id: id(2), reform: 5 })).toEqual({ tone: 't0', text: 'Seren breaks. It reforms in round 5.' });
+    expect(line({ type: 'shatter', tiles: [{ x: 1, z: 1 }] })).toEqual({ tone: 'sys', text: 'The glass shatters: 1 tile.' });
+    expect(line({ type: 'shatter', tiles: [{ x: 1, z: 1 }, { x: 2, z: 1 }] })).toEqual({ tone: 'sys', text: 'The glass shatters: 2 tiles.' });
+  });
   test('pushes say how far; walks and slides that go nowhere stay quiet', () => {
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath is pushed back 2 tiles.' });
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }], slide: true })).toBe(null);
