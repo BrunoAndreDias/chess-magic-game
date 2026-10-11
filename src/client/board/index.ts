@@ -3,6 +3,7 @@ import { N, current } from '../../engine/index';
 import type { BattleEvent, BattleState, MapId, Pos, Team, Unit, UnitId } from '../../engine/index';
 import type { Board, Highlight, TileInput } from '../board';
 import { OFF, disposeTree } from './art';
+import { ENTRANCE, arrivals, playEntrance } from './entrance';
 import { playEvent } from './events';
 import type { PlayCtx } from './events';
 import { Fx } from './fx';
@@ -38,6 +39,8 @@ class BoardView implements Board {
   readonly #views = new Map<UnitId, UnitView>();
   readonly #unitRoot = new THREE.Group();
   #map: MapId | null = null;
+  /** The state the last `load` drew, which `enter` brings the units onto. */
+  #loaded: BattleState | null = null;
   #active: UnitId | null = null;
   #follow = true;
   /** Bumped by load/dispose so an in-flight play stops touching the scene. */
@@ -102,7 +105,35 @@ class BoardView implements Board {
     this.#stage.setBiome(state.map);
     this.#terrain.load(state);
     this.#map = state.map;
+    this.#loaded = state;
     this.#snap(state);
+  }
+
+  enter(): Promise<void> {
+    const gen = this.#gen, s = this.#loaded;
+    this.#playing++;
+
+    const run = async (): Promise<void> => {
+      if (gen !== this.#gen || !s || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const plan = arrivals(s), c = { fx: this.#fx, stage: this.#stage, tweens: this.#tweens };
+
+      for (const a of plan) { const v = this.#views.get(a.id); if (v) v.group.visible = false; }
+
+      await Promise.all(plan.map(async a => {
+        await this.#tweens.wait(a.at);
+        const v = this.#views.get(a.id), u = s.units.find(x => x.id === a.id);
+
+        if (gen !== this.#gen || !v || !u) return;
+        await playEntrance(c, v, ENTRANCE[a.who], this.#terrain.at(u.x, u.z));
+      }));
+
+      if (gen === this.#gen) this.#snap(s);
+    };
+
+    const p = this.#queue.then(run).finally(() => { this.#playing--; });
+    this.#queue = p.catch(() => {});
+
+    return p;
   }
 
   play(events: readonly BattleEvent[], before: BattleState, after: BattleState, onEvent?: (e: BattleEvent) => Promise<void> | void): Promise<void> {

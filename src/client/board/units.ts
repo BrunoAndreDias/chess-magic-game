@@ -31,6 +31,8 @@ export interface UnitView {
   shown: Shown;
   /** 0 standing, 1 lying down. */
   pose: number;
+  /** Mid-entrance: the entrance owns the body's transform and the label stays hidden. */
+  arriving: boolean;
   bob: number;
 }
 
@@ -70,7 +72,7 @@ export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
 
   return {
     id: u.id, team: u.team, group, body, weapon, height, main, disc, ice, rig,
-    ring, bubble, blood, aura, label, parts, shown: shownOf(u), pose: 0, bob: Math.random() * 6,
+    ring, bubble, blood, aura, label, parts, shown: shownOf(u), pose: 0, arriving: false, bob: Math.random() * 6,
   };
 }
 
@@ -97,7 +99,7 @@ const AURA: readonly (readonly [StatusKey, number])[] = [
 export function animateUnit(v: UnitView, time: number): void {
   const s = v.shown, up = s.life.kind === 'up';
 
-  if (v.pose === 0) v.body.position.y = Math.sin(time * 2 + v.bob) * 0.025;
+  if (v.pose === 0 && !v.arriving) v.body.position.y = Math.sin(time * 2 + v.bob) * 0.025;
   v.ice.visible = s.st.has('encased');
   v.rig.tick(time);
   v.bubble.visible = up && s.shield > 0;

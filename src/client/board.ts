@@ -14,6 +14,11 @@ export type TileInput = { kind: 'hover'; tile: Pos | null } | { kind: 'click'; t
 export interface Board {
   /** Rebuild terrain and units from scratch (new battle or a jump to an unrelated state). */
   load(state: BattleState): void;
+  /**
+   * Hide the units `load` just placed and bring each onto its tile with its class's entrance, in the first round's turn
+   * order. Resolves with the scene as `load` left it; a later `load` or `dispose` cuts it short. Reduced motion skips it.
+   */
+  enter(): Promise<void>;
   /** Animate the events that turned `before` into `after`, then leave the scene matching `after`. `onEvent` runs (and is awaited) as each event starts. */
   play(events: readonly BattleEvent[], before: BattleState, after: BattleState, onEvent?: (e: BattleEvent) => Promise<void> | void): Promise<void>;
   /** Replace every highlight layer at once. */

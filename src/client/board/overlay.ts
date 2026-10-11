@@ -80,7 +80,7 @@ export class Overlay {
     const lift = v.pose > 0.5 ? 0.8 : v.height + 0.4;
     const p = this.project(new THREE.Vector3(g.position.x, g.position.y + lift, g.position.z));
 
-    if (!p.ok || !g.visible) { el.style.display = 'none'; return; }
+    if (!p.ok || !g.visible || v.arriving) { el.style.display = 'none'; return; }
 
     el.style.display = '';
     el.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) translate(-50%,-100%)`;
