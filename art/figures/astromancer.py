@@ -2,11 +2,12 @@
 moulded to her face, engraved with one closed eye and strapped on at the temples; behind it a tall stiff fan collar
 lined in the team colour, and round the head an armillary of three tilted gold rings turning about a small eclipsed sun (a black disc in a lilac corona). A violet robe
 flares to the ground over a dark hem embroidered with a gold star chart; a team sash at the waist. The right hand holds
-an astrolabe sceptre, a flat engraved disc on a slender rod; the left hand is raised with a planet hovering over it,
+an astrolabe sceptre, a flat engraved disc on a slender rod; the left hand is held out palm up with a planet hovering over it,
 and star shards drift round the body. Painted by lookdev and baked from a high-poly twin."""
 import math
 import os
 import sys
+from functools import partial
 
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
@@ -224,20 +225,6 @@ def ribbon(name, path, widths, side, mat, thickness=0.022, belly=0.012, notch=0.
     return ob
 
 
-def bezier(p0, p1, p2, p3, n):
-    pts = []
-    for i in range(n + 1):
-        t = i / n
-        u = 1 - t
-        pts.append(Vector(p0) * u ** 3 + Vector(p1) * 3 * u * u * t + Vector(p2) * 3 * u * t * t + Vector(p3) * t ** 3)
-    return pts
-
-
-def smoothstep(e0, e1, x):
-    t = min(1.0, max(0.0, (x - e0) / (e1 - e0)))
-    return t * t * (3 - 2 * t)
-
-
 def interp(table, z):
     """Linear lookup in a list of (value, z) pairs ordered by z, either way."""
     pts = sorted(table, key=lambda p: p[1])
@@ -276,11 +263,10 @@ def digit(joints, r):
     return sweep('finger', path + [joints[-1], tip], radii + [r * 0.72, r * 0.42], 8, GLOVE)
 
 
-def forearm(start, wrist, r):
-    """The gloved forearm from inside the sleeve to the wrist, with a gold band where the glove's cuff ends."""
-    sweep('forearm', [start, start.lerp(wrist, 0.6), wrist], [r * 1.15, r * 1.08, r * 0.92], 10, GLOVE)
+def forearm(start, band, wrist, r):
+    """The gloved forearm from inside the sleeve to the wrist, with a gold band at `band` where the glove's cuff ends."""
+    sweep('forearm', [start, start.lerp(wrist, 0.5), wrist], [r * 1.2, r * 1.1, r * 0.92], 10, GLOVE)
     d = (wrist - start).normalized()
-    band = start.lerp(wrist, 0.45)
     side = d.cross(Vector((0, 0, 1))).normalized()
     up = side.cross(d)
     sweep('glove_band', [band + (side * math.cos(a) + up * math.sin(a)) * r * 1.16
@@ -369,8 +355,10 @@ def robe_shape(i, j, x, y, z):
     return (x * k, y * k, z)
 
 
-lathe('robe', ROBE_R, RSIDES, MAIN, sy=SY, shape=robe_shape, levels=1,
+WAIST = next(i for i, (_, z) in enumerate(ROBE_R) if z > 0.65)
+lathe('robe', ROBE_R[:WAIST + 1], RSIDES, MAIN, sy=SY, shape=robe_shape, levels=1,
       mask=lambda i, j: float(ROBE_R[i][1] < HEM_TOP))
+robe_top = lathe('robe_top', ROBE_R[WAIST:], RSIDES, MAIN, sy=SY, shape=robe_shape, levels=1)
 HEM = [k / 240 for k in range(241)]
 RIM = [2 * math.pi * k / 48 for k in range(49)]
 sweep('hem_lip', [robe_at(u, 0.02, 0.006) for u in HEM[::3]], 0.014, 8, GOLD, caps=False)
@@ -460,6 +448,7 @@ def collar_at(i, j, out=0.0):
     return Vector((r * math.sin(a), -0.02 - r * math.cos(a) * 0.9, z))
 
 
+before_upper = set(bpy.data.objects)
 collar = grid('collar', 5, C_COLS, collar_at, HOODC, levels=1)
 solidify(collar, 0.012, offset=1.0, inner=TEAM)
 sweep('collar_rim', [collar_at(4, j, 0.004) for j in range(C_COLS)], 0.007, 6, GOLD)
@@ -639,40 +628,82 @@ NECKP = Vector((0, -0.02, 1.02))
 tip = Matrix.Translation(NECKP) @ Matrix.Rotation(-0.2, 4, 'X') @ Matrix.Translation(-NECKP)
 for ob in set(bpy.data.objects) - before_head:
     ob.matrix_world = tip @ ob.matrix_world
+UPPER = [ob for ob in bpy.data.objects if ob not in before_upper and ob.parent is None]
 
-# Sleeves: wide bell sleeves, their dark hems piped in gold. The right hand holds the sceptre; the left is raised,
-# palm up, with a small planet hovering over it.
 ARMS = {
-    'r': (Vector((-0.16, 0.0, 0.93)), Vector((-0.27, -0.02, 0.72)), Vector((-0.29, -0.14, 0.78)),
-          (0.058, 0.06, 0.064, 0.068, 0.072, 0.076, 0.08), 5),
-    'l': (Vector((0.16, 0.0, 0.93)), Vector((0.29, 0.0, 0.76)), Vector((0.29, -0.13, 0.9)),
-          (0.058, 0.06, 0.064, 0.068, 0.072, 0.076, 0.08), 5),
+    'r': (Vector((-0.16, 0.0, 0.93)), Vector((-0.262, -0.02, 0.72)), None, (0.058, 0.061, 0.065, 0.069, 0.073, 0.078, 0.084)),
+    'l': (Vector((0.16, 0.0, 0.93)), Vector((0.278, 0.0, 0.745)), Vector((0.302, -0.205, 0.77)),
+          (0.058, 0.061, 0.065, 0.069, 0.073, 0.078, 0.084)),
 }
-CUFFS = {}
-for sd, (s, e, w, radii, hem) in ARMS.items():
-    path = bezier(s, s.lerp(e, 0.8), e.lerp(w, 0.3), w + (w - e) * 0.08, 6)
-    sl = sweep(f'sleeve_{sd}', path, radii, 14, MAIN, caps=False, levels=1, mask=lambda i, hem=hem: float(i >= hem))
-    solidify(sl, 0.012, inner=LINING)
-    sl.modifiers['solid'].use_even_offset = False
-    _, fr = frames(path)
-    cuff = [path[-1] + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (radii[-1] + 0.002)
-            for a in [2 * math.pi * k / 40 for k in range(41)]]
-    sweep('cuff', cuff, 0.006, 6, GOLD, caps=False)
-    # An undersleeve funnels from the cuff down to the forearm, so the open sleeve shows lit lining, not a dark hole.
-    sweep('undersleeve', [path[-1].lerp(path[-2], 0.15), path[-1].lerp(path[-2], 0.75)], [radii[-1] - 0.012, 0.03],
-          14, LINING, caps=False)
-    CUFFS[sd] = path[-2]
-
-RIGHT_HAND = Vector((-0.305, -0.24, 0.8))
+SLEEVE = 0.56
+HEM = 0.8
+RIGHT_HAND = Vector((-0.282, -0.25, 0.745))
 POLE = Vector((-0.04, 0.0, 1.0)).normalized()
 GRIP = 0.017
-forearm(CUFFS['r'], fist(RIGHT_HAND, POLE, Vector((-1, 0.25, 0)), GRIP, 0.0115), 0.022)
-L_WRIST = CUFFS['l'] + Vector((0.03, -0.09, 0.055))
-forearm(CUFFS['l'], L_WRIST, 0.022)
-LEFT_HAND = open_hand(L_WRIST, Vector((0.6, -0.8, 0.0)).normalized(), Vector((0.05, -0.2, 1)), 0.0095)
 
-planet = empty('planet', LEFT_HAND + Vector((0, 0, 0.12)))
-P = planet.location.copy()
+
+def made(build):
+    """What `build()` returns, and the objects it made."""
+    before = set(bpy.data.objects)
+    out = build()
+    return out, [o for o in bpy.data.objects if o not in before]
+
+
+R_WRIST, R_FIST = made(lambda: fist(RIGHT_HAND, POLE, Vector((-1, 0.25, 0)), GRIP, 0.0115))
+s, e, _, radii = ARMS['r']
+ARMS['r'] = (s, e, R_WRIST, radii)
+L_FWD = Vector((0.45, -0.9, 0.0)).normalized()
+LEFT_HAND, L_OPEN = made(lambda: open_hand(ARMS['l'][2], L_FWD, Vector((0.05, -0.2, 1)), 0.0095))
+HANDS = {'r': (RIGHT_HAND, R_FIST), 'l': (ARMS['l'][2] + L_FWD * 0.07, L_OPEN)}
+
+
+def opening(side):
+    s, e, w, _ = ARMS[side]
+    return e.lerp(w, SLEEVE)
+
+
+RIG = armature('rig', [('hips', (0, 0, 0.3), (0, 0, 0.68), None, (1, 0, 0)), ('chest', (0, 0, 0.68), (0, 0, 1.0), 'hips', (1, 0, 0))] + [
+    bone for side, (s, e, w, _) in ARMS.items() for bone in (
+        (f'clavicle_{side}', (0, 0.0, 0.95), s, 'chest', (0, 1 if side == 'r' else -1, 0)),
+        (f'upperarm_{side}', s, e, f'clavicle_{side}', (1, 0, 0)),
+        (f'shoulder_{side}', s, e, f'clavicle_{side}', (1, 0, 0)),
+        (f'forearm_{side}', e, w, f'upperarm_{side}', (1, 0, 0)),
+        (f'elbow_{side}', e, w, f'upperarm_{side}', (1, 0, 0)),
+        (f'hand_{side}', w, HANDS[side][0], f'forearm_{side}', (1, 0, 0)),
+        (f'drape_{side}', e, opening(side), f'forearm_{side}', (1, 0, 0)),
+    )
+])
+for side in ARMS:
+    halfway(RIG, f'shoulder_{side}', f'upperarm_{side}', bulge=0.06)
+    halfway(RIG, f'elbow_{side}', f'forearm_{side}', bulge=0.1)
+    drape(RIG, f'drape_{side}', slide=0.4, droop=0.9)
+    for ob in HANDS[side][1]:
+        bone_parent(ob, RIG, f'hand_{side}')
+bone_parent(empty('grip_r', RIGHT_HAND), RIG, 'hand_r')
+
+for side, (s, e, w, radii) in ARMS.items():
+    end = opening(side)
+    path, along, elbow = sleeve_path(s, e, end, bend=0.05)
+    rs = [interp([(r, k / (len(radii) - 1)) for k, r in enumerate(radii)], t) for t in along]
+    sl = sweep(f'sleeve_{side}', path, rs, 14, MAIN, caps=False, levels=1, mask=lambda i, a=along: float(a[i] >= HEM))
+    solidify(sl, 0.012, inner=LINING)
+    sl.modifiers['solid'].use_even_offset = False
+    skin(sl, RIG, lambda v: sleeve(side, along[v.index // 14], elbow))
+    _, fr = frames(path)
+    f = (end - e).normalized()
+    cuff = [end + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (rs[-1] + 0.002)
+            for a in [2 * math.pi * k / 40 for k in range(41)]]
+    rim = sleeve(side, 1.0, elbow)
+    skin(sweep('cuff', cuff, 0.006, 6, GOLD, caps=False), RIG, lambda v: rim)
+    # An undersleeve funnels from the cuff down to the forearm, so the open sleeve shows lit lining, not a dark hole.
+    skin(sweep('undersleeve', [end - f * 0.006, end - f * 0.04], [rs[-1] - 0.012, 0.03], 14, LINING, caps=False),
+         RIG, lambda v: rim)
+    _, obs = made(lambda: forearm(e + f * 0.03, end.lerp(w, 0.3), w, 0.022))
+    for ob in obs:
+        bone_parent(ob, RIG, f'forearm_{side}')
+
+P = LEFT_HAND + Vector((0, 0, 0.12))
+planet = bone_parent(empty('planet', P), RIG, 'hand_l')
 parent(blob('planet_body', P, 0.035, GEM, subdiv=3), planet)
 parent(torus('planet_ring', P, (math.radians(70), math.radians(20), 0), 0.056, 0.004, GOLD, segs=32, minor_segs=4),
        planet)
@@ -683,9 +714,9 @@ spin(planet, axis=2, period=144)
 # The armillary: an eclipsed sun floats over the head, a black disc in a lilac corona, and three gold rings tilted at
 # different angles turn about it, each carrying a bead so the turning shows. The whole sphere wheels slowly.
 AC = Vector((0, -0.02, 1.63))
-arm = empty('armillary', AC)
-spin(arm, axis=2, period=240)
-loop(arm, 'location', 2, [AC.z, AC.z + 0.02], 96)
+armill = empty('armillary', AC)
+spin(armill, axis=2, period=240)
+loop(armill, 'location', 2, [AC.z, AC.z + 0.02], 96)
 
 
 def ring(k, centre, r, rot, thick, period, turns, band=False, owner=None):
@@ -709,14 +740,14 @@ def ring(k, centre, r, rot, thick, period, turns, band=False, owner=None):
     return tilt
 
 
-ring(0, AC, 0.165, (math.radians(70), 0, 0), 0.0065, 120, 1, owner=arm)
-ring(1, AC, 0.15, (math.radians(62), 0, math.radians(90)), 0.0055, 96, -1, owner=arm)
-ring(2, AC, 0.19, (math.radians(23), math.radians(8), 0), 0.0, 168, 1, band=True, owner=arm)
+ring(0, AC, 0.165, (math.radians(70), 0, 0), 0.0065, 120, 1, owner=armill)
+ring(1, AC, 0.15, (math.radians(62), 0, math.radians(90)), 0.0055, 96, -1, owner=armill)
+ring(2, AC, 0.19, (math.radians(23), math.radians(8), 0), 0.0, 168, 1, band=True, owner=armill)
 # A wide halo ring rides round the crown of the hood, tying the floating sphere to the head.
 HALO = Vector((0, -0.02, 1.39))
 halo = ring(3, HALO, 0.21, (math.radians(9), math.radians(6), 0), 0.0075, 200, -1)
 
-sun = parent(empty('sun', AC), arm)
+sun = parent(empty('sun', AC), armill)
 parent(blob('sun_disc', AC, 0.052, VOID, subdiv=3), sun)
 parent(torus('sun_rim', AC + Vector((0, 0.004, 0)), (math.pi / 2 - 0.5, 0, 0), 0.058, 0.004, DULL, segs=32,
              minor_segs=4), sun)
@@ -741,7 +772,8 @@ glow(AC + Vector((0, 0.03, 0)), LILAC, 0.34, sun, name='glow_corona')
 
 # The astrolabe sceptre: the weapon pivots at the right-hand grip. A slender enamel rod in gold ferrules, and on top a
 # flat gold astrolabe facing forward: an engraved enamel plate, a cut-out rete that turns over it, and a crescent crown.
-weapon = empty('weapon', RIGHT_HAND)
+weapon = bone_parent(empty('weapon', RIGHT_HAND), RIG, 'hand_r')
+empty('hold_r', RIGHT_HAND, weapon)
 
 
 def part(ob):
@@ -800,11 +832,13 @@ part(glow(DC + Vector((0, -0.04, 0)), LILAC, 0.16, name='glow_astrolabe'))
 
 # Star shards and two small planets drift round the body, each on its own bob, the whole flock wheeling slowly.
 flock = empty('flock')
+flock['clear'] = True
 spin(flock, axis=2, period=288, turns=-1)
-# Each orbit (angle, height, radius, bob) keeps out of the band the arms, hands, planet and sceptre head sweep through
-# (0.62 to 1.18 high): the shards ride above or below it, and wide enough to pass the sceptre rod.
-DRIFT = ((0.6, 0.5, 0.47, 0.035, 'shard'), (1.9, 1.24, 0.47, 0.025, 'shard'), (2.9, 0.34, 0.46, 0.035, 'planet'),
-         (3.7, 0.54, 0.47, 0.03, 'shard'), (4.6, 1.25, 0.47, 0.025, 'shard'), (5.5, 0.26, 0.46, 0.04, 'planet'))
+# Each orbit (angle, height, radius, bob) keeps out of the band the resting arms, hands and planet fill (0.62 to 1.18
+# high), under the sceptre's astrolabe and wide enough to pass its rod. The clips flare the flock wider while the arms
+# and the sceptre reach out (see flare()), so a shard never passes through them whatever its phase.
+DRIFT = ((0.6, 0.5, 0.47, 0.035, 'shard'), (1.9, 1.22, 0.47, 0.025, 'shard'), (2.9, 0.34, 0.46, 0.035, 'planet'),
+         (3.7, 0.54, 0.47, 0.03, 'shard'), (4.6, 1.225, 0.47, 0.025, 'shard'), (5.5, 0.26, 0.46, 0.04, 'planet'))
 for k, (a, z, r, rise, kind) in enumerate(DRIFT):
     p = Vector((r * math.sin(a), -r * math.cos(a), z))
     bob = parent(empty(f'drift{k}', p), flock)
@@ -819,12 +853,111 @@ for k, (a, z, r, rise, kind) in enumerate(DRIFT):
         parent(torus('planet_small_ring', p, (1.2, 0.3, 0), 0.042, 0.003, GOLD, segs=24, minor_segs=4), bob)
     loop(bob, 'location', 2, [z, z + rise], 60 + 12 * k)
 
+for ob in UPPER + [bpy.data.objects[n] for n in ('brooch', 'brooch_disc')] + [armill, halo]:
+    bone_parent(ob, RIG, 'chest')
+for ob in [robe_top] + [o for o in bpy.data.objects if o.name.split('.')[0] in ('panel', 'panel_piping')]:
+    skin(ob, RIG, lambda v: waist(v.co.z, 0.66, 0.84))
+
 for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, flock):
         parent(ob, breath)
 
+for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('upperarm_r', 2, 0.02), ('upperarm_l', 2, -0.025),
+                      ('upperarm_l', 0, -0.03), ('forearm_l', 0, -0.03), ('hand_l', 0, 0.06)):
+    loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 96)
+
+
+key = partial(bone_key, RIG)
+
+
+def wields(keys, sceptre, palm):
+    """`keys` with the sceptre hand keeping the rod's lean at `sceptre` and the open hand keeping its palm's at `palm`,
+    so the rod stays upright and the planet stays over the palm whatever the arms do."""
+    return wield(wield(keys, RIG, 'hand_r', sceptre, 'chest'), RIG, 'hand_l', palm, 'chest')
+
+
+R, L = 'rotation_euler', 'location'
+CHEST = key('chest', X), key('chest', Y), key('chest', Z)
+
+
+def flare(frames):
+    """Widens the flock's orbits by `frames` [(frame, share)]: the shards flare out from her as she moves, wide of the
+    arms and the sceptre."""
+    return {(flock, 'scale', 0): frames, (flock, 'scale', 1): frames}
+
+
+act('cast', 12, wields({
+    CHEST[0]: [(0, 0), (5, 0.12), (12, -0.12), (16, -0.08), (24, 0)],
+    CHEST[1]: [(0, 0), (5, 0.08), (12, -0.2), (16, -0.15), (24, 0)],
+    CHEST[2]: [(0, 0), (5, 0.03), (12, 0.06), (24, 0)],
+    (breath, R, 0): [(0, 0), (5, 0.03), (12, -0.03), (24, 0)],
+    key('clavicle_l', X): [(0, 0), (5, -0.04), (12, 0.12), (16, 0.08), (24, 0)],
+    key('upperarm_l', X): [(0, 0), (5, 0.3), (12, -0.65), (16, -0.6), (24, 0)],
+    key('upperarm_l', Y): [(0, 0), (5, 0.0), (12, -1.0), (16, -0.95), (24, 0)],
+    key('upperarm_l', Z): [(0, 0), (5, 0.05), (12, -0.6), (16, -0.55), (24, 0)],
+    key('forearm_l', X): [(0, 0), (5, -0.35), (12, 0.8), (16, 0.7), (24, 0)],
+    key('clavicle_r', X): [(0, 0), (12, 0.06), (24, 0)],
+    key('upperarm_r', X): [(0, 0), (5, 0.05), (12, -0.45), (16, -0.4), (24, 0)],
+    key('upperarm_r', Z): [(0, 0), (5, 0.12), (12, 0.15), (24, 0)],
+    key('forearm_r', X): [(0, 0), (5, -0.2), (12, -0.35), (16, -0.3), (24, 0)],
+    (planet, L, 2): [(0, 0), (5, -0.02), (12, 0.1), (16, 0.08), (24, 0)],
+} | flare([(0, 0), (4, 0.12), (9, 0.38), (17, 0.35), (24, 0)]), [(0, 0), (5, -0.05), (12, 0.15), (16, 0.1), (24, 0)],
+   [(0, 0), (5, -0.25), (12, 0.35), (16, 0.25), (24, 0)]))
+act('attack', 9, wields({
+    CHEST[0]: [(0, 0), (5, -0.08), (9, 0.2), (13, 0.24), (22, 0)],
+    CHEST[1]: [(0, 0), (5, 0.3), (9, -0.35), (13, -0.45), (22, 0)],
+    CHEST[2]: [(0, 0), (5, -0.06), (9, 0.06), (22, 0)],
+    (breath, R, 2): [(0, 0), (5, 0.1), (9, -0.08), (13, -0.12), (22, 0)],
+    key('clavicle_r', X): [(0, 0), (5, 0.1), (9, -0.04), (22, 0)],
+    key('upperarm_r', X): [(0, 0), (5, 0.25), (9, -1.0), (13, -1.1), (22, 0)],
+    key('upperarm_r', Z): [(0, 0), (5, 0.45), (9, 0.05), (13, -0.1), (22, 0)],
+    key('forearm_r', X): [(0, 0), (5, -0.7), (9, -0.1), (13, -0.05), (22, 0)],
+    key('upperarm_l', X): [(0, 0), (5, -0.45), (9, 0.4), (13, 0.45), (22, 0)],
+    key('upperarm_l', Z): [(0, 0), (5, -0.05), (9, -0.25), (13, -0.3), (22, 0)],
+    key('forearm_l', X): [(0, 0), (5, -0.3), (9, 0.2), (22, 0)],
+} | flare([(0, 0), (4, 0.3), (13, 0.3), (22, 0)]), [(0, 0), (5, -0.35), (9, 0.85), (13, 1.0), (22, 0)],
+   [(0, 0), (5, 0.1), (9, -0.1), (22, 0)]))
+act('hit', 2, wields({
+    CHEST[0]: [(0, 0), (2, -0.3), (6, 0.06), (14, 0)],
+    CHEST[1]: [(0, 0), (2, -0.12), (6, 0.03), (14, 0)],
+    (breath, R, 0): [(0, 0), (2, -0.08), (7, 0.02), (14, 0)],
+    key('clavicle_l', X): [(0, 0), (2, 0.18), (7, 0.03), (14, 0)],
+    key('clavicle_r', X): [(0, 0), (2, 0.18), (7, 0.03), (14, 0)],
+    key('upperarm_l', X): [(0, 0), (2, -0.25), (7, -0.08), (14, 0)],
+    key('upperarm_l', Z): [(0, 0), (2, 0.2), (6, -0.04), (14, 0)],
+    key('forearm_l', X): [(0, 0), (2, -0.6), (7, -0.15), (14, 0)],
+    key('upperarm_r', X): [(0, 0), (2, -0.15), (14, 0)],
+    key('upperarm_r', Z): [(0, 0), (2, -0.2), (14, 0)],
+    key('forearm_r', X): [(0, 0), (2, -0.35), (7, -0.15), (11, -0.05), (14, 0)],
+    (planet, L, 2): [(0, 0), (2, 0.05), (6, -0.02), (14, 0)],
+} | flare([(0, 0), (2, 0.3), (8, 0.25), (14, 0)]), [(0, 0), (2, -0.2), (6, 0.06), (14, 0)],
+   [(0, 0), (2, -0.3), (7, 0.05), (14, 0)]))
+act('move', 0, wields({
+    (breath, R, 0): [(0, 0.06), (8, 0.06)],
+    (breath, R, 1): [(0, 0), (2, 0.05), (4, 0), (6, -0.05), (8, 0)],
+    CHEST[1]: [(0, 0.14), (4, -0.14), (8, 0.14)],
+    key('upperarm_l', X): [(0, -0.45), (4, 0.4), (8, -0.45)],
+    key('upperarm_l', Z): [(0, -0.08), (4, -0.12), (8, -0.08)],
+    key('forearm_l', X): [(0, -0.25), (4, 0.15), (8, -0.25)],
+    key('upperarm_r', X): [(0, 0.2), (4, -0.2), (8, 0.2)],
+    key('forearm_r', X): [(0, -0.3), (4, -0.2), (8, -0.3)],
+} | flare([(0, 0.3), (8, 0.3)]), [(0, 0.12), (4, -0.05), (8, 0.12)],
+   [(0, 0), (8, 0)]))
+DOWNED = {CHEST[0]: 0.3, (breath, 'scale', 2): -0.1, key('clavicle_l', X): 0.12, key('clavicle_r', X): 0.12,
+          key('upperarm_l', X): 0.8, key('upperarm_l', Z): -0.75, key('forearm_l', X): 0.4,
+          key('upperarm_r', X): 0.7, key('upperarm_r', Z): 0.6, key('forearm_r', X): 0.3}
+FLUNG = {key('upperarm_l', X): -0.7, key('upperarm_l', Z): -0.5, key('upperarm_r', X): -0.2, key('upperarm_r', Z): 0.4}
+act('down', 10, wields({k: [(0, 0), (4, FLUNG.get(k, v * 0.4)), (12, v)] for k, v in DOWNED.items()}
+                       | flare([(0, 0), (4, 0.4), (12, 0.4)]),
+                       [(0, 0), (4, -0.05), (12, -0.3)], [(0, 0), (4, -0.4), (12, -0.9)]))
+PUSH = {CHEST[0]: 0.45, key('upperarm_l', X): 1.0, key('upperarm_r', X): 0.85, key('forearm_l', X): 0.2}
+act('rise', 8, wields({k: [(0, v), (6, PUSH.get(k, v)), (11, -0.1 * v if k == CHEST[0] else 0), (16, 0)]
+                       for k, v in DOWNED.items()} | flare([(0, 0.4), (8, 0.4), (16, 0)]),
+                      [(0, -0.3), (6, -0.2), (16, 0)], [(0, -0.9), (6, -0.6), (16, 0)]))
+
+
 # A 12px margin still covers the 6px half-gap between islands, and keeps the atlases inside the 3 MB budget.
-meshes = bake(fill='#3a1e8a', margin=12)
+meshes = bake(fill='#3a1e8a', margin=12, quality=(82, 74))
 tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
 print(f'astromancer: {tris} triangles, {len(meshes)} meshes')
 finish()

@@ -3,12 +3,13 @@ import { CLASSES, CLASS_ORDER, MAP_ORDER } from '../engine/index';
 import type { Team } from '../engine/index';
 import { BIOMES } from './biome';
 import { TEAM_HEX, basic, decal, mat, mesh } from './board/art';
-import type { Rig } from './board/acts';
+import { weightAt } from './board/acts';
+import type { Pose, Rig } from './board/acts';
 import { buildModel, loadFigures } from './board/models';
 import { byId } from './dom';
 import { installErrorOverlay } from './overlay';
 
-/** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`. After `art/build.sh`, reload to see new figures. */
+/** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`. `?act=cast` replays that action clip on every figure that has one, a beat apart, and `&at=0.4` holds it at that second. After `art/build.sh`, reload to see new figures. */
 installErrorOverlay();
 
 const params = new URLSearchParams(location.search);
@@ -38,7 +39,10 @@ function lit(s: THREE.Scene, b = B): void {
   s.add(sun);
 }
 
-const rigs: Rig[] = [];
+const rigs: Rig[] = [], act = params.get('act'), at = params.get('at'), REST = 0.6;
+
+/** Replays `act` from the top every time it ends, with a rest beat on idle between plays. */
+const replays: { rig: Rig; length: number; pose: Pose | null; from: number }[] = [];
 
 /** The middle of the row, so the classes stand centred however many there are. */
 const MID = (CLASS_ORDER.length - 1) / 2;
@@ -50,6 +54,9 @@ function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x:
   root.rotation.y = turn;
 
   rigs.push(rig);
+  const clip = act === null ? undefined : rig.acts.get(act);
+
+  if (clip) replays.push({ rig, length: clip.length, pose: null, from: 0 });
   s.add(root);
 }
 
@@ -110,6 +117,16 @@ function frame(t: number): void {
   const w = canvas.clientWidth, h = canvas.clientHeight, split = Math.round(h * 0.55);
 
   if (renderer.getSize(new THREE.Vector2()).x !== w) renderer.setSize(w, h, false);
+
+  for (const r of replays) {
+    if (r.pose === null || t / 1000 - r.from > r.length + REST) {
+      r.pose = r.rig.start(act ?? '').pose;
+      r.from = t / 1000;
+    }
+
+    const p = at === null ? Math.min(t / 1000 - r.from, r.length) : Number(at);
+    r.pose(p, at === null ? weightAt(p, r.length, false, false) : 1);
+  }
 
   for (const r of rigs) r.tick(t / 1000);
   closeCam.aspect = w / split;

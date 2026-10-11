@@ -137,7 +137,9 @@ def import_figure(cls, land):
                 sock.default_value = team
             if p.inputs['Emission Strength'].default_value > 0 and tuple(p.inputs['Emission Color'].default_value)[:3] != (0, 0, 0):
                 p.inputs['Emission Color'].default_value = team
-    return [o for o in bpy.data.objects if o.type == 'MESH']
+    # The importer draws an armature's bones with a metre-wide sphere; it is not part of the figure.
+    shapes = {pb.custom_shape for o in bpy.data.objects if o.pose for pb in o.pose.bones}
+    return [o for o in bpy.data.objects if o.type == 'MESH' and o not in shapes]
 
 
 def bounds(meshes):
