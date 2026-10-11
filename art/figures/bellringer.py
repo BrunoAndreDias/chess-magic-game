@@ -12,8 +12,9 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
 import bpy
-from mathutils import Matrix, Vector, noise
+from mathutils import Euler, Matrix, Vector, noise
 from common import *
+from common import _bone
 from hands import fist
 from lookdev import bake, hi, mark, paint
 
@@ -637,7 +638,8 @@ blob('finial', (0, HY, APEX + 0.006), 0.016, GOLD, subdiv=2)
 sweep('finial_spike', [Vector((0, HY, APEX + 0.015)), Vector((0, HY, APEX + 0.06))], [0.007, 0.0015], 6, GOLD)
 
 grow = Matrix.Translation(PIVOT) @ Matrix.Scale(HEAD_SCALE, 4) @ Matrix.Translation(-PIVOT)
-for ob in set(bpy.data.objects) - before_head:
+HEAD = set(bpy.data.objects) - before_head
+for ob in HEAD:
     if ob.type == 'MESH':
         ob.matrix_world = grow @ ob.matrix_world
     else:
@@ -718,42 +720,133 @@ parent(lathe('hourglass_glass', [(0.0, H.z - 0.006), (0.026, H.z - 0.012), (0.02
 glow(H - Vector((0, 0, 0.09)), AMBER, 0.08, hg, name='glow_sand')
 loop(hg, 'rotation_euler', 0, [0.0, 0.06, 0.0, -0.06], 72)
 
-# Sleeves: wide and stiff, hemmed in brass. The right hand is raised to the crook; the left hangs with the prayer beads.
+# The arms are an armature: hips and chest, then per side a clavicle, upper arm, forearm and hand. Each sleeve, wide and
+# stiff and hemmed in brass, is one tube skinned to its arm, so the elbow bends without a seam; each fist and what it
+# holds ride its hand bone. Per arm: shoulder, elbow, wrist, the sleeve's radius from shoulder to cuff, and where along
+# it the brass hem starts. The crook hand holds the pole at the waist with the elbow at the side and the forearm
+# forward; the bead hand hangs with the elbow soft, the beads in front of the hip.
 ARMS = {
-    'r': (Vector((-0.2, 0.0, 0.99)), Vector((-0.36, -0.05, 0.77)), Vector((-0.335, -0.19, 0.93)),
-          (0.07, 0.074, 0.078, 0.082, 0.08, 0.068, 0.05), 6),
-    'l': (Vector((0.2, 0.0, 0.99)), Vector((0.262, 0.0, 0.8)), Vector((0.285, -0.06, 0.65)),
-          (0.07, 0.074, 0.08, 0.09, 0.1, 0.112, 0.118), 5),
+    'r': (Vector((-0.2, 0.0, 0.99)), Vector((-0.31, 0.0, 0.76)), Vector((-0.325, -0.19, 0.84)),
+          (0.07, 0.074, 0.078, 0.082, 0.08, 0.068, 0.05), 0.9),
+    'l': (Vector((0.2, 0.0, 0.99)), Vector((0.285, 0.03, 0.75)), Vector((0.275, -0.125, 0.615)),
+          (0.07, 0.074, 0.08, 0.088, 0.096, 0.104, 0.108), 0.82),
 }
-# The right sleeve and fist hang from a shoulder pivot, so an action can raise the crook without tearing it from the hand.
-arm = []
-for side, (s, e, w, radii, hem) in ARMS.items():
-    made = set(bpy.data.objects)
-    path = bezier(s, s.lerp(e, 0.8), e.lerp(w, 0.3), w + (w - e) * 0.08, 6)
-    sl = sweep(f'sleeve_{side}', path, radii, 14, MAIN, caps=False, levels=1, mask=lambda i, hem=hem: float(i >= hem))
-    solidify(sl, 0.014, inner=DARK)
-    # Even thickness spikes where the raised arm folds sharply at the elbow.
-    sl.modifiers['solid'].use_even_offset = side == 'l'
-    _, fr = frames(path)
-    cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (radii[-1] - 0.006)
-            for a in [2 * math.pi * k / 48 for k in range(49)]]
-    hi(sweep('cuff_braid', cuff, 0.004, 6, DULL))
-    if side == 'r':
-        arm += set(bpy.data.objects) - made
+
+
+def sleeve_end(side):
+    """Where a sleeve's opening is, and the way its forearm points."""
+    s, e, w, _, _ = ARMS[side]
+    return w + (w - e) * 0.08, w - e
+
 
 POLE = Vector((0.05, 0.0, 1.0)).normalized()
-CUFFS = {side: (w + (w - e) * 0.08, w - e) for side, (s, e, w, _, _) in ARMS.items()}
-made = set(bpy.data.objects)
-RIGHT_HAND = fist(*CUFFS['r'], POLE, 0.027, GLOVE, detail='glove', seam=LEATHER)
-shoulder = empty('arm_r', ARMS['r'][0])
-for ob in arm + list(set(bpy.data.objects) - made - {shoulder}):
-    parent(ob, shoulder)
-# The left arm hangs and its fist closes on the top of the bead loop, which drops from under the knuckles.
-LEFT_HAND = fist(*CUFFS['l'], Vector((-1, 0, 0)), 0.006, GLOVE, right=False, detail='glove', seam=LEATHER) \
-    - Vector((0.001, -0.01, -0.02))
+RIGHT_HAND = fist(*sleeve_end('r'), POLE, 0.027, GLOVE, detail='glove', seam=LEATHER, name='fist_r')
+# The left fist closes on the top of the bead loop, which drops from under the knuckles.
+LEFT_HAND = fist(*sleeve_end('l'), Vector((-1, 0, 0)), 0.006, GLOVE, right=False, detail='glove', seam=LEATHER,
+                 name='fist_l')
+GRIPS = {'r': RIGHT_HAND, 'l': LEFT_HAND}
 
-# Prayer beads drop from the left hand in a long loop, with a small brass bell where the loop closes.
-beads = empty('beads', LEFT_HAND)
+# The torso turns at the waist: the robe and the stoles are skinned from the hips, under the belt, to the chest under
+# the mantle, and the mantle, cape, clasp and head ride the chest. Every arm bone's x axis runs to the figure's left,
+# so -x on it swings the arm forward or bends the joint. `shoulder_*` and `elbow_*` turn halfway with the upper arm
+# and forearm, and `drape_l` lets the wide bead sleeve fall down a raised forearm (see halfway() and drape()).
+RIG = armature('rig', [('hips', (0, 0, 0.3), (0, 0, 0.7), None, (1, 0, 0)), ('chest', (0, 0, 0.7), (0, 0, 1.0), 'hips', (1, 0, 0))] + [
+    bone for side, (s, e, w, _, _) in ARMS.items() for bone in (
+        (f'clavicle_{side}', (0, 0.0, 0.99), s, 'chest', (0, 1 if side == 'r' else -1, 0)),
+        (f'upperarm_{side}', s, e, f'clavicle_{side}', (1, 0, 0)),
+        (f'shoulder_{side}', s, e, f'clavicle_{side}', (1, 0, 0)),
+        (f'forearm_{side}', e, w, f'upperarm_{side}', (1, 0, 0)),
+        (f'elbow_{side}', e, w, f'upperarm_{side}', (1, 0, 0)),
+        (f'hand_{side}', sleeve_end(side)[0] - (w - e).normalized() * 0.03, GRIPS[side], f'forearm_{side}', (1, 0, 0)),
+    )
+] + [('drape_l', ARMS['l'][1], sleeve_end('l')[0], 'forearm_l', (1, 0, 0))])
+for side in ARMS:
+    halfway(RIG, f'shoulder_{side}', f'upperarm_{side}', bulge=0.06)
+    halfway(RIG, f'elbow_{side}', f'forearm_{side}', bulge=0.12)
+drape(RIG, 'drape_l', slide=0.45, droop=1.1)
+for side, grip in GRIPS.items():
+    bone_parent(bpy.data.objects[f'fist_{side}'], RIG, f'hand_{side}')
+    bone_parent(empty(f'grip_{side}', grip), RIG, f'hand_{side}')
+# The forearm under the wide bead sleeve shows when it falls back: a glove's long cuff.
+s, e, w, _, _ = ARMS['l']
+bone_parent(limb('forearm_glove', w, e.lerp(w, 0.2), 0.03, 0.036, GLOVE, sides=10), RIG, 'forearm_l')
+
+CHEST_PARTS = {'mantle_piping', 'mantle_scroll', 'sigil', 'sigil_ring', 'cape', 'cape_piping', 'clasp',
+               'clasp_tick', 'clasp_hand'}
+for ob in list(bpy.data.objects):
+    if ob.parent is None and (ob in HEAD or ob.name.split('.')[0] in CHEST_PARTS):
+        bone_parent(ob, RIG, 'chest')
+for ob in [o for o in bpy.data.objects if o.parent is None and o.name.split('.')[0] in ('robe', 'stole')]:
+    hips, chest = ob.vertex_groups.new(name='hips'), ob.vertex_groups.new(name='chest')
+    for v in ob.data.vertices:
+        up = smoothstep(0.72, 0.84, (ob.matrix_world @ v.co).z)
+        hips.add([v.index], 1 - up, 'REPLACE')
+        chest.add([v.index], up, 'REPLACE')
+    ob.modifiers.new('skin', 'ARMATURE').object = RIG
+    parent(ob, RIG)
+# The stiff mantle rides the chest, but over each shoulder it lifts with the arm, so a raised sleeve slides out from
+# under it instead of bulging through it.
+groups = {b: mantle.vertex_groups.new(name=b) for b in ('chest', 'shoulder_r', 'shoulder_l')}
+for v in mantle.data.vertices:
+    lift = 0.7 * smoothstep(0.1, 0.26, abs(v.co.x)) * smoothstep(1.03, 0.92, v.co.z)
+    groups['chest'].add([v.index], 1 - lift, 'REPLACE')
+    groups['shoulder_r' if v.co.x < 0 else 'shoulder_l'].add([v.index], lift, 'REPLACE')
+mantle.modifiers.new('skin', 'ARMATURE').object = RIG
+parent(mantle, RIG)
+
+
+SHOULDER = 5
+
+
+def sleeve_path(s, e, w, bend=0.06):
+    """Shoulder to the cuff's opening, its rings packed round the shoulder and the rounded-off elbow, and how far
+    along it the elbow is."""
+    u, f = (e - s).normalized(), (w - e).normalized()
+    pts = [s.lerp(e - u * bend, k / SHOULDER) for k in range(SHOULDER)]
+    pts += bezier(e - u * bend, e - u * bend / 3, e + f * bend / 3, e + f * bend, 6)[:-1]
+    end = w + (w - e) * 0.08
+    pts += [(e + f * bend).lerp(end, k / 4) for k in range(5)]
+    d = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        d.append(d[-1] + (b - a).length)
+    return pts, [x / d[-1] for x in d], d[SHOULDER + 3] / d[-1]
+
+
+for side, (s, e, w, radii, hem) in ARMS.items():
+    path, along, elbow = sleeve_path(s, e, w)
+    rs = [interp([(r, k / (len(radii) - 1)) for k, r in enumerate(radii)], t) for t in along]
+    sl = sweep(f'sleeve_{side}', path, rs, 14, MAIN, caps=False, levels=1, mask=lambda i, a=along, h=hem: float(a[i] >= h))
+    solidify(sl, 0.014, inner=DARK)
+    # Even thickness spikes where the arm folds sharply at the elbow.
+    sl.modifiers['solid'].use_even_offset = side == 'l'
+    # The top ring holds on to the collarbone and the rings under it turn halfway with the shoulder, so the sleeve
+    # top bunches as the arm rises; round the elbow the rings turn halfway with it, and the bead sleeve's forearm half
+    # falls with the drape.
+    names = ('clavicle', 'shoulder', 'upperarm', 'elbow', 'forearm', 'drape')
+    groups = {b: sl.vertex_groups.new(name=f'{b}_{side}') for b in names if b != 'drape' or side == 'l'}
+    for i, t in enumerate(along):
+        clav = 0.5 * smoothstep(0.08, 0.0, t)
+        shoulder = (1 - clav) * smoothstep(0.24, 0.06, t)
+        bend = smoothstep(0.14, 0.0, abs(t - elbow))
+        limb_w = 1 - clav - shoulder
+        upper, fore = limb_w * (1 - bend) * (t < elbow), limb_w * (1 - bend) * (t >= elbow)
+        fall = smoothstep(elbow, 1.0, t) if side == 'l' else 0.0
+        weights = (clav, shoulder, upper, limb_w * bend, fore * (1 - fall), fore * fall)
+        ring = list(range(i * 14, i * 14 + 14))
+        for b, wt in zip(names, weights):
+            if b in groups:
+                groups[b].add(ring, wt, 'REPLACE')
+    sl.modifiers.new('skin', 'ARMATURE').object = RIG
+    parent(sl, RIG)
+    _, fr = frames(path)
+    cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (rs[-1] - 0.006)
+            for a in [2 * math.pi * k / 48 for k in range(49)]]
+    hi(sweep('cuff_braid', cuff, 0.004, 6, DULL))
+
+# Prayer beads drop from the left hand in a long loop, with a small brass bell where the loop closes; the loop swings
+# on the knuckles.
+beads = bone_parent(empty('beads', LEFT_HAND), RIG, 'hand_l')
+empty('hold_l', LEFT_HAND, beads)
 loop_pts = bezier(LEFT_HAND + Vector((-0.012, -0.01, -0.02)), LEFT_HAND + Vector((-0.04, -0.02, -0.2)),
                   LEFT_HAND + Vector((0.05, -0.02, -0.22)), LEFT_HAND + Vector((0.014, -0.01, -0.02)), 22)
 for k, p in enumerate(loop_pts[1:-1]):
@@ -768,7 +861,8 @@ loop(beads, 'rotation_euler', 0, [0.0, 0.07, 0.0, -0.07], 80)
 loop(beads, 'rotation_euler', 1, [0.0, -0.04, 0.0, 0.04], 120)
 
 # The crook: the weapon pivots at the right-hand grip. Its hook curls out past the head and hangs the bell.
-weapon = empty('weapon', RIGHT_HAND, shoulder)
+weapon = bone_parent(empty('weapon', RIGHT_HAND), RIG, 'hand_r')
+empty('hold_r', RIGHT_HAND, weapon)
 
 
 def part(ob):
@@ -780,17 +874,18 @@ def pole_at(z):
 
 
 TOP_Z = 1.74
+GRIP_Z = RIGHT_HAND.z - 0.1
 T = pole_at(TOP_Z)
 part(sweep('shaft', [pole_at(0.03), pole_at(0.9), pole_at(TOP_Z)], [0.019, 0.022, 0.021], 10, WOOD))
 part(sweep('butt', [pole_at(0.0), pole_at(0.02), pole_at(0.06)], [0.008, 0.026, 0.026], 10, GOLD))
-for z, h in ((0.06, 0.03), (0.86, 0.025), (1.1, 0.025), (TOP_Z - 0.04, 0.05)):
+for z, h in ((0.06, 0.03), (GRIP_Z - 0.03, 0.025), (GRIP_Z + 0.205, 0.025), (TOP_Z - 0.04, 0.05)):
     part(sweep('ferrule', [pole_at(z), pole_at(z + h / 2), pole_at(z + h)], [0.026, 0.03, 0.026], 12, GOLD))
 side = POLE.cross(Vector((0, 1, 0))).normalized()
 up = POLE.cross(side)
 n = 12 * 8
-helix = [pole_at(0.89 + 0.2 * t / n) + (side * math.cos(2 * math.pi * t / 8) + up * math.sin(2 * math.pi * t / 8)) * 0.024
+helix = [pole_at(GRIP_Z + 0.2 * t / n) + (side * math.cos(2 * math.pi * t / 8) + up * math.sin(2 * math.pi * t / 8)) * 0.024
          for t in range(n + 1)]
-part(sweep('grip_wrap', [pole_at(0.89), pole_at(1.09)], 0.027, 10, LEATHER))
+part(sweep('grip_wrap', [pole_at(GRIP_Z), pole_at(GRIP_Z + 0.2)], 0.027, 10, LEATHER))
 part(hi(sweep('grip_turn', helix, 0.0075, 6, LEATHER, squash=0.6)))
 HOOK = bezier(T, T + Vector((0.0, 0, 0.2)), T + Vector((-0.27, 0, 0.24)), T + Vector((-0.27, 0, 0.04)), 16)
 part(sweep('hook', HOOK, [0.021 - 0.006 * (i / 16) for i in range(17)], 10, WOOD))
@@ -872,99 +967,267 @@ for ob in list(bpy.data.objects):
     if ob.parent is None and ob is not breath:
         parent(ob, breath)
 
-# Actions, keyed as offsets from rest. The figure faces -Y: +x on `breath` leans it forward, -x on the shoulder lifts the
-# hand, +x on `weapon` tips the crook forward and -y out to the right, -x on the bell swings it forward.
+# The arms breathe with the body: the collarbones rise on the in-breath, the arms ease out from the sides and the
+# bead elbow opens a little.
+for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('upperarm_r', 2, 0.02), ('upperarm_l', 2, -0.03),
+                      ('upperarm_l', 0, 0.02), ('forearm_l', 0, 0.04), ('hand_l', 0, -0.05)):
+    loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 96)
+
+
+def arm(bone, axis):
+    return RIG, _bone(bone), axis
+
+
+def carry(keys, lean, tilt=((0, 0),)):
+    """`keys` with the crook hand keyed so the crook leans forward by `lean` and toward the figure's left by `tilt`
+    [(frame, radians)] in the chest's facing, whatever the arm does: wield() with a sideways tilt, for the rattle and
+    the fall."""
+    rest, face = RIG.data.bones['hand_r'].matrix_local.to_3x3(), RIG.data.bones['chest'].matrix_local.to_3x3().inverted()
+    path = _bone('hand_r')
+    out, prev = [[], [], []], Euler()
+    for f in sorted({f for frames in keys.values() for f, _ in frames} | {f for f, _ in lean} | {f for f, _ in tilt}):
+        ahead = posed(keys, RIG, 'chest', f) @ face @ Vector((0, -1, 0))
+        held = Euler((keyed(lean, f), keyed(tilt, f), math.atan2(ahead.x, -ahead.y))).to_matrix() @ rest
+        prev = (posed(keys, RIG, 'hand_r', f, own=False).inverted() @ held).to_euler('XYZ', prev)
+        for i in range(3):
+            out[i].append((f, prev[i]))
+    for i in range(3):
+        keys[(RIG, path, i)] = out[i]
+    return keys
+
+
+def reach(keys, span, z):
+    """`keys` with the left arm solved on every frame of `span` so the bead fist closes on the crook's shaft where it
+    crosses height `z` at rest, steadying it two-handed: Blender's IK places the fist on a mark riding the crook, and
+    each bone's solved turn is keyed as an offset from rest. The caller keys the arm's approach and release around
+    `span`."""
+    scn = bpy.context.scene
+    up = (breath, RIG)
+    paths = {(ob, path) for ob, path, _ in keys if ob in up}
+    rest = {(ob, path): tuple(ob.path_resolve(path)) for ob, path in paths}
+    saved = {ob: (ob.animation_data.action, ob.animation_data.action_slot) for ob in up}
+    tmp = bpy.data.actions.new('reach')
+    for ob in up:
+        ob.animation_data.action = tmp
+    for (ob, path, i), frames in keys.items():
+        if ob in up:
+            prop = ob.path_resolve(path)
+            for f, v in frames:
+                prop[i] = rest[ob, path][i] + v
+                ob.keyframe_insert(path, index=i, frame=f)
+            prop[i] = rest[ob, path][i]
+    # The fist's centre sits beside the shaft, on the figure's side of it, not on its axis.
+    mark = empty('reach', pole_at(z) + Vector((0.03, -0.012, 0)), weapon)
+    ik = RIG.pose.bones['hand_l'].constraints.new('IK')
+    ik.target, ik.chain_count = mark, 3
+    bones = ('upperarm_l', 'forearm_l', 'hand_l')
+    solved = {b: [] for b in bones}
+    prev = {b: Euler() for b in bones}
+    for f in span:
+        scn.frame_set(f)
+        for b in bones:
+            pb = RIG.pose.bones[b]
+            m = RIG.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL')
+            prev[b] = m.to_euler('XYZ', prev[b])
+            solved[b].append((f, prev[b].copy()))
+    RIG.pose.bones['hand_l'].constraints.remove(ik)
+    bpy.data.objects.remove(mark)
+    for ob in up:
+        ob.animation_data.action, ob.animation_data.action_slot = saved[ob]
+    bpy.data.actions.remove(tmp)
+    for (ob, path), vals in rest.items():
+        ob.path_resolve(path)[:] = vals
+    scn.frame_set(1)
+    lo, hi_ = min(span), max(span)
+    for b in bones:
+        for i in range(3):
+            k = arm(b, i)
+            keys[k] = [(f, v) for f, v in keys.get(k, []) if not lo <= f <= hi_] + [(f, v[i]) for f, v in solved[b]]
+    return keys
+
+
+def hang(keys):
+    """`keys` with what dangles (the bell from the hook, the ribbons, the bead loop) keyed to hang plumb from what
+    holds it on every frame, whatever the hand does, with the clip's own swing keyed on top in the world's frame."""
+    last = int(max(f for frames in keys.values() for f, _ in frames))
+    for ob, hand in ((swing, 'hand_r'), (ribbons, 'hand_r'), (beads, 'hand_l')):
+        rest = posed({}, RIG, hand, 0)
+        out, prev = [[], [], []], Euler()
+        for f in range(last + 1):
+            own = Euler([keyed(keys.get((ob, 'rotation_euler', i), [(0, 0)]), f) for i in range(3)]).to_matrix()
+            prev = (rest @ posed(keys, RIG, hand, f).inverted() @ own).to_euler('XYZ', prev)
+            for i in range(3):
+                out[i].append((f, prev[i]))
+        for i in range(3):
+            keys[(ob, 'rotation_euler', i)] = out[i]
+    return keys
+
+
 R, S = 'rotation_euler', 'scale'
-act('cast', 10, {
-    (shoulder, R, 0): [(0, 0), (6, -0.55), (12, -0.5), (18, 0)],
-    (weapon, R, 0): [(0, 0), (6, 0.35), (9, 0.6), (12, 0.4), (18, 0)],
-    (weapon, R, 1): [(0, 0), (6, -0.1), (10, 0.08), (18, 0)],
-    (breath, R, 0): [(0, 0), (6, -0.05), (10, 0.08), (18, 0)],
+X, Y, Z = 0, 1, 2
+# Clip axes. The chest turns at the waist: +x leans it forward, +y turns its front toward the figure's left (the bead
+# side). On an arm bone -x swings the arm forward and up, or bends the elbow; z on a hanging upper arm swings it out,
+# +z for the right arm and -z for the left. `carry()` holds the crook upright unless a clip leans it (+ forward) or
+# tilts it (- out to the crook side). Every clip reads from behind and above, as the battle camera sees it: the torso
+# turns and leans, and the arms leave the silhouette.
+CHEST = arm('chest', X), arm('chest', Y), arm('chest', Z)
+# Cast: the beads drawn to the heart and the crook gathered in, then the crook thrust up and forward so the bell rings
+# out over the target while the bead hand is flung open toward it; everything settles.
+act('cast', 10, hang(carry({
+    CHEST[0]: [(0, 0), (5, -0.1), (10, 0.1), (13, 0.07), (18, 0)],
+    CHEST[1]: [(0, 0), (5, -0.18), (10, 0.12), (13, 0.08), (18, 0)],
+    (breath, R, 0): [(0, 0), (5, -0.04), (10, 0.04), (18, 0)],
+    arm('clavicle_r', X): [(0, 0), (5, 0.04), (10, -0.12), (18, 0)],
+    arm('upperarm_r', X): [(0, 0), (5, 0.1), (10, -1.4), (13, -1.3), (18, 0)],
+    arm('upperarm_r', Z): [(0, 0), (5, -0.1), (10, 0.2), (18, 0)],
+    arm('forearm_r', X): [(0, 0), (5, -0.35), (10, -0.6), (13, -0.55), (18, 0)],
+    arm('clavicle_l', X): [(0, 0), (5, 0.05), (10, -0.15), (18, 0)],
+    arm('upperarm_l', X): [(0, 0), (5, -0.35), (10, -1.45), (13, -1.35), (18, 0)],
+    arm('upperarm_l', Z): [(0, 0), (5, 0.1), (10, 0.0), (18, 0)],
+    arm('upperarm_l', Y): [(0, 0), (5, 0.0), (10, -0.7), (13, -0.65), (18, 0)],
+    arm('forearm_l', X): [(0, 0), (5, -1.2), (10, -0.5), (13, -0.55), (18, 0)],
+    arm('hand_l', X): [(0, 0), (5, 0.2), (10, -0.2), (13, -0.15), (18, 0)],
+    (beads, R, 0): [(0, 0), (5, 0.3), (10, -0.6), (13, 0.35), (16, -0.15), (18, 0)],
     (swing, R, 0): [(0, 0), (5, 0.5), (10, -0.75), (13, 0.45), (15, -0.25), (18, 0)],
     (swing, R, 1): [(0, 0), (5, -0.4), (10, 0.7), (13, -0.35), (15, 0.15), (18, 0)],
     (clapper, R, 0): [(0, 0), (6, 0.3), (9, 0.6), (10, -0.7), (12, 0.5), (14, -0.3), (18, 0)],
     (ribbons, R, 0): [(0, 0), (8, -0.4), (11, 0.5), (18, 0)],
     (ribbons, R, 1): [(0, 0), (6, 0.3), (10, -0.6), (13, 0.4), (18, 0)],
-})
-act('attack', 7, {
-    (shoulder, R, 0): [(0, 0), (4, -0.35), (7, 0.25), (10, 0.1), (14, 0)],
-    (weapon, R, 0): [(0, 0), (4, -0.3), (7, 0.85), (10, 0.4), (14, 0)],
-    (breath, R, 0): [(0, 0), (4, -0.06), (7, 0.12), (14, 0)],
+}, [(0, 0), (5, -0.1), (10, 0.3), (13, 0.22), (18, 0)])))
+# Attack: the chest winds back toward the crook as it tips back over the shoulder, then snaps round as the arm swings
+# the bell down onto the target like a mace, follows through and recovers. The bead arm swings against it.
+act('attack', 7, hang(carry({
+    CHEST[0]: [(0, 0), (4, -0.08), (7, 0.2), (10, 0.22), (14, 0)],
+    CHEST[1]: [(0, 0), (4, -0.4), (7, 0.3), (10, 0.38), (14, 0)],
+    (breath, R, 0): [(0, 0), (4, -0.05), (7, 0.08), (14, 0)],
+    (breath, R, 2): [(0, 0), (4, -0.08), (7, 0.08), (14, 0)],
+    arm('clavicle_r', X): [(0, 0), (4, 0.06), (7, -0.06), (14, 0)],
+    arm('upperarm_r', X): [(0, 0), (4, 0.2), (7, -0.9), (10, -0.95), (14, 0)],
+    arm('upperarm_r', Z): [(0, 0), (4, 0.35), (7, 0.0), (10, -0.15), (14, 0)],
+    arm('forearm_r', X): [(0, 0), (4, -0.9), (7, -0.3), (10, -0.25), (14, 0)],
+    arm('upperarm_l', X): [(0, 0), (4, -0.55), (7, 0.45), (10, 0.5), (14, 0)],
+    arm('upperarm_l', Z): [(0, 0), (4, -0.05), (7, -0.3), (14, 0)],
+    arm('forearm_l', X): [(0, 0), (4, -0.6), (7, -0.1), (14, 0)],
+    (beads, R, 0): [(0, 0), (4, -0.4), (7, 0.5), (10, 0.3), (14, 0)],
     (swing, R, 0): [(0, 0), (4, 0.4), (7, -0.2), (8, -0.9), (11, 0.3), (14, 0)],
     (clapper, R, 0): [(0, 0), (5, 0.4), (8, -0.8), (10, 0.4), (14, 0)],
     (ribbons, R, 1): [(0, 0), (4, 0.3), (8, -0.5), (14, 0)],
-})
-# Toll: the crook hoisted high with the bell drawn in, a held beat at the top, then one great swing out and forward.
-act('toll', 21, {
-    (shoulder, R, 0): [(0, 0), (10, -1.15), (18, -1.15), (22, -1.05), (32, 0)],
-    (weapon, R, 0): [(0, 0), (10, 0.75), (18, 0.75), (22, 0.85), (32, 0)],
-    (weapon, R, 1): [(0, 0), (10, -0.25), (18, -0.25), (22, -0.15), (32, 0)],
-    (breath, R, 0): [(0, 0), (10, -0.08), (18, -0.08), (22, 0.06), (32, 0)],
-    (breath, S, 2): [(0, 0), (10, 0.04), (18, 0.04), (22, -0.02), (32, 0)],
+}, [(0, 0), (4, -0.45), (7, 0.95), (10, 1.05), (14, 0)])))
+# Toll: the crook hoisted high before the chest, the bead hand coming up to steady the shaft, the bell drawn in for a
+# held beat at the top; then both hands heave it out and forward in one great swing, and the bead hand lets go.
+act('toll', 21, hang(reach(carry({
+    CHEST[0]: [(0, 0), (10, -0.12), (18, -0.14), (21, 0.2), (24, 0.18), (32, 0)],
+    CHEST[1]: [(0, 0), (10, -0.42), (18, -0.45), (21, 0.05), (24, 0.08), (32, 0)],
+    (breath, R, 0): [(0, 0), (10, -0.06), (18, -0.07), (21, 0.06), (32, 0)],
+    (breath, S, 2): [(0, 0), (10, 0.03), (18, 0.035), (22, -0.02), (32, 0)],
+    arm('clavicle_r', X): [(0, 0), (10, -0.15), (18, -0.15), (21, -0.05), (32, 0)],
+    arm('upperarm_r', X): [(0, 0), (10, -1.0), (18, -1.05), (21, -1.25), (24, -1.2), (32, 0)],
+    arm('upperarm_r', Z): [(0, 0), (10, 0.25), (18, 0.25), (21, 0.05), (32, 0)],
+    arm('forearm_r', X): [(0, 0), (10, -1.35), (18, -1.4), (21, -0.35), (24, -0.4), (32, 0)],
+    arm('upperarm_l', X): [(0, 0), (5, -0.6), (25, -0.8), (29, 0.15), (32, 0)],
+    arm('forearm_l', X): [(0, 0), (5, -1.0), (25, -0.6), (29, -0.2), (32, 0)],
+    (beads, R, 0): [(0, 0), (8, 0.3), (21, -0.6), (25, 0.4), (29, -0.2), (32, 0)],
     (swing, R, 0): [(0, 0), (10, 0.3), (17, 0.4), (21, -0.7), (25, 0.35), (28, -0.15), (32, 0)],
     (swing, R, 1): [(0, 0), (10, -0.2), (17, -0.3), (21, 1.1), (25, -0.45), (28, 0.2), (32, 0)],
     (clapper, R, 1): [(0, 0), (12, -0.3), (18, -0.5), (20, -0.7), (21, 0.9), (24, -0.5), (27, 0.2), (32, 0)],
     (ribbons, R, 1): [(0, 0), (12, 0.2), (21, -0.7), (25, 0.4), (32, 0)],
-})
-act('peal', 5, {
-    (shoulder, R, 0): [(0, 0), (4, -0.45), (18, -0.45), (22, 0)],
-    (weapon, R, 0): [(0, 0), (4, 0.3), (18, 0.3), (22, 0)],
-    (weapon, R, 1): [(0, 0), (3, 0.18), (6, -0.18), (9, 0.18), (12, -0.18), (15, 0.18), (18, -0.1), (22, 0)],
+}, [(0, 0), (10, -0.15), (18, -0.2), (21, 0.8), (24, 0.7), (32, 0)], [(0, 0), (10, 0.12), (18, 0.14), (21, -0.1), (32, 0)]),
+    range(8, 25), RIGHT_HAND.z - 0.26)))
+# Peal: the crook lifted before the chest and rattled side to side, while the bead hand holds the beads up by the
+# shoulder and shakes their little bell with it.
+RATTLE = [(0, 0), (3, 0.18), (6, -0.18), (9, 0.18), (12, -0.18), (15, 0.18), (18, -0.1), (22, 0)]
+act('peal', 5, hang(carry({
+    CHEST[0]: [(0, 0), (4, 0.06), (18, 0.06), (22, 0)],
+    CHEST[1]: [(0, 0)] + [(f, -v * 0.3) for f, v in RATTLE[1:]],
+    arm('upperarm_r', X): [(0, 0), (4, -0.75), (18, -0.75), (22, 0)],
+    arm('forearm_r', X): [(0, 0), (4, -0.6), (18, -0.6), (22, 0)],
+    arm('upperarm_l', X): [(0, 0), (4, -0.9), (18, -0.9), (22, 0)],
+    arm('upperarm_l', Y): [(0, 0), (4, -0.6), (18, -0.6), (22, 0)],
+    arm('forearm_l', X): [(0, 0), (4, -1.2), (18, -1.2), (22, 0)],
+    arm('hand_l', X): [(0, 0)] + [(f, v * 1.5) for f, v in RATTLE[1:]],
+    (beads, R, 1): [(0, 0)] + [(f, -v * 2.5) for f, v in RATTLE[1:]],
     (swing, R, 0): [(0, 0), (5, -0.3), (11, 0.3), (17, -0.2), (22, 0)],
     (swing, R, 1): [(0, 0), (4, -0.5), (7, 0.5), (10, -0.5), (13, 0.5), (16, -0.5), (19, 0.3), (22, 0)],
     (clapper, R, 1): [(0, 0), (5, 0.6), (8, -0.6), (11, 0.6), (14, -0.6), (17, 0.6), (20, -0.3), (22, 0)],
     (ribbons, R, 1): [(0, 0), (5, 0.4), (8, -0.4), (11, 0.4), (14, -0.4), (17, 0.3), (22, 0)],
-})
-# Knell: the crook raised back over the shoulder and brought down hard.
-act('knell', 11, {
-    (shoulder, R, 0): [(0, 0), (7, -0.75), (11, 0.3), (14, 0.25), (20, 0)],
-    (weapon, R, 0): [(0, 0), (7, -0.1), (11, 1.0), (14, 0.9), (20, 0)],
-    (breath, R, 0): [(0, 0), (7, -0.1), (11, 0.16), (14, 0.14), (20, 0)],
+}, [(0, 0), (4, 0.15), (18, 0.15), (22, 0)], RATTLE)))
+# Knell: the crook taken in both hands and raised back over the shoulder, then brought down hard before the chest.
+act('knell', 11, hang(reach(carry({
+    CHEST[0]: [(0, 0), (7, -0.15), (11, 0.3), (14, 0.27), (20, 0)],
+    CHEST[1]: [(0, 0), (7, -0.35), (11, 0.12), (14, 0.1), (20, 0)],
+    (breath, R, 0): [(0, 0), (7, -0.06), (11, 0.1), (14, 0.09), (20, 0)],
     (breath, S, 2): [(0, 0), (7, 0.03), (11, -0.06), (14, -0.05), (20, 0)],
+    arm('clavicle_r', X): [(0, 0), (7, -0.15), (11, 0.0), (20, 0)],
+    arm('upperarm_r', X): [(0, 0), (7, -1.6), (11, -0.75), (14, -0.7), (20, 0)],
+    arm('upperarm_r', Z): [(0, 0), (7, -0.15), (11, -0.3), (20, 0)],
+    arm('forearm_r', X): [(0, 0), (7, -1.1), (11, -0.25), (14, -0.25), (20, 0)],
+    arm('upperarm_l', X): [(0, 0), (3, -0.6), (16, -0.5), (20, 0)],
+    arm('forearm_l', X): [(0, 0), (3, -1.0), (16, -0.6), (20, 0)],
+    (beads, R, 0): [(0, 0), (7, 0.4), (11, -0.7), (14, 0.4), (17, -0.15), (20, 0)],
     (swing, R, 0): [(0, 0), (7, 0.5), (10, 0.3), (12, -0.6), (15, 0.3), (20, 0)],
     (clapper, R, 0): [(0, 0), (8, 0.4), (11, -0.8), (14, 0.4), (20, 0)],
-})
-act('hit', 2, {
-    (breath, R, 0): [(0, 0), (2, -0.14), (6, 0.03), (12, 0)],
-    (shoulder, R, 0): [(0, 0), (2, 0.15), (7, 0), (12, 0)],
-    (weapon, R, 0): [(0, 0), (2, -0.25), (6, 0.1), (12, 0)],
+}, [(0, 0), (7, -0.7), (11, 1.1), (14, 1.0), (20, 0)]), range(4, 16), RIGHT_HAND.z - 0.3)))
+# Hit: the chest snaps back and the shoulders shrug as both arms pull in to the body, the crook drawn in close, then it
+# recovers through a small lean forward.
+act('hit', 2, hang(carry({
+    CHEST[0]: [(0, 0), (2, -0.3), (6, 0.06), (12, 0)],
+    CHEST[1]: [(0, 0), (2, 0.12), (6, -0.03), (12, 0)],
+    (breath, R, 0): [(0, 0), (2, -0.08), (6, 0.02), (12, 0)],
+    arm('clavicle_l', X): [(0, 0), (2, 0.18), (7, 0.03), (12, 0)],
+    arm('clavicle_r', X): [(0, 0), (2, 0.18), (7, 0.03), (12, 0)],
+    arm('upperarm_l', X): [(0, 0), (2, -0.35), (7, -0.1), (12, 0)],
+    arm('upperarm_l', Z): [(0, 0), (2, 0.2), (6, -0.04), (12, 0)],
+    arm('forearm_l', X): [(0, 0), (2, -0.8), (7, -0.2), (12, 0)],
+    arm('upperarm_r', X): [(0, 0), (2, -0.2), (12, 0)],
+    arm('upperarm_r', Z): [(0, 0), (2, -0.2), (12, 0)],
+    arm('forearm_r', X): [(0, 0), (2, -0.5), (7, -0.2), (12, 0)],
     (swing, R, 0): [(0, 0), (2, 0.6), (5, -0.45), (8, 0.3), (10, -0.12), (12, 0)],
     (swing, R, 1): [(0, 0), (3, -0.3), (6, 0.25), (9, -0.1), (12, 0)],
     (clapper, R, 0): [(0, 0), (2, -0.6), (4, 0.6), (6, -0.5), (8, 0.3), (12, 0)],
     (beads, R, 0): [(0, 0), (2, 0.4), (5, -0.3), (9, 0.1), (12, 0)],
-})
-# Move loops while the unit travels: a waddle with the bell trailing and the ribbons streaming back.
-act('move', 0, {
+}, [(0, 0), (2, -0.2), (6, 0.06), (12, 0)])))
+# Move loops two steps every 12 frames while the unit travels: the chest counter-turns against a full bead-arm swing
+# and the body rolls from foot to foot; the crook arm plants and lifts the crook, the bell trailing.
+act('move', 0, hang(carry({
     (breath, R, 0): [(0, 0.05), (6, 0.07), (12, 0.05)],
     (breath, R, 1): [(0, 0), (3, 0.06), (6, 0), (9, -0.06), (12, 0)],
+    CHEST[1]: [(0, -0.14), (6, 0.14), (12, -0.14)],
+    arm('upperarm_l', X): [(0, -0.55), (6, 0.4), (12, -0.55)],
+    arm('upperarm_l', Z): [(0, -0.08), (6, -0.14), (12, -0.08)],
+    arm('forearm_l', X): [(0, -0.55), (6, -0.15), (12, -0.55)],
+    arm('upperarm_r', X): [(0, 0.15), (6, -0.25), (12, 0.15)],
+    arm('forearm_r', X): [(0, -0.3), (6, -0.45), (12, -0.3)],
+    (beads, R, 0): [(0, 0.3), (6, -0.3), (12, 0.3)],
     (swing, R, 0): [(0, 0.2), (6, -0.1), (12, 0.2)],
     (swing, R, 1): [(0, 0), (3, -0.15), (6, 0), (9, 0.15), (12, 0)],
     (clapper, R, 0): [(0, -0.2), (6, 0.2), (12, -0.2)],
     (ribbons, R, 0): [(0, 0.3), (6, 0.2), (12, 0.3)],
     (ribbons, R, 1): [(0, 0), (3, 0.15), (9, -0.15), (12, 0)],
-})
-# Down holds its last frame while the unit is downed; rise starts from that frame.
-DOWNED = {(breath, S, 2): -0.2, (breath, R, 0): -0.15, (shoulder, R, 0): 0.5, (weapon, R, 1): -0.9, (weapon, R, 0): 0.3}
-act('down', 10, {
-    (breath, S, 2): [(0, 0), (5, -0.12), (14, DOWNED[breath, S, 2])],
-    (breath, R, 0): [(0, 0), (5, 0.08), (14, DOWNED[breath, R, 0])],
-    (shoulder, R, 0): [(0, 0), (5, -0.2), (14, DOWNED[shoulder, R, 0])],
-    (weapon, R, 1): [(0, 0), (6, -0.2), (14, DOWNED[weapon, R, 1])],
-    (weapon, R, 0): [(0, 0), (14, DOWNED[weapon, R, 0])],
+}, [(0, 0.12), (6, -0.04), (12, 0.12)])))
+# Down plays while the board tips the body onto its back: the arms fly up, then reach back and out to break the fall,
+# the chest curling forward against it and the crook falling out to its side. It holds its last frame while the unit
+# is downed, and rise starts from that frame, pushing off the ground behind and curling up before it settles.
+DOWNED = {CHEST[0]: 0.3, (breath, S, 2): -0.12, arm('clavicle_l', X): 0.12, arm('clavicle_r', X): 0.12,
+          arm('upperarm_l', X): 0.8, arm('upperarm_l', Z): -0.75, arm('forearm_l', X): -0.35, arm('hand_l', X): 0.5,
+          arm('upperarm_r', X): 0.6, arm('upperarm_r', Z): 0.6, arm('forearm_r', X): -0.5}
+FLUNG = {arm('upperarm_l', X): -0.7, arm('upperarm_l', Z): -0.5, arm('upperarm_r', X): -0.5, arm('upperarm_r', Z): 0.4}
+TOPPLE = [(0, 0), (4, -0.2), (14, -0.45)]
+FALL = [(0, 0), (6, -0.2), (14, -0.6)]
+act('down', 10, hang(carry({k: [(0, 0), (4, FLUNG.get(k, v * 0.4)), (14, v)] for k, v in DOWNED.items()} | {
     (swing, R, 0): [(0, 0), (6, -0.4), (10, 0.3), (14, 0)],
     (clapper, R, 0): [(0, 0), (7, 0.5), (10, -0.4), (14, 0)],
-})
-act('rise', 8, {
-    (breath, S, 2): [(0, DOWNED[breath, S, 2]), (8, 0.04), (14, 0)],
-    (breath, R, 0): [(0, DOWNED[breath, R, 0]), (8, 0.05), (14, 0)],
-    (shoulder, R, 0): [(0, DOWNED[shoulder, R, 0]), (8, -0.3), (14, 0)],
-    (weapon, R, 1): [(0, DOWNED[weapon, R, 1]), (8, 0.1), (14, 0)],
-    (weapon, R, 0): [(0, DOWNED[weapon, R, 0]), (8, 0), (14, 0)],
+    (beads, R, 0): [(0, 0), (4, -0.5), (9, 0.4), (14, 0.2)],
+}, TOPPLE, FALL)))
+PUSH = {CHEST[0]: 0.45, arm('upperarm_l', X): 1.0, arm('upperarm_r', X): 0.8, arm('forearm_l', X): 0.0}
+act('rise', 8, hang(carry({k: [(0, v), (6, PUSH.get(k, v)), (10, -0.1 * v if k == CHEST[0] else 0), (14, 0)]
+                      for k, v in DOWNED.items()} | {
     (swing, R, 0): [(0, 0), (6, 0.5), (10, -0.3), (14, 0)],
     (clapper, R, 0): [(0, 0), (8, 0.5), (11, -0.3), (14, 0)],
-})
+    (beads, R, 0): [(0, 0.2), (6, 0.3), (10, -0.25), (14, 0)],
+}, [(0, -0.45), (6, -0.3), (14, 0)], [(0, -0.6), (6, -0.4), (14, 0)])))
 
-meshes = bake(fill='#4a2c14')
+# The skin weights cost what the atlases give back, keeping the figure near 3 MB.
+meshes = bake(fill='#4a2c14', quality=(82, 74))
 tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
 print(f'bellringer: {tris} triangles, {len(meshes)} meshes')
 finish()

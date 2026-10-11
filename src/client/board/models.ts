@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CLASS_ORDER } from '../../engine/index';
 import type { ClassId, Team } from '../../engine/index';
 import { rig } from './acts';
@@ -37,6 +38,9 @@ export async function loadFigures(): Promise<void> {
       if (!(o instanceof THREE.Mesh)) return;
       o.castShadow = true;
       o.geometry.userData.shared = true;
+
+      // A skinned mesh's bounds are taken once, from whatever pose it first draws in; a raised arm would cull early.
+      if (o instanceof THREE.SkinnedMesh) o.frustumCulled = false;
       const m: THREE.Material | THREE.Material[] = o.material;
 
       if (m instanceof THREE.Material && m.name === 'void') o.material = VOID;
@@ -58,7 +62,9 @@ export function buildModel(cls: ClassId, team: Team): Figure {
   const src = SOURCES.get(cls);
 
   if (!src) throw new Error(`figure ${cls} is not loaded`);
-  const body = src.scene.clone(true), own = new Map<THREE.Material, THREE.MeshStandardMaterial>();
+  // A skinned mesh's clone must bind the clone's own bones, which Object3D.clone leaves pointing at the source's.
+  // SAFETY: SkeletonUtils.clone copies the root with its own clone(), which keeps its class, and a glTF scene is a Group.
+  const body = clone(src.scene) as THREE.Group, own = new Map<THREE.Material, THREE.MeshStandardMaterial>();
 
   // Only `main` and `team` change per unit; every other material and all geometry stay shared with the source.
   const mine = (m: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial => {

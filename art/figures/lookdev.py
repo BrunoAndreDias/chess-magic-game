@@ -182,31 +182,50 @@ def _relieve(t):
         v.co += d
 
 
-def bake(size=2048, margin=16, samples=48, fill='#1c3229', extra=2, cage=0.02, reach=0.06):
-    """Joins the game meshes that share a parent (one draw call per moving part and material), then bakes the
-    high-poly twin onto them. `fill` paints the gaps between islands: distant mipmaps blend them into the seams, so it
-    should match the body. `cage` and `reach` bound how far a bake ray may travel to find the twin's surface."""
+def bake(size=2048, margin=16, samples=48, fill='#1c3229', extra=2, cage=0.02, reach=0.06, quality=(86, 86)):
+    """Joins the game meshes that share a parent or a parent bone, or that one armature skins (one draw call per moving
+    part and material), then bakes the high-poly twin onto them. `fill` paints the gaps between islands: distant
+    mipmaps blend them into the seams, so it should match the body. `cage` and `reach` bound how far a bake ray may
+    travel to find the twin's surface. `quality` is the albedo's and the normal map's JPEG quality."""
     scn = bpy.context.scene
     scn.frame_set(1)
+    # Everything bakes in the rest pose. A skinned mesh leaves its armature behind until it is joined, so neither it
+    # nor its twin bakes the deform in.
+    for arm in bpy.data.armatures:
+        arm.pose_position = 'REST'
+    skins = {}
+    for o in bpy.data.objects:
+        for m in [m for m in o.modifiers if m.type == 'ARMATURE']:
+            skins[o] = m.object
+            o.modifiers.remove(m)
     details = [o for o in bpy.data.objects if o.type == 'MESH' and o.get('hi')]
     meshes = [o for o in bpy.data.objects if o.type == 'MESH' and not o.get('hi')]
     twins = [_twin(o, extra) for o in meshes]
     _apply(twins + details + meshes)
     for t in twins:
         _relieve(t)
+    twin = dict(zip(meshes, twins))
     groups = {}
     for ob in meshes:
-        groups.setdefault(ob.parent, []).append(ob)
-    meshes = []
-    for par, obs in groups.items():
+        bone = ob.parent_bone if ob.parent_type == 'BONE' else ''
+        groups.setdefault((ob.parent, bone, ob in skins), []).append(ob)
+    # Each joined mesh bakes from its own parts' twins only: a part that moves on its own (a bell held near the coat)
+    # would otherwise stamp its shape into the texture of whatever it rests against.
+    meshes, highs = [], []
+    for (par, bone, skinned), obs in groups.items():
+        _select([twin[o] for o in obs], twin[obs[0]])
+        bpy.ops.object.join()
+        highs.append(twin[obs[0]])
         _select(obs, obs[0])
         bpy.ops.object.join()
-        obs[0].name = f'{par.name}_mesh' if par else 'body'
+        obs[0].name = f'{skins[obs[0]].name}_skin' if skinned else f'{bone or par.name}_mesh' if par else 'body'
+        if skinned:
+            obs[0].modifiers.new('skin', 'ARMATURE').object = skins[obs[0]]
         meshes.append(obs[0])
-    _select(twins + details, twins[0])
-    bpy.ops.object.join()
-    high = twins[0]
-    high.name = 'high'
+    if details:
+        _select(details, details[0])
+        bpy.ops.object.join()
+    detail = details[:1]
 
     for o in meshes:
         me = o.data
@@ -259,22 +278,25 @@ def bake(size=2048, margin=16, samples=48, fill='#1c3229', extra=2, cage=0.02, r
     for img, kind in ((albedo, 'EMIT'), (normal, 'NORMAL')):
         for tex in texs:
             tex.image = img
-        for o in meshes:
-            _select([high, o], o)
+        for o, high in zip(meshes, highs):
+            _select([high, *detail, o], o)
             bpy.ops.object.bake(type=kind, use_clear=False, normal_space='TANGENT')
-    bpy.data.objects.remove(high)
+    for o in highs + detail:
+        bpy.data.objects.remove(o)
 
     # AUTO image format keeps a JPEG source a JPEG in the glb, which is what keeps the file small.
     atlases = []
-    for img, quality in ((albedo, 86), (normal, 86)):
+    for img, q in zip((albedo, normal), quality):
         path = os.path.join(tempfile.mkdtemp(), f'{img.name}.jpg')
         img.file_format = 'JPEG'
-        img.save(filepath=path, quality=quality)
+        img.save(filepath=path, quality=q)
         loaded = bpy.data.images.load(path)
         loaded.pack()
         atlases.append(loaded)
     atlases[1].colorspace_settings.is_data = True
     swap(meshes, *atlases)
+    for arm in bpy.data.armatures:
+        arm.pose_position = 'POSE'
     return meshes
 
 
