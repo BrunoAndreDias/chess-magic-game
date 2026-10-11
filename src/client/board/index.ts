@@ -15,6 +15,7 @@ import type { PerfReport } from './perf';
 import { Stage } from './stage';
 import { FX_KEYS, Terrain } from './terrain';
 import { Tweens } from './tween';
+import { warmFigures } from './models';
 import { UNIT_OF, animateUnit, buildUnit, setPose, shownOf } from './units';
 import type { UnitView } from './units';
 
@@ -204,6 +205,8 @@ class BoardView implements Board {
   setFollow(on: boolean): void { this.#follow = on; }
 
   onInput(listener: (input: TileInput) => void): void { this.#picker.listen(listener); }
+
+  warm(): void { void warmFigures(this.#stage.renderer, this.#stage.camera, this.#stage.scene); }
 
   screenOf(tile: Pos): { x: number; y: number } {
     return this.#overlay.viewport(this.#terrain.at(tile.x, tile.z, 0.05));

@@ -51,4 +51,6 @@ if (params.has('perf')) mountPerfHud(board.debug);
 
 await loadFigures();
 
+board.warm();
+
 app.go({ kind: params.has('quick') ? 'scout' : 'map', draft });

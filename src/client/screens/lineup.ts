@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Team } from '../../engine/index';
 import type { Pose as ClipPose, Rig } from '../board/acts';
-import { buildModel } from '../board/models';
+import { buildModel, warmFigures } from '../board/models';
 import { disposeTree, glow, hex, mat, mesh, seeded } from '../board/art';
 import { CREST } from '../crest';
 import type { Draft } from '../draft';
@@ -127,6 +127,7 @@ export class Lineup {
     canvas.addEventListener('click', click);
     this.#off.push(() => canvas.removeEventListener('pointermove', move), () => canvas.removeEventListener('click', click));
     this.#raf = requestAnimationFrame(this.#frame);
+    void warmFigures(r, this.#camera, s);
   }
 
   #buildCamp(): Fire {
