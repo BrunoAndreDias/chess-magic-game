@@ -451,6 +451,15 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
   }
 
+  /** A broken entrance must not hold the battle back. */
+  async function enter(): Promise<void> {
+    try {
+      await board.enter();
+    } catch (err) {
+      reportError(`board.enter failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+    }
+  }
+
   // ---------- start ----------
   board.load(shown);
   board.setFollow(follow);
@@ -458,7 +467,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   for (const l of openingLines(shown)) addLog(l);
   renderHud();
   playing = true;
-  void banner('To battle!', '#e8b65a', MAPS[shown.map].name, 900).then(() => {
+  void Promise.all([banner('To battle!', '#e8b65a', MAPS[shown.map].name, 900), enter()]).then(() => {
     if (disposed) return;
     playing = false;
     match.start();
