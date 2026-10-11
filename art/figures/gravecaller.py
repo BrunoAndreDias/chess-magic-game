@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
 import bpy
-from mathutils import Vector, noise
+from mathutils import Euler, Matrix, Vector, noise
 from common import *
 from hands import fist
 from lookdev import bake, hi, mark, paint
@@ -538,26 +538,17 @@ bell('charm_bell', end, 0.022)
 end = chain(Vector((0.1, -0.17, 0.66)), 0.07, 0.01, 4)
 blob('charm_bead', end - Vector((0, 0, 0.012)), 0.013, GOLD, subdiv=1)
 
-# Long bell sleeves on bony hands: the right raised to the scythe, the left hanging with the soul bell. Each arm is
-# shoulder, elbow, wrist, the sleeve's radius at each ring, and the ring where its gold hem starts.
+# The arms are an armature: chest, then per side a clavicle, upper arm, forearm and hand. Each sleeve is one tube
+# skinned to its arm, so the elbow bends without a seam; each fist and what it holds ride its hand bone.
+# Per arm: shoulder, elbow, wrist, the sleeve's radius from shoulder to cuff, and where along it the gold hem starts.
+# The scythe hand holds the pole at the chest, forearm forward; the bell hand hangs with the elbow soft.
 # The right sleeve gathers into a cuff at the wrist: an open bell under the raised hand reads as a cup, not a sleeve.
 ARMS = {
-    'r': (Vector((-0.17, 0.0, 0.975)), Vector((-0.37, -0.06, 0.76)), Vector((-0.335, -0.19, 0.95)),
-          (0.068, 0.072, 0.078, 0.082, 0.08, 0.068, 0.05), 6),
-    'l': (Vector((0.17, 0.0, 0.975)), Vector((0.265, 0.0, 0.8)), Vector((0.29, -0.06, 0.66)),
-          (0.068, 0.072, 0.078, 0.088, 0.1, 0.115, 0.122), 5),
+    'r': (Vector((-0.175, 0.0, 0.975)), Vector((-0.29, -0.03, 0.75)), Vector((-0.315, -0.215, 0.83)),
+          (0.068, 0.072, 0.078, 0.082, 0.08, 0.068, 0.05), 0.95),
+    'l': (Vector((0.175, 0.0, 0.975)), Vector((0.27, 0.02, 0.75)), Vector((0.285, -0.05, 0.565)),
+          (0.068, 0.072, 0.078, 0.088, 0.1, 0.115, 0.122), 0.8),
 }
-for side, (s, e, w, radii, hem) in ARMS.items():
-    path = bezier(s, s.lerp(e, 0.8), e.lerp(w, 0.3), w + (w - e) * 0.08, 6)
-    sl = sweep(f'sleeve_{side}', path, radii, 14, MAIN, caps=False, levels=1, mask=lambda i, hem=hem: float(i >= hem))
-    solidify(sl, 0.014, inner=DARK)
-    # Even thickness spikes where the raised arm folds sharply at the elbow.
-    sl.modifiers['solid'].use_even_offset = side == 'l'
-    _, fr = frames(path)
-    cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (radii[-1] - 0.006)
-            for a in [2 * math.pi * k / 48 for k in range(49)]]
-    hi(sweep('cuff_braid', cuff, 0.004, 6, GOLD))
-
 POLE = Vector((0.09, 0.0, 1.0)).normalized()
 
 
@@ -567,13 +558,65 @@ def sleeve_end(side):
     return w + (w - e) * 0.08, w - e
 
 
-RIGHT_HAND = fist(*sleeve_end('r'), POLE, 0.03, BONE, detail='bone')
+RIGHT_HAND = fist(*sleeve_end('r'), POLE, 0.03, BONE, detail='bone', name='fist_r')
 # The left arm hangs, and its fist closes on the crossbar of the soul bell's bail, thumb forward.
 BAIL = Vector((0, -1, 0))
-LEFT_HAND = fist(*sleeve_end('l'), BAIL, 0.005, BONE, right=False, detail='bone')
+LEFT_HAND = fist(*sleeve_end('l'), BAIL, 0.005, BONE, right=False, detail='bone', name='fist_l')
+GRIPS = {'r': RIGHT_HAND, 'l': LEFT_HAND}
+
+# Every arm bone's x axis runs to the figure's left, so -x on it swings the arm forward or bends the joint.
+RIG = armature('rig', [('chest', (0, 0, 0.86), (0, 0, 1.0), None, (1, 0, 0))] + [
+    bone for side, (s, e, w, _, _) in ARMS.items() for bone in (
+        (f'clavicle_{side}', (0, 0.0, 0.99), s, 'chest', (0, 1 if side == 'r' else -1, 0)),
+        (f'upperarm_{side}', s, e, f'clavicle_{side}', (1, 0, 0)),
+        (f'forearm_{side}', e, w, f'upperarm_{side}', (1, 0, 0)),
+        (f'hand_{side}', sleeve_end(side)[0] - (w - e).normalized() * 0.03, GRIPS[side], f'forearm_{side}', (1, 0, 0)),
+    )
+])
+for side, grip in GRIPS.items():
+    bone_parent(bpy.data.objects[f'fist_{side}'], RIG, f'hand_{side}')
+    bone_parent(empty(f'grip_{side}', grip), RIG, f'hand_{side}')
+
+
+def sleeve_path(s, e, w, bend=0.06):
+    """Shoulder to the cuff's opening, its rings packed round the rounded-off elbow, and how far along it the elbow is."""
+    u, f = (e - s).normalized(), (w - e).normalized()
+    pts = [s.lerp(e - u * bend, k / 3) for k in range(3)]
+    pts += bezier(e - u * bend, e - u * bend / 3, e + f * bend / 3, e + f * bend, 6)[:-1]
+    end = w + (w - e) * 0.08
+    pts += [(e + f * bend).lerp(end, k / 4) for k in range(5)]
+    d = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        d.append(d[-1] + (b - a).length)
+    return pts, [x / d[-1] for x in d], d[6] / d[-1]
+
+
+for side, (s, e, w, radii, hem) in ARMS.items():
+    path, along, elbow = sleeve_path(s, e, w)
+    rs = [interp([(r, k / (len(radii) - 1)) for k, r in enumerate(radii)], t) for t in along]
+    sl = sweep(f'sleeve_{side}', path, rs, 14, MAIN, caps=False, levels=1, mask=lambda i, a=along, h=hem: float(a[i] >= h))
+    solidify(sl, 0.014, inner=DARK)
+    # Even thickness spikes where the arm folds sharply at the elbow.
+    sl.modifiers['solid'].use_even_offset = side == 'l'
+    # The elbow blends over a hand's breadth either side, and the shoulder's top ring holds on to the collarbone.
+    groups = {b: sl.vertex_groups.new(name=f'{b}_{side}') for b in ('clavicle', 'upperarm', 'forearm')}
+    for i, t in enumerate(along):
+        fore = smoothstep(elbow - 0.12, elbow + 0.12, t)
+        clav = 0.6 * smoothstep(0.15, 0.0, t)
+        ring = list(range(i * 14, i * 14 + 14))
+        groups['clavicle'].add(ring, clav, 'REPLACE')
+        groups['upperarm'].add(ring, (1 - fore) * (1 - clav), 'REPLACE')
+        groups['forearm'].add(ring, fore * (1 - clav), 'REPLACE')
+    sl.modifiers.new('skin', 'ARMATURE').object = RIG
+    parent(sl, RIG)
+    _, fr = frames(path)
+    cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (rs[-1] - 0.006)
+            for a in [2 * math.pi * k / 48 for k in range(49)]]
+    hi(sweep('cuff_braid', cuff, 0.004, 6, GOLD))
 
 # Scythe: the weapon pivots at the right-hand grip; the pole leans in so the great crescent hangs over the hood.
-weapon = empty('weapon', RIGHT_HAND)
+weapon = bone_parent(empty('weapon', RIGHT_HAND), RIG, 'hand_r')
+empty('hold_r', RIGHT_HAND, weapon)
 
 
 def part(ob):
@@ -639,7 +682,8 @@ for k, (dx, drop, mat) in enumerate(((-0.05, 0.2, TASSEL), (-0.12, 0.3, TASSEL),
 
 # The soul bell hangs below the left fist: a gold bail whose crossbar the fist holds, its arms passing outside the
 # fist down to a short chain, the bell swinging under it.
-swing = empty('bell_swing', LEFT_HAND)
+swing = bone_parent(empty('bell_swing', LEFT_HAND), RIG, 'hand_l')
+empty('hold_l', LEFT_HAND, swing)
 B = LEFT_HAND - Vector((0, 0, 0.12))
 APEX = LEFT_HAND - Vector((0, 0, 0.065))
 BAIL_PATH = [APEX + BAIL * 0.004, LEFT_HAND + BAIL * 0.05 - Vector((0, 0, 0.03)), LEFT_HAND + BAIL * 0.056,
@@ -726,6 +770,115 @@ spin(orbit, period=192)
 for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, orbit):
         parent(ob, breath)
+
+# The arms breathe with the body: the collarbones rise on the in-breath, the arms ease out from the sides and the
+# bell elbow opens a little.
+for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('upperarm_r', 2, 0.02), ('upperarm_l', 2, -0.03),
+                      ('upperarm_l', 0, 0.02), ('forearm_l', 0, 0.04), ('hand_l', 0, -0.05)):
+    loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 84)
+
+
+def arm(bone, axis):
+    return RIG, f'pose.bones["{bone}"].rotation_euler', axis
+
+
+def keyed(frames, f):
+    """The value [(frame, value)] keys give at frame `f`, straight between keys."""
+    pts = sorted(frames)
+    for (f0, v0), (f1, v1) in zip(pts, pts[1:]):
+        if f0 <= f <= f1:
+            return v0 + (v1 - v0) * (f - f0) / (f1 - f0)
+    return pts[0][1] if f < pts[0][0] else pts[-1][1]
+
+
+def wield(keys, tilt):
+    """`keys` with the scythe wrist keyed so the pole leans forward by `tilt` [(frame, radians)] in the body's facing,
+    whatever the shoulder and elbow do: a hand that carries the pole's weight, not one bolted to the forearm."""
+    def turn(ob_path, f):
+        return Euler([keyed(keys.get((*ob_path, i), [(0, 0)]), f) for i in range(3)]).to_matrix()
+
+    def posed(bone, f):
+        b = RIG.data.bones[bone]
+        rest = b.matrix_local.to_3x3()
+        up = posed(b.parent.name, f) @ b.parent.matrix_local.to_3x3().inverted() if b.parent else Matrix.Identity(3)
+        return up @ rest @ turn((RIG, f'pose.bones["{bone}"].rotation_euler'), f)
+
+    rest = RIG.data.bones['hand_r'].matrix_local.to_3x3()
+    out, prev = [[], [], []], Euler()
+    for f, t in tilt:
+        body = turn((breath, R), f)
+        held = Euler((t, 0, keyed(keys.get((breath, R, 2), [(0, 0)]), f))).to_matrix() @ rest
+        carry = body @ posed('forearm_r', f) @ RIG.data.bones['forearm_r'].matrix_local.to_3x3().inverted() @ rest
+        prev = (carry.inverted() @ held).to_euler('XYZ', prev)
+        for i in range(3):
+            out[i].append((f, prev[i]))
+    for i in range(3):
+        keys[arm('hand_r', i)] = out[i]
+    return keys
+
+
+R, S = 'rotation_euler', 'scale'
+X, Y, Z = 0, 1, 2
+# Cast: the bell hand swings the soul bell up and out toward the target, the wrist turning as it rings; the scythe arm
+# raises the pole with it.
+act('cast', 10, wield({
+    arm('upperarm_l', X): [(0, 0), (6, -1.5), (10, -2.1), (14, -1.8), (20, 0)],
+    arm('upperarm_l', Y): [(0, 0), (6, -0.45), (10, -0.7), (14, -0.6), (20, 0)],
+    arm('forearm_l', X): [(0, 0), (6, -0.35), (10, -0.25), (14, -0.3), (20, 0)],
+    arm('hand_l', Y): [(0, 0), (6, 0.2), (10, 0.45), (14, 0.3), (20, 0)],
+    arm('hand_l', X): [(0, 0), (6, 0.3), (10, -0.2), (20, 0)],
+    arm('upperarm_r', X): [(0, 0), (6, -0.35), (10, -0.5), (14, -0.3), (20, 0)],
+    arm('upperarm_r', Z): [(0, 0), (10, 0.15), (20, 0)],
+    arm('forearm_r', X): [(0, 0), (6, -0.4), (10, -0.55), (14, -0.4), (20, 0)],
+    arm('clavicle_l', X): [(0, 0), (10, 0.08), (20, 0)],
+    arm('clavicle_r', X): [(0, 0), (10, 0.05), (20, 0)],
+    (breath, R, 0): [(0, 0), (6, -0.05), (10, 0.08), (20, 0)],
+    (swing, R, 0): [(0, 0), (5, 0.5), (10, -0.7), (13, 0.4), (16, -0.2), (20, 0)],
+}, [(0, 0), (6, -0.1), (10, 0.2), (14, 0.05), (20, 0)]))
+# Attack: a reaping swing from the shoulder, wound back with the elbow bent and the wrist cocked, then whipped
+# through; the bell arm swings back against it.
+act('attack', 8, wield({
+    arm('upperarm_r', X): [(0, 0), (5, 0.35), (8, -0.75), (11, -0.85), (18, 0)],
+    arm('upperarm_r', Z): [(0, 0), (5, 0.45), (8, -0.1), (11, -0.25), (18, 0)],
+    arm('forearm_r', X): [(0, 0), (5, -0.7), (8, -0.15), (11, -0.2), (18, 0)],
+    arm('upperarm_l', X): [(0, 0), (5, -0.3), (8, 0.45), (11, 0.4), (18, 0)],
+    arm('upperarm_l', Z): [(0, 0), (8, -0.3), (18, 0)],
+    arm('forearm_l', X): [(0, 0), (8, -0.3), (18, 0)],
+    (breath, R, 0): [(0, 0), (5, -0.06), (8, 0.12), (11, 0.1), (18, 0)],
+    (breath, R, 2): [(0, 0), (5, -0.15), (8, 0.2), (11, 0.22), (18, 0)],
+    (swing, R, 0): [(0, 0), (5, 0.3), (8, -0.5), (12, 0.3), (18, 0)],
+}, [(0, 0), (5, -0.6), (8, 0.9), (11, 1.1), (18, 0)]))
+act('hit', 2, wield({
+    (breath, R, 0): [(0, 0), (2, -0.14), (6, 0.03), (12, 0)],
+    arm('clavicle_l', X): [(0, 0), (2, 0.15), (7, 0.03), (12, 0)],
+    arm('clavicle_r', X): [(0, 0), (2, 0.15), (7, 0.03), (12, 0)],
+    arm('upperarm_l', X): [(0, 0), (2, -0.35), (7, -0.1), (12, 0)],
+    arm('upperarm_l', Z): [(0, 0), (2, 0.15), (12, 0)],
+    arm('forearm_l', X): [(0, 0), (2, -0.5), (7, -0.15), (12, 0)],
+    arm('upperarm_r', X): [(0, 0), (2, -0.15), (12, 0)],
+    arm('upperarm_r', Z): [(0, 0), (2, -0.15), (12, 0)],
+    arm('forearm_r', X): [(0, 0), (2, -0.3), (7, -0.1), (12, 0)],
+    (swing, R, 0): [(0, 0), (2, 0.6), (5, -0.45), (8, 0.3), (12, 0)],
+}, [(0, 0), (2, -0.15), (6, 0.05), (12, 0)]))
+# Move loops while the unit travels: a rolling stride, the bell arm swinging against it and the scythe arm, carrying
+# the weight, barely.
+act('move', 0, wield({
+    (breath, R, 0): [(0, 0.05), (8, 0.05), (16, 0.05)],
+    (breath, R, 1): [(0, 0), (4, 0.06), (8, 0), (12, -0.06), (16, 0)],
+    (breath, R, 2): [(0, 0.05), (8, -0.05), (16, 0.05)],
+    arm('upperarm_l', X): [(0, -0.45), (8, 0.35), (16, -0.45)],
+    arm('forearm_l', X): [(0, -0.4), (8, -0.05), (16, -0.4)],
+    arm('upperarm_r', X): [(0, 0.12), (8, -0.12), (16, 0.12)],
+    (swing, R, 0): [(0, 0.35), (4, 0.1), (8, -0.25), (12, -0.05), (16, 0.35)],
+}, [(0, 0.03), (8, -0.03), (16, 0.03)]))
+# Down slumps forward onto the scythe, planted as a crutch, the bell hand reaching to the ground to break the fall;
+# it holds its last frame while the unit is downed, and rise starts from that frame, pushing up off both.
+DOWNED = {(breath, S, 2): -0.25, (breath, R, 0): 0.3, arm('upperarm_l', X): -0.9, arm('upperarm_l', Z): -0.2,
+          arm('forearm_l', X): 0.3, arm('hand_l', X): -0.4, arm('upperarm_r', X): -0.5, arm('forearm_r', X): 0.2}
+LEAN = 0.15
+act('down', 10, wield({k: [(0, 0), (5, v * 0.4), (14, v)] for k, v in DOWNED.items()}, [(0, 0), (5, 0.1), (14, LEAN)]))
+act('rise', 8, wield({k: [(0, v), (8, v * 0.3 if k[0] is breath else -v * 0.3), (14, 0)] for k, v in DOWNED.items()},
+                     [(0, LEAN), (8, 0.05), (14, 0)]))
 
 meshes = bake()
 tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)

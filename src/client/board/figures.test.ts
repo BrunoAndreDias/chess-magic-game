@@ -5,7 +5,8 @@ import { isAct } from './acts';
 
 /** The glTF JSON chunk of a .glb: magic, version, length, then the first chunk's length and type. */
 interface Gltf {
-  nodes?: { name?: string; mesh?: number; rotation?: number[]; extras?: { color?: unknown; size?: unknown } }[];
+  nodes?: { name?: string; mesh?: number; skin?: number; children?: number[]; rotation?: number[]; extras?: { color?: unknown; size?: unknown } }[];
+  skins?: { joints: number[] }[];
   meshes?: { primitives: { material?: number }[] }[];
   materials?: { name?: string }[];
   animations?: { name?: string; extras?: { strike?: unknown }; samplers: { input: number }[] }[];
@@ -40,7 +41,7 @@ test('every figure that casts without a clip keeps its weapon rotation identity,
     return q.some((v, i) => Math.abs(v - (i === 3 ? 1 : 0)) > 1e-6);
   });
 
-  expect([procedural, turned]).toEqual([['astromancer', 'weaver', 'gravecaller'], []]);
+  expect([procedural, turned]).toEqual([['astromancer', 'weaver'], []]);
 });
 
 test('every glow empty carries the colour and size its halo is built from', () => {
@@ -67,10 +68,10 @@ test('the gravecaller ghost skulls, and only they, draw with the spirit material
   expect(spirit.map(n => n.name?.replace(/\.\d+/, ''))).toEqual(['skull_face_mesh', 'skull_face_mesh']);
 });
 
-test('the bellringer alone authors action clips, told apart from its idle clips by name', () => {
+test('the bellringer and the gravecaller author action clips, told apart from their idle clips by name', () => {
   const acts = Object.fromEntries(CLASS_ORDER.map(cls => [cls, (figure(cls).animations ?? []).flatMap(a => a.name ?? []).filter(isAct).sort()]));
   expect(acts).toEqual({
-    astromancer: [], weaver: [], gravecaller: [],
+    astromancer: [], weaver: [], gravecaller: ['attack', 'cast', 'down', 'hit', 'move', 'rise'],
     bellringer: ['attack', 'cast', 'down', 'hit', 'knell', 'move', 'peal', 'rise', 'toll'],
   });
   const idle = (figure('bellringer').animations ?? []).flatMap(a => a.name ?? []).filter(n => !isAct(n)).sort();
@@ -89,4 +90,12 @@ test('every action clip strikes within its own length, where the board fires its
   });
 
   expect(bad).toEqual([]);
+});
+
+test('the gravecaller sleeves are skinned to its arm bones, and its fists and what they hold ride its hand bones', () => {
+  const j = figure('gravecaller'), nodes = j.nodes ?? [];
+  const parent = (name: string) => nodes.find(n => n.children?.some(c => nodes[c]?.name === name))?.name;
+  const skinned = nodes.filter(n => n.skin !== undefined).map(n => [n.name, j.skins?.[n.skin ?? -1]?.joints.map(i => nodes[i]?.name).sort()]);
+  expect(skinned).toEqual([['rig_skin', ['chest', 'clavicle_l', 'clavicle_r', 'forearm_l', 'forearm_r', 'hand_l', 'hand_r', 'upperarm_l', 'upperarm_r']]]);
+  expect(['hand_r_mesh', 'weapon', 'hand_l_mesh', 'bell_swing'].map(parent)).toEqual(['hand_r', 'hand_r', 'hand_l', 'hand_l']);
 });

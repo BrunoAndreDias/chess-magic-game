@@ -12,7 +12,9 @@ What the game reads from a figure (src/client/board/models.ts):
   one-shot the board plays on that event (see `act()` and src/client/board/acts.ts); its `strike` is the second its blow
   lands, where the board fires the skill's effect. A skill without its own clip plays `cast` (a basic attack, `attack`
   then `cast`), and a figure without either keeps the board's procedural motion. Every other clip loops as idle motion;
-- an Empty named `glow...` with custom props `color` ("#rrggbb") and `size` (metres) becomes a soft additive halo.
+- an Empty named `glow...` with custom props `color` ("#rrggbb") and `size` (metres) becomes a soft additive halo;
+- an armature (`armature()`) may skin meshes and carry objects on its bones (`bone_parent()`); its bones key like any
+  object in a clip, and each unit gets its own skeleton.
 
 Units: 1 Blender unit = 1 tile. The figure stands on z = 0, centred on the origin, faces -Y (Blender's front view).
 """
@@ -20,7 +22,7 @@ import math
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 FPS = 24
 
@@ -96,6 +98,35 @@ def empty(name, loc=(0, 0, 0), par=None):
     return e
 
 
+def armature(name, bones):
+    """An armature from `bones`: (name, head, tail, parent, x), its bones' local x axis turned toward `x`. Each pose
+    bone rotates in XYZ euler, so `act()` keys it like an object."""
+    rig = bpy.data.objects.new(name, bpy.data.armatures.new(name))
+    bpy.context.collection.objects.link(rig)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode='EDIT')
+    for bone, head, tail, par, x in bones:
+        b = rig.data.edit_bones.new(bone)
+        b.head, b.tail = head, tail
+        b.align_roll(Vector(x).cross(b.vector))
+        if par:
+            b.parent = rig.data.edit_bones[par]
+            b.use_connect = (b.parent.tail - b.head).length < 1e-6
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for pb in rig.pose.bones:
+        pb.rotation_mode = 'XYZ'
+    return rig
+
+
+def bone_parent(child, rig, bone):
+    """Hangs `child` on `bone` where it stands: it rides the bone and keeps its own transform."""
+    bpy.context.view_layer.update()
+    child.parent, child.parent_type, child.parent_bone = rig, 'BONE', bone
+    tip = rig.matrix_world @ rig.pose.bones[bone].matrix @ Matrix.Translation((0, rig.data.bones[bone].length, 0))
+    child.matrix_parent_inverse = tip.inverted()
+    return child
+
+
 def glow(loc, color, size, par=None, name='glow'):
     e = empty(name, loc, par)
     e['color'] = color
@@ -108,8 +139,7 @@ def loop(obj, path, index, values, period):
     vals = list(values) + [values[0]]
     for i, v in enumerate(vals):
         frame = 1 + period * i / (len(vals) - 1)
-        prop = getattr(obj, path)
-        prop[index] = v
+        obj.path_resolve(path)[index] = v
         obj.keyframe_insert(path, index=index, frame=frame)
     return obj
 
@@ -129,24 +159,26 @@ def spin(obj, axis=2, period=96, turns=1):
 
 def act(name, strike, keys):
     """Authors the action clip `name` from frame 0. `keys` maps (object, path, index) to [(frame, offset from rest)];
-    `strike` is the frame its blow lands. The clip sits on a muted NLA track, so the idle clips stay what plays.
+    `strike` is the frame its blow lands. A path may reach into a pose bone (`pose.bones["arm"].rotation_euler`) on an
+    armature. The clip sits on a muted NLA track, so the idle clips stay what plays.
     Every component of a keyed path gets keys: the exporter fills an unkeyed one from whatever an earlier clip left."""
     clip = bpy.data.actions.new(name)
     clip['strike'] = strike / FPS
     last = max(f for frames in keys.values() for f, _ in frames)
     keys = dict(keys)
     for ob, path in {(ob, path) for ob, path, _ in keys}:
-        for index in range(len(getattr(ob, path))):
+        for index in range(len(ob.path_resolve(path))):
             keys.setdefault((ob, path, index), [(0, 0), (last, 0)])
     for (ob, path, index), frames in keys.items():
         ad = ob.animation_data or ob.animation_data_create()
         idle = ad.action
         ad.action = clip
-        rest = getattr(ob, path)[index]
+        prop = ob.path_resolve(path)
+        rest = prop[index]
         for frame, v in frames:
-            getattr(ob, path)[index] = rest + v
+            prop[index] = rest + v
             ob.keyframe_insert(path, index=index, frame=frame)
-        getattr(ob, path)[index] = rest
+        prop[index] = rest
         slot = ad.action_slot
         ad.action = idle
         if not any(s.action == clip for t in ad.nla_tracks for s in t.strips):
