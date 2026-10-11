@@ -89,7 +89,7 @@ export class Overlay {
     const { st, n, hp, sh } = v.parts;
 
     if (n.textContent !== name) n.textContent = name;
-    const icons = [...s.st].map(k => (k === 'encased' && !s.ice ? '🥚' : STATUS[k].icon)).join('');
+    const icons = [...s.st].map(k => STATUS[k].icon).join('');
 
     if (st.textContent !== icons) st.textContent = icons;
     const hpW = `${Math.round(Math.max(0, s.hp) / s.maxHp * 100)}%`, shW = `${Math.min(100, Math.round(s.shield / s.maxHp * 100))}%`;

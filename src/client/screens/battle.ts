@@ -1,6 +1,6 @@
 import {
-  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aoeTiles, callsOf, canUse, castTargets, current, getUnit, holders, idx, isCall,
-  moveOf, predict, puppetMoves, reachable, roundQueue, soulCap, soulsInReach, unitAt,
+  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aoeTiles, callsOf, canUse, castTargets, current, getUnit, idx, isCall,
+  moveOf, predict, reachable, roundQueue, soulCap, soulsInReach, unitAt,
 } from '../../engine/index';
 import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Turn, Unit, UnitId } from '../../engine/index';
 import type { Match } from '../../host/match';
@@ -251,9 +251,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
         if (hover && targets.some(t => same(t, hover ?? t))) {
           const area = aoeTiles(shown, u, skill, hover.x, hover.z);
           layers.push({ tiles: area, tone: 'aoe' });
-          const walk = skill === 'puppet' ? puppetMoves(shown, u).get(idx(hover.x, hover.z)) : undefined;
-
-          if (walk) layers.push({ tiles: walk.path, tone: 'path' });
 
           if (isCall(skill) && skill !== 'recall' && !u.mods.benevolent) {
             const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && area.some(t => same(t, o)));
@@ -432,10 +429,6 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (input.kind !== 'turn') { set(); return; }
 
     if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
-
-    const leash = holders(s, u).flatMap(t => { const w = getUnit(s, t.by); return w && w.team !== u.team ? [`${w.name} (${t.len})`] : []; });
-
-    if (leash.length && !u.moved) { set(h('b', null, u.name), ' is leashed by ', h('b', null, leash.join(', ')), ': blue tiles stay within the Thread’s length. ', h('b', null, 'Space'), ' = end turn.'); return; }
 
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
   }

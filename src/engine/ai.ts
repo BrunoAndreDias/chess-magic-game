@@ -16,14 +16,13 @@ function depthOf(team: Team, z: number): number { return team === 0 ? z : N - 1 
 /** `ignoreMap` plays as if the map had no rule, so the sim can measure what playing around it is worth. */
 export interface AiOpts { ignoreMap?: boolean }
 
-const DEPLOY_FIRST: Record<ClassId, number> = { weaver: 1, bellringer: 1, gravecaller: 2, astromancer: 3 };
+const DEPLOY_FIRST: Record<ClassId, number> = { bellringer: 1, gravecaller: 2, astromancer: 3 };
 
 export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBuild[], rng: Rng, opts: AiOpts = {}): Pos[] {
   const pos: (Pos | null)[] = members.map(() => null), mid = (N - 1) / 2;
-  const order = members.map((_m, i) => i).sort((a, b) => DEPLOY_FIRST[members[a]?.cls ?? 'weaver'] - DEPLOY_FIRST[members[b]?.cls ?? 'weaver']);
+  const order = members.map((_m, i) => i).sort((a, b) => DEPLOY_FIRST[members[a]?.cls ?? 'bellringer'] - DEPLOY_FIRST[members[b]?.cls ?? 'bellringer']);
 
   for (const i of order) {
-    const cls = members[i]?.cls;
     let best: Pos | null = null, bs = -1e9;
 
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
@@ -31,8 +30,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
       const d = depthOf(team, z), t = s.terr[idx(x, z)];
       let sc = rng() * 1.2 - Math.abs(x - mid) * 0.15;
 
-      if (cls === 'weaver') sc += d * 0.8;
-      else sc += (t === '^' ? 4 : 0) + (d === 1 ? 1 : 0);
+      sc += (t === '^' ? 4 : 0) + (d === 1 ? 1 : 0);
 
       if (t === '~') sc -= 3;
 
@@ -55,7 +53,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
   return pos.map(p => { if (!p) throw new Error(`team ${team}: no deploy tile left`); return p; });
 }
 
-const ROLE_BAND: Record<ClassId, readonly [number, number]> = { weaver: [1, 2], bellringer: [1, 2], gravecaller: [2, 3], astromancer: [3, 5] };
+const ROLE_BAND: Record<ClassId, readonly [number, number]> = { bellringer: [1, 2], gravecaller: [2, 3], astromancer: [3, 5] };
 
 /** What standing in a pending Call's area is likely to cost, in evalDelta's HP-like units. */
 const CALL_DANGER: Record<CallSkill, number> = { meteor: 22, thunderhead: 16, gravitywell: 6, recall: 0 };
@@ -129,8 +127,6 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
 
   if (f?.fire) sc -= 14;
 
-  if (f?.web && u.cls !== 'weaver') sc -= 3;
-
   if (t === '~' && s.units.some(e => e.team !== u.team && standing(e) && e.cls === 'astromancer')) sc -= 3;
 
   if (t === '^' && u.cls === 'astromancer') sc += 3;
@@ -155,18 +151,17 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
     const d = cheb(a.x, a.z, x, z);
 
     if (isDowned(a)) sc += d <= 1 ? 6 : rites && d <= 3 + (u.mods.riteRange || 0) ? 4 : -d * 0.8;
-    else if (u.cls === 'weaver') sc += d <= 2 ? 1 : -(d - 2) * 0.4;
     else if (d > 5) sc -= 0.4;
   }
 
   return sc;
 }
 
-const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['poison', 8], ['wither', 8]];
+const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['wither', 8]];
 
-const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'poison', 'expose', 'wither', 'hush'];
+const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'expose', 'wither', 'hush'];
 
-const ALLY_HURT: readonly [StatusKey, number][] = [['stun', 13], ['root', 5], ['expose', 5], ['burn', 5], ['poison', 6], ['wither', 7], ['hush', 6]];
+const ALLY_HURT: readonly [StatusKey, number][] = [['stun', 13], ['root', 5], ['expose', 5], ['burn', 5], ['wither', 7], ['hush', 6]];
 
 const ALLY_GAIN: readonly [StatusKey, number][] = [['guard', 6], ['haste', 3]];
 
@@ -277,7 +272,7 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
     } else {
       if (isAlive(b) && !isAlive(a)) v -= 120; else if (standing(b) && isDowned(a)) v -= 90; else if (isDowned(b) && standing(a)) v += 85;
 
-      if (a.st.encased && !b.st.encased) v += isDowned(a) ? 30 : a.hp / a.maxHp < 0.35 ? 12 : -8;
+      if (a.st.encased && !b.st.encased) v += a.hp / a.maxHp < 0.35 ? 12 : -8;
       // A full hand gathers nothing more, so spending from it costs little.
       v += (a.souls - b.souls) * (a.souls < b.souls && b.souls >= soulCap(s0, b) ? 1 : SOUL_VALUE);
 
@@ -290,25 +285,19 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
 
       if (sg > 0) v += sg * 0.45;
 
-      if (a.st.share && !b.st.share) v += 4 * s1.threads.filter(t => t.by === a.id && getUnit(s1, t.to)?.team === team).length - 2;
-
       for (const k of ALLY_CURED) if (b.st[k] && !a.st[k]) v += 6;
 
       for (const [k, w] of ALLY_HURT) if (a.st[k] && !b.st[k]) v -= w;
     }
   }
 
-  v += threadDelta(s0, s1, team) + queueDelta(s0, s1, team);
+  v += queueDelta(s0, s1, team);
   const en = s1.units.filter(o => o.team !== team && standing(o));
-  const near = (x: number, z: number, r: number) => en.some(e => cheb(e.x, e.z, x, z) <= r);
-  let webs = 0;
   const walled = new Set<Unit>();
   const hurt = s1.units.filter(a => a.team === team && standing(a) && a.hp < a.maxHp * 0.6);
   s1.fx.forEach((f, k) => {
     if (!f) return;
     const f0 = s0.fx[k], x = k % N, z = (k / N) | 0;
-
-    if (f.web && !f0?.web && webs < 6 && near(x, z, 1)) { v += 1; webs++; }
 
     if (!f.bone || f0?.bone) return;
 
@@ -332,21 +321,6 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
 
     if (by && standing(by)) v -= CALL_DISCOUNT * callValue(s0, call, team, opts);
   }
-
-  return v;
-}
-
-/** Threads tied by `team`'s Weavers: a new one on an enemy +6, on an ally +2; losing one −4. */
-function threadDelta(s0: BattleState, s1: BattleState, team: Team): number {
-  let v = 0;
-  const ours = (s: BattleState, by: UnitId) => getUnit(s, by)?.team === team;
-
-  for (const t of s1.threads) {
-    if (!ours(s1, t.by) || s0.threads.some(o => o.by === t.by && o.to === t.to)) continue;
-    v += getUnit(s1, t.to)?.team === team ? 2 : 6;
-  }
-
-  for (const t of s0.threads) if (ours(s0, t.by) && !s1.threads.some(o => o.by === t.by && o.to === t.to)) v -= 4;
 
   return v;
 }
@@ -375,9 +349,8 @@ function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
   const foe: Team = u.team === 0 ? 1 : 0;
 
   switch (id) {
-    case 'puppet': return true;
     case 'meteor': return near(foe, 1) || terrAt(s, t.x, t.z) === 'B';
-    case 'gravitywell': case 'web': case 'bonewall': return near(foe, 2);
+    case 'gravitywell': case 'bonewall': return near(foe, 2);
     default: return near(foe, 1);
   }
 }

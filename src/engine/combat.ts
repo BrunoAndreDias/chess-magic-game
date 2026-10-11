@@ -1,9 +1,9 @@
 import {
-  BAD_KEYS, actedCount, actedThisRound, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, heldBy, idx, inb, isAlive, isDowned, isSolid, landingNear, lastToAct, los, nextTurn,
-  nearestFree, onHigh, puppetMoves, reachable, sign, soulAt, soulCap, soulsInReach, square, standing, terrAt, threadCap, unitAt, unitsIn,
+  BAD_KEYS, actedCount, actedThisRound, boneTiles, canUse, castTargets, cdOf, cheb, current, getUnit, idx, inb, isAlive, isDowned, isSolid, lastToAct, nextTurn,
+  nearestFree, onHigh, reachable, sign, soulAt, soulCap, soulsInReach, square, standing, terrAt, unitAt, unitsIn,
 } from './board';
 import {
-  BLEED, BURN, CLASSES, DARK_ROUND, DIR8, EXPOSE, HIGH_GROUND, NODE_N, PAIR_N, POISON, REAP_AT, SHARE, SKILLS, SKILL_N as K, SOUL_HIT, SOUL_ROUNDS, WET_SHOCK, WET_TURNS, isCall,
+  BLEED, BURN, CLASSES, DARK_ROUND, DIR8, EXPOSE, HIGH_GROUND, NODE_N, PAIR_N, REAP_AT, SKILLS, SKILL_N as K, SOUL_HIT, SOUL_ROUNDS, WET_SHOCK, WET_TURNS, isCall,
 } from './tables';
 import type { SkillDef } from './tables';
 import type {
@@ -16,9 +16,6 @@ type CastEvent = Extract<BattleEvent, { type: 'cast' }>;
 type SkillKey = Exclude<ClassSkillId | InnateSkillId, CallSkill> | 'basic' | 'helpup';
 
 type Fx = Exclude<keyof TileFx, 'spent'>;
-
-/** `full`: SLAM into obstacles, ABYSS into chasms. `soft`: stop short. */
-type Physics = 'full' | 'soft';
 
 /** Whoever is acting: a caster, or a Call landing (`power` 0.5 for Snap). */
 interface Ctx { s: BattleState; u: Unit; ev: BattleEvent[]; power: number }
@@ -33,15 +30,6 @@ function setFx(s: BattleState, x: number, z: number, key: Fx, val: number): void
   const k = idx(x, z);
   const f = s.fx[k] ?? (s.fx[k] = {});
   f[key] = val;
-}
-
-function clearFx(s: BattleState, x: number, z: number, key: Fx): void {
-  const k = idx(x, z), f = s.fx[k];
-
-  if (!f) return;
-  delete f[key];
-
-  if (fxEmpty(f)) s.fx[k] = undefined;
 }
 
 export function fxEmpty(f: TileFx): boolean {
@@ -79,46 +67,11 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
 
   if (m.finalHour && lastToAct(s, u, true)) v *= 1 + m.finalHour;
 
-  for (const t of s.threads) {
-    if (t.to !== u.id || t.by === tgt.id) continue;
-    const w = getUnit(s, t.by);
-
-    if (w && w.team !== u.team && standing(w) && w.mods.leashDmg) { v *= 1 - w.mods.leashDmg; break; }
-  }
-
   return v;
 }
 
-/** The standing ally of `o` holding it under Shared Pain. */
-function sharer(s: BattleState, o: Unit): Unit | null {
-  for (const t of s.threads) {
-    if (t.to !== o.id) continue;
-    const w = getUnit(s, t.by);
-
-    if (w && w !== o && w.team === o.team && standing(w) && w.st.share) return w;
-  }
-
-  return null;
-}
-
-/** The Weaver with Fate Weaver who is `o` or holds `o` while standing, if `o` hasn't been spared yet. */
-function fateWeaver(s: BattleState, o: Unit): Unit | null {
-  if (o.spared) return null;
-
-  if (o.mods.fateWeaver) return o;
-
-  for (const t of s.threads) {
-    if (t.to !== o.id) continue;
-    const w = getUnit(s, t.by);
-
-    if (w && w !== o && w.team === o.team && standing(w) && w.mods.fateWeaver) return w;
-  }
-
-  return null;
-}
-
 /**
- * Raw damage to one unit (no attacker scaling): Encased immunity, Shared Pain, shields, Fate Weaver, downing, finishing.
+ * Raw damage to one unit (no attacker scaling): Encased immunity, shields, downing, finishing.
  * A hit of SOUL_HIT or more drops a Soul; a unit's hit that leaves a Withered enemy (or a Reaper's target) at REAP_AT of max HP or less Downs it (REAP).
  */
 export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], kind: DamageKind, src: Unit | null): number {
@@ -135,27 +88,13 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
   }
 
   amt = Math.round(amt);
-  const w = kind === 'share' ? null : sharer(s, o);
-
-  if (w) {
-    const taken = Math.round(amt * SHARE);
-    amt -= taken;
-    ev.push({ type: 'shared', id: o.id, by: w.id });
-    damage(s, w, taken, ev, 'share', null);
-  }
-
   const ab = Math.min(o.shield, amt);
   o.shield -= ab;
   let d = amt - ab;
-  const fw = d >= o.hp ? fateWeaver(s, o) : null;
-
-  if (fw) d = o.hp - 1;
   o.hp -= d;
 
   if (src) s.stats.dmg[src.team] += d + ab;
   ev.push({ type: 'damage', id: o.id, amount: d, absorbed: ab, kind });
-
-  if (fw) { o.spared = true; encase(o, 1, fw.id, false, ev); }
 
   if (o.st.guard && src && src.team !== o.team && standing(src)) hush(s, src, o.id, ev);
 
@@ -201,7 +140,6 @@ export function down(s: BattleState, o: Unit, ev: BattleEvent[], src: Unit | nul
     ev.push({ type: 'fizzle', id: o.id });
   }
 
-  breakThreads(s, ev);
   checkWinner(s);
 }
 
@@ -231,10 +169,10 @@ export function addStatus<K extends StatusKey>(o: Unit, key: K, val: NonNullable
   ev.push({ type: 'status', id: o.id, key });
 }
 
-/** Encased: skips its turns, takes no damage, can't be moved. The only status a Downed unit can take (Cocoon, Fate Weaver). */
-function encase(o: Unit, t: number, by: UnitId, ice: boolean, ev: BattleEvent[]): void {
+/** Encased: skips its turns, takes no damage, can't be moved. */
+function encase(o: Unit, t: number, by: UnitId, ev: BattleEvent[]): void {
   if (!isAlive(o)) return;
-  o.st.encased = { t, by, ice };
+  o.st.encased = { t, by };
   ev.push({ type: 'encased', id: o.id });
 }
 
@@ -271,7 +209,6 @@ function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
 function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
   if (s.units.some(f => f.team === src.team && isAlive(f) && f.mods.ferryman)) frac = Math.max(frac, NODE_N.g_ferry.hp);
   o.life = { kind: 'up' };
-  delete o.st.encased;
   const give = Math.min(Math.max(1, Math.round(o.maxHp * frac)), src.hp - 1);
   src.hp -= give;
   ev.push({ type: 'damage', id: src.id, amount: give, absorbed: 0, kind: 'drain' });
@@ -316,13 +253,11 @@ function gather(s: BattleState, u: Unit, souls: readonly Soul[], ev: BattleEvent
 }
 
 // ---------- the map reacting ----------
-function physicsOf(c: Ctx, o: Unit): Physics { return o.team === c.u.team ? 'soft' : 'full'; }
-
 /**
- * Forced movement toward (px, pz) (`dir` 1) or away from it (`dir` -1), re-aimed every step.
- * `full` physics SLAMs into walls, units and the edge and drops into chasms (ABYSS); `soft` stops short.
+ * Forced movement toward (px, pz), re-aimed every step.
+ * It SLAMs into walls, units and the edge and drops into chasms (ABYSS).
  */
-function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number, kind: Physics, dir: 1 | -1): void {
+function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number): void {
   const s = c.s;
 
   if (!standing(o) || o.st.encased || dist <= 0) return;
@@ -330,13 +265,12 @@ function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number, kind: Physi
   const slide = () => { if (path.length > 1) c.ev.push({ type: 'move', id: o.id, path, slide: true }); };
 
   for (let k = 0; k < dist; k++) {
-    const dx = sign(px - o.x) * dir, dz = sign(pz - o.z) * dir;
+    const dx = sign(px - o.x), dz = sign(pz - o.z);
 
     if (!dx && !dz) break;
     const nx = o.x + dx, nz = o.z + dz, t = terrAt(s, nx, nz);
 
     if (inb(nx, nz) && t === 'o') {
-      if (kind === 'soft') break;
       path.push({ x: nx, z: nz });
       c.ev.push({ type: 'move', id: o.id, path, slide: true });
       emitCombo(s, c.ev, 'ABYSS', c.u, o.id, null);
@@ -346,7 +280,6 @@ function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number, kind: Physi
     }
 
     if (!inb(nx, nz) || isSolid(s, nx, nz) || unitAt(s, nx, nz)) {
-      if (kind === 'soft') break;
       c.ev.push({ type: 'move', id: o.id, path, slide: true });
 
       if (t === 'B' && inb(nx, nz)) burstBrazier(c, nx, nz);
@@ -380,7 +313,7 @@ function burstBrazier(c: Ctx, x: number, z: number): void {
   for (const [dx, dz] of DIR8) igniteTile(c, x + dx, z + dz, 3);
 }
 
-/** Fire on a tile: burns a web away and sets whoever stands there Burning, except a Benevolent caster's allies. */
+/** Fire on a tile: sets whoever stands there Burning, except a Benevolent caster's allies. */
 function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   const s = c.s;
 
@@ -388,7 +321,6 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   const t = terrAt(s, x, z);
 
   if (isSolid(s, x, z) || t === '~' || t === 'I') return;
-  clearFx(s, x, z, 'web');
   setFx(s, x, z, 'fire', turns);
   c.ev.push({ type: 'fire', x, z });
   const o = unitAt(s, x, z);
@@ -396,60 +328,13 @@ function igniteTile(c: Ctx, x: number, z: number, turns: number): void {
   if (o && !isDowned(o) && !(o.team === c.u.team && c.u.mods.benevolent)) addStatus(o, 'burn', burn(c), c.ev);
 }
 
-/** Ending any move on a tile: water wets, fire burns, a web Roots a non-Weaver. */
+/** Ending any move on a tile: water wets, fire burns. */
 export function arrive(s: BattleState, o: Unit, ev: BattleEvent[]): void {
   if (!standing(o)) return;
   const t = terrAt(s, o.x, o.z), f = s.fx[idx(o.x, o.z)];
 
   if (t === '~') addStatus(o, 'wet', { t: WET_TURNS, by: null }, ev);
   else if (f?.fire && !o.st.burn) addStatus(o, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, ev);
-
-  if (f?.web && o.cls !== 'weaver') root(s, o, null, ev);
-}
-
-// ---------- threads ----------
-function tie(s: BattleState, w: Unit, o: Unit, ev: BattleEvent[]): void {
-  const len = Math.max(1, cheb(w.x, w.z, o.x, o.z)), old = s.threads.find(t => t.by === w.id && t.to === o.id);
-
-  if (old) old.len = len;
-  else {
-    const mine = s.threads.filter(t => t.by === w.id);
-    const drop = mine.length >= threadCap(s, w) ? mine[0] : undefined;
-
-    if (drop) { s.threads = s.threads.filter(t => t !== drop); ev.push({ type: 'snap', by: drop.by, to: drop.to }); }
-
-    s.threads.push({ by: w.id, to: o.id, len });
-  }
-
-  ev.push({ type: 'thread', by: w.id, to: o.id });
-}
-
-/** A Thread breaks once its ends lose sight of each other, or either is Downed or Burning. */
-export function breakThreads(s: BattleState, ev: BattleEvent[]): void {
-  if (!s.threads.length) return;
-  s.threads = s.threads.filter(t => {
-    const a = getUnit(s, t.by), b = getUnit(s, t.to);
-    const ok = !!a && !!b && standing(a) && standing(b) && !a.st.burn && !b.st.burn && los(s, a.x, a.z, b.x, b.z);
-
-    if (!ok) ev.push({ type: 'snap', by: t.by, to: t.to });
-
-    return ok;
-  });
-}
-
-/** Web of Fate: an enemy held beyond the leash at the end of its turn is pulled back to it and takes a hit. */
-export function webOfFate(s: BattleState, o: Unit, ev: BattleEvent[]): void {
-  for (const t of s.threads.slice()) {
-    const w = getUnit(s, t.by);
-
-    if (t.to !== o.id || !w || w.team === o.team || !w.mods.webOfFate || !standing(w) || !standing(o)) continue;
-    const d = cheb(w.x, w.z, o.x, o.z);
-
-    if (d <= NODE_N.w_fate.leash) continue;
-    const c: Ctx = { s, u: w, ev, power: 1 };
-    pull(c, o, w.x, w.z, d - NODE_N.w_fate.leash, 'full', 1);
-    hit(c, o, NODE_N.w_fate.dmg, 'phys');
-  }
 }
 
 // ---------- the skills, one handler each ----------
@@ -460,8 +345,6 @@ function tgt(c: CastCtx): Unit {
 }
 
 function burn(c: Ctx): NonNullable<Statuses['burn']> { return { t: BURN.turns, dmg: BURN.dmg + (c.u.mods.burnDmg || 0), by: c.u.id }; }
-
-function poison(c: Ctx): NonNullable<Statuses['poison']> { return { t: POISON.turns, dmg: POISON.dmg + (c.u.mods.poisonDmg || 0), by: c.u.id }; }
 
 function teleport(c: Ctx, o: Unit, at: Pos): void {
   c.ev.push({ type: 'teleport', id: o.id, x: at.x, z: at.z });
@@ -511,61 +394,7 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   },
   prison(c) {
     const o = tgt(c);
-    encase(o, o.team !== c.u.team && c.u.mods.absZero ? NODE_N.a_zero.turns : K.prison.turns, c.u.id, true, c.ev);
-  },
-
-  tether(c) { tie(c.s, c.u, tgt(c), c.ev); },
-  reel(c) {
-    const s = c.s, u = c.u, feast = !!u.mods.feast;
-    const held = s.threads.filter(t => t.by === u.id).map(t => getUnit(s, t.to)).filter((o): o is Unit => !!o && standing(o));
-    held.sort((a, b) => cheb(a.x, a.z, u.x, u.z) - cheb(b.x, b.z, u.x, u.z));
-
-    for (const o of held) {
-      const d = cheb(o.x, o.z, u.x, u.z), foe = o.team !== u.team, from = { x: o.x, z: o.z };
-      pull(c, o, u.x, u.z, foe && feast ? d - 1 : Math.min(K.reel.pull, d - 1), physicsOf(c, o), 1);
-
-      if (!feast || !foe || !standing(o) || (o.x === from.x && o.z === from.z) || cheb(o.x, o.z, u.x, u.z) > 1) continue;
-      hit(c, o, NODE_N.w_feast.dmg, 'phys');
-
-      if (standing(o)) addStatus(o, 'poison', poison(c), c.ev);
-    }
-  },
-  web(c) {
-    const s = c.s, turns = K.web.turns + (c.u.mods.webTurns || 0) + (s.party[c.u.team].has('greatweb') ? PAIR_N.greatweb.webTurns : 0);
-    const tiles = square(c.tx, c.tz, K.web.radius).filter(t => !isSolid(s, t.x, t.z));
-
-    for (const t of tiles) setFx(s, t.x, t.z, 'web', turns);
-    c.ev.push({ type: 'terrain', tiles, kind: 'web' });
-  },
-  cocoon(c) {
-    const o = tgt(c);
-
-    if (o.team === c.u.team && standing(o)) shield(o, K.cocoon.shield, c.ev);
-    else encase(o, K.cocoon.turns, c.u.id, false, c.ev);
-  },
-  venombite(c) {
-    const o = tgt(c), u = c.u, st = o.st.stun || o.st.root;
-    hit(c, o, K.venombite.dmg, 'phys', st && standing(o) ? { name: 'SHATTER', mult: K.venombite.shatterMult, setup: st.by } : null);
-
-    if (standing(o)) addStatus(o, 'poison', poison(c), c.ev);
-
-    if (u.mods.biteHeal) heal(c.s, u, u.mods.biteHeal, c.ev, u);
-  },
-  puppet(c) {
-    const s = c.s, m = puppetMoves(s, c.u).get(idx(c.tx, c.tz)), o = m && getUnit(s, m.id);
-
-    if (!m || !o) return;
-    c.ev.push({ type: 'move', id: o.id, path: m.path });
-
-    for (const p of m.path.slice(1)) if (s.fx[idx(p.x, p.z)]?.fire && !o.st.burn) addStatus(o, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, c.ev);
-    o.x = c.tx; o.z = c.tz;
-    arrive(s, o, c.ev);
-  },
-  sharedpain(c) { addStatus(c.u, 'share', { t: 1, by: c.u.id }, c.ev); },
-  skitter(c) {
-    const at = landingNear(c.s, c.u, tgt(c), c.u.x, c.u.z);
-
-    if (at) teleport(c, c.u, at);
+    encase(o, o.team !== c.u.team && c.u.mods.absZero ? NODE_N.a_zero.turns : K.prison.turns, c.u.id, c.ev);
   },
 
   harvest(c) { gather(c.s, c.u, soulsInReach(c.s, c.u), c.ev); },
@@ -587,8 +416,7 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   siphon(c) {
     const s = c.s, u = c.u, took = hit(c, tgt(c), K.siphon.dmg, 'drain');
     const hurt = (a: Unit) => a.hp / a.maxHp;
-    const silk = s.party[u.team].has('soulsilk');
-    const reach = (a: Unit) => cheb(a.x, a.z, u.x, u.z) <= K.siphon.reach || (silk && heldBy(s, a, u.team));
+    const reach = (a: Unit) => cheb(a.x, a.z, u.x, u.z) <= K.siphon.reach;
     const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && reach(a)).sort((a, b) => hurt(a) - hurt(b))[0];
 
     if (mend && took > 0) heal(s, mend, took, c.ev, u);
@@ -656,14 +484,12 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
       return;
     }
 
-    const { burn: b, poison: p } = o.st;
+    const b = o.st.burn;
     o.st = {};
     o.shield = 0;
     c.ev.push({ type: 'cleanse', id: o.id });
 
     if (b) damage(s, o, b.dmg * b.t, c.ev, 'burn', u);
-
-    if (p && standing(o)) damage(s, o, p.dmg * p.t, c.ev, 'poison', u);
   },
   bellguard(c) {
     shield(c.u, K.bellguard.shield + (c.u.mods.guardShield || 0), c.ev);
@@ -711,7 +537,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
       const tt = terrAt(c.s, t.x, t.z);
 
       if (tt === 'B') burstBrazier(c, t.x, t.z);
-      else if (tt === 'G' || c.s.fx[idx(t.x, t.z)]?.web) igniteTile(c, t.x, t.z, 2);
+      else if (tt === 'G') igniteTile(c, t.x, t.z, 2);
     }
 
     for (const o of c.victims) {
@@ -731,7 +557,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     const pulled = c.victims.slice();
     pulled.sort((a, b) => cheb(a.x, a.z, c.x, c.z) - cheb(b.x, b.z, c.x, c.z));
 
-    for (const o of pulled) pull(c, o, c.x, c.z, dist, 'full', 1);
+    for (const o of pulled) pull(c, o, c.x, c.z, dist);
   },
   recall(c) {
     const r = c.call.recall, o = r && getUnit(c.s, r.id);
@@ -739,7 +565,6 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     if (r && o && isDowned(o) && r.hp > 0 && c.s.party[c.call.team].has('seconddawn')) {
       o.life = { kind: 'up' };
       o.hp = 0;
-      delete o.st.encased;
       c.s.stats.revives[o.team]++;
       c.ev.push({ type: 'revive', id: o.id, by: c.u.id });
     }
@@ -763,7 +588,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
   },
 };
 
-/** One landing of `call` centered on (x, z): the skill, then Absolute Zero, Sleet and Star-Tether on everyone it hit. */
+/** One landing of `call` centered on (x, z): the skill, then Absolute Zero and Sleet on everyone it hit. */
 function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power: number, ev: BattleEvent[]): void {
   const tiles = callTiles(call.skill, x, z);
   ev.push({ type: 'land', id: u.id, skill: call.skill, x, z, tiles, power });
@@ -782,10 +607,6 @@ function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power
     if (u.mods.absZero && held.has(o)) addStatus(o, 'stun', { t: 1, by: u.id }, ev);
 
     if (u.mods.callWet) addStatus(o, 'wet', { t: WET_TURNS, by: u.id }, ev);
-
-    if (o.team !== u.team && s.party[u.team].has('startether') && s.threads.some(t => t.to === o.id && getUnit(s, t.by)?.team === u.team)) {
-      addStatus(o, 'expose', { t: PAIR_N.startether.turns, by: u.id }, ev);
-    }
   }
 }
 
@@ -842,7 +663,6 @@ export function performCast(s: BattleState, id: SkillId, tx: number, tz: number)
   const cd = cdOf(s, u, id);
 
   if (cd > 0) u.cd[id] = cd;
-  breakThreads(s, ev);
   checkWinner(s);
 
   return ev;
@@ -864,7 +684,6 @@ export function performMove(s: BattleState, x: number, z: number): BattleEvent[]
   const here = soulAt(s, x, z);
 
   if (here && soulCap(s, u)) gather(s, u, [here], ev);
-  breakThreads(s, ev);
   checkWinner(s);
 
   return ev;

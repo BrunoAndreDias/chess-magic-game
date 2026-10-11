@@ -23,7 +23,7 @@ npm run build
 npm run sim -- 200       # 200 AI battles with random builds: wins, rounds, combos, class and path win share, mechanic use
 npm run sim -- 300 --blind  # one side ignores the map rule: the aware side's win rate per map
 npm run sim -- 300 --dumb   # three damage keystones against a party covering tank, damage and support
-MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium and counts Calls, Threads and webs (ALL_AI=1 spectates)
+MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium and counts Calls and Encases (ALL_AI=1 spectates)
 ```
 
 ## Layout

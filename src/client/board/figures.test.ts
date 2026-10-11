@@ -40,7 +40,7 @@ test('every figure that casts without a clip keeps its weapon rotation identity,
     return q.some((v, i) => Math.abs(v - (i === 3 ? 1 : 0)) > 1e-6);
   });
 
-  expect([procedural, turned]).toEqual([['astromancer', 'weaver', 'gravecaller'], []]);
+  expect([procedural, turned]).toEqual([['astromancer', 'gravecaller'], []]);
 });
 
 test('every glow empty carries the colour and size its halo is built from', () => {
@@ -70,7 +70,7 @@ test('the gravecaller ghost skulls, and only they, draw with the spirit material
 test('the bellringer alone authors action clips, told apart from its idle clips by name', () => {
   const acts = Object.fromEntries(CLASS_ORDER.map(cls => [cls, (figure(cls).animations ?? []).flatMap(a => a.name ?? []).filter(isAct).sort()]));
   expect(acts).toEqual({
-    astromancer: [], weaver: [], gravecaller: [],
+    astromancer: [], gravecaller: [],
     bellringer: ['attack', 'cast', 'down', 'hit', 'knell', 'move', 'peal', 'rise', 'toll'],
   });
   const idle = (figure('bellringer').animations ?? []).flatMap(a => a.name ?? []).filter(n => !isAct(n)).sort();

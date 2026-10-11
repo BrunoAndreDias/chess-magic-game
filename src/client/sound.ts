@@ -41,11 +41,6 @@ const VOICES: Readonly<Record<ClassId, Voice>> = {
     { step: 12, at: 0.28, dur: 1.4, gain: 0.12, wave: 'triangle' },
     { step: 24, at: 0.28, dur: 0.8, gain: 0.04, wave: 'sine' },
   ] },
-  weaver: { root: 196, parts: [
-    { step: 0, at: 0, dur: 0.9, gain: 0.2, wave: 'sawtooth', lp: [4200, 260] },
-    { step: 7, at: 0.09, dur: 0.8, gain: 0.13, wave: 'sawtooth', lp: [3600, 240] },
-    { step: 12, at: 0.18, dur: 1.1, gain: 0.1, wave: 'triangle', lp: [3000, 300] },
-  ] },
 };
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;

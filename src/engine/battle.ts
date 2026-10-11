@@ -28,7 +28,6 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     stats: { dmg: [0, 0], heal: [0, 0], downs: [0, 0], revives: [0, 0] },
     souls: [],
     calls: [],
-    threads: [],
     callRound: [0, 0],
   };
 
@@ -45,7 +44,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
       s.units.push({
         id: unitId(nextId++), team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, SKILL_PICKS), tree: m.tree.slice(), mods,
         x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false,
-        spared: false, souls: 0,
+        souls: 0,
       });
     });
   }

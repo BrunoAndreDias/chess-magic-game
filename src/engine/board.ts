@@ -1,7 +1,7 @@
 import {
-  CLASSES, DEPLOY_ROWS, DIR4, DIR8, GRASS_SIGHT, HARVEST_RANGE, HASTE_MOVE, HIGH_GROUND, N, PAIR_N, SKILLS, SKILL_N, SOULS, STATUS, TERRAIN, THREADS, UNDYING_MOVE, isCall,
+  CLASSES, DEPLOY_ROWS, DIR4, GRASS_SIGHT, HARVEST_RANGE, HASTE_MOVE, HIGH_GROUND, N, PAIR_N, SKILLS, SOULS, STATUS, TERRAIN, UNDYING_MOVE, isCall,
 } from './tables';
-import type { BasicSkillId, BattleState, Phase, Pos, SkillId, Soul, StatusKey, Statuses, Team, TerrainChar, Thread, Unit, UnitId } from './types';
+import type { BasicSkillId, BattleState, Phase, Pos, SkillId, Soul, StatusKey, Statuses, Team, TerrainChar, Unit, UnitId } from './types';
 
 export interface Target extends Pos { id?: UnitId }
 
@@ -127,21 +127,6 @@ function isStatusKey(k: string): k is StatusKey { return k in STATUS; }
 
 export const BAD_KEYS: readonly StatusKey[] = Object.keys(STATUS).filter(isStatusKey).filter(k => STATUS[k].bad);
 
-// ---------- threads ----------
-/** A Weaver of `team` holds `o` (Soul Silk, Clockwork Silk). */
-export function heldBy(s: BattleState, o: Unit, team: Team): boolean {
-  return s.threads.some(t => t.to === o.id && getUnit(s, t.by)?.team === team);
-}
-
-/** The Threads holding `o`, by Weavers of `team` when given. */
-export function holders(s: BattleState, o: Unit, team?: Team): Thread[] {
-  return s.threads.filter(t => t.to === o.id && (team === undefined || getUnit(s, t.by)?.team === team));
-}
-
-export function threadCap(s: BattleState, w: Unit): number {
-  return THREADS + (w.mods.threads || 0) + (s.party[w.team].has('greatweb') ? PAIR_N.greatweb.threads : 0);
-}
-
 // ---------- souls ----------
 /** How many Souls `u` can hold: 0 unless its class gathers them. */
 export function soulCap(s: BattleState, u: Unit): number {
@@ -179,20 +164,19 @@ function pathTo(prev: Map<number, number>, k: number): Pos[] {
   return path.reverse();
 }
 
-/** Dijkstra: terrain costs, enemies block, webs stop non-Weavers. */
+/** Dijkstra: terrain costs, enemies block. Tile index → previous tile on the cheapest path. */
 function walkPaths(s: BattleState, u: Unit, range: number): Map<number, number> {
-  const start = idx(u.x, u.z), weaver = u.cls === 'weaver';
+  const start = idx(u.x, u.z);
   const dist = new Map<number, number>([[start, 0]]), prev = new Map<number, number>([[start, -1]]);
   const open: number[] = [start];
 
-  const relax = (from: number, nk: number, nd: number, stop: boolean) => {
+  const relax = (from: number, nk: number, nd: number) => {
     if (nd > range) return;
     const old = dist.get(nk);
 
     if (old !== undefined && old <= nd) return;
     dist.set(nk, nd); prev.set(nk, from);
-
-    if (!stop) open.push(nk);
+    open.push(nk);
   };
 
   while (open.length) {
@@ -209,9 +193,7 @@ function walkPaths(s: BattleState, u: Unit, range: number): Map<number, number> 
       const o = unitAt(s, nx, nz);
 
       if (o && o.team !== u.team) continue;
-      const web = !!s.fx[idx(nx, nz)]?.web;
-      const cost = web && weaver ? 0 : TERRAIN[terrAt(s, nx, nz)].cost || 1;
-      relax(c, idx(nx, nz), d + cost, web && !weaver);
+      relax(c, idx(nx, nz), d + (TERRAIN[terrAt(s, nx, nz)].cost || 1));
     }
   }
 
@@ -223,30 +205,13 @@ export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
   const res = new Map<number, Pos[]>();
 
   if (!u || !(standing(u) || undying(u)) || u.moved || u.st.encased) return res;
-
-  return paths(s, u, moveOf(u), true);
-}
-
-/** Every tile `u` could walk to within `range`, ignoring Root; on its `own` move, enemy Weavers' Threads leash it. */
-export function paths(s: BattleState, u: Unit, range: number, own: boolean): Map<number, Pos[]> {
-  const res = new Map<number, Pos[]>(), start = idx(u.x, u.z);
-  const prev = walkPaths(s, u, range);
-  const leashes: [Unit, number][] = [];
-
-  if (own) for (const t of s.threads) {
-    if (t.to !== u.id) continue;
-    const w = getUnit(s, t.by);
-
-    if (w && w.team !== u.team && standing(w)) leashes.push([w, t.len]);
-  }
+  const start = idx(u.x, u.z), prev = walkPaths(s, u, moveOf(u));
 
   prev.forEach((_p, k) => {
     if (k === start) return;
     const x = k % N, z = (k / N) | 0;
 
     if (unitAt(s, x, z) || isSolid(s, x, z)) return;
-
-    for (const [w, len] of leashes) if (cheb(x, z, w.x, w.z) > len) return;
     res.set(k, pathTo(prev, k));
   });
 
@@ -267,8 +232,6 @@ export function cdOf(s: BattleState, u: Unit, id: SkillId): number {
 
   if (id === 'prison') c -= u.mods.prisonCd || 0;
 
-  if (id === 'cocoon') c -= u.mods.cocoonCd || 0;
-
   if (id === 'toll') c -= u.mods.tollCd || 0;
 
   if (id === 'encore') c -= u.mods.encoreCd || 0;
@@ -282,8 +245,6 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
   if (isCall(id)) r += u.mods.callRange || 0;
 
   if (id === 'recall') r += u.mods.recallRange || 0;
-
-  if (id === 'tether') r += u.mods.threadRange || 0;
 
   if (id === 'lastrites') r += u.mods.riteRange || 0;
 
@@ -350,24 +311,8 @@ export function nearestFree(s: BattleState, x: number, z: number, except: Unit |
   return null;
 }
 
-/** Puppet Strings: tile index → the first held enemy (in Thread order) that can walk there in its steps, and its path. */
-export function puppetMoves(s: BattleState, u: Unit): Map<number, { id: UnitId; path: Pos[] }> {
-  const out = new Map<number, { id: UnitId; path: Pos[] }>();
-
-  for (const t of s.threads) {
-    if (t.by !== u.id) continue;
-    const o = getUnit(s, t.to);
-
-    if (!o || o.team === u.team || !standing(o) || o.st.encased) continue;
-    paths(s, o, SKILL_N.puppet.steps, false).forEach((path, k) => { if (!out.has(k)) out.set(k, { id: o.id, path }); });
-  }
-
-  return out;
-}
-
 function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: number, r: number): boolean {
   const sk = SKILLS[id], ox = o === u ? px : o.x, oz = o === u ? pz : o.z, d = cheb(px, pz, ox, oz);
-  const held = () => s.threads.some(t => t.by === u.id && t.to === o.id);
 
   if (id === 'toll' && o === u) return !!u.mods.finalHour && !u.moved && !u.acted && !tolledThisRound(s, u.id) && !lastToAct(s, u, true);
 
@@ -383,15 +328,10 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
 
       if (o.team !== u.team && concealed(s, u, o, px, pz)) return false;
 
-      if (!standing(o) && !(id === 'cocoon' && o.team === u.team)) return false;
+      if (!standing(o)) return false;
       break;
     default: return false;
   }
-
-  if (id === 'cocoon') return d <= r || held();
-  const silk = (id === 'lastrites' && s.party[u.team].has('soulsilk')) || (id === 'toll' && s.party[u.team].has('clockworksilk'));
-
-  if (silk && heldBy(s, o, u.team)) r = Infinity;
 
   if (id === 'equalize' && !evens(u, o)) return false;
 
@@ -400,8 +340,6 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
   if (id === 'encore' && (!actedThisRound(s, o.id) || nextTurn(s, o.id) >= 0)) return false;
 
   if (d > r) return false;
-
-  if (id === 'skitter') return held() && !!landingNear(s, u, o, px, pz);
 
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
 
@@ -413,12 +351,6 @@ export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz =
   const sk = SKILLS[id], out: Target[] = [];
 
   if (sk.target === 'self') return [{ x: px, z: pz }];
-
-  if (id === 'puppet') {
-    puppetMoves(s, u).forEach((_m, k) => out.push({ x: k % N, z: (k / N) | 0 }));
-
-    return out;
-  }
 
   const r = skillRange(s, u, id, px, pz);
 
@@ -440,23 +372,6 @@ export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz =
   }
 
   return out;
-}
-
-export function landingNear(s: BattleState, u: Unit, o: Unit, px: number, pz: number): Pos | null {
-  let best: Pos | null = null, bs = 1e9;
-  DIR8.forEach(([dx, dz], i) => {
-    const x = o.x + dx, z = o.z + dz;
-
-    if (!inb(x, z) || isSolid(s, x, z)) return;
-    const w = unitAt(s, x, z);
-
-    if (w && !(w === u && (u.x !== px || u.z !== pz))) return;
-    const sc = i + (terrAt(s, x, z) === '~' ? 20 : 0) + (s.fx[idx(x, z)]?.fire ? 40 : 0);
-
-    if (sc < bs) { bs = sc; best = { x, z }; }
-  });
-
-  return best;
 }
 
 export function square(x: number, z: number, r: number): Pos[] {
@@ -540,11 +455,7 @@ function cloneStatuses(st: Statuses): Statuses {
 
   if (st.burn) o.burn = { ...st.burn };
 
-  if (st.poison) o.poison = { ...st.poison };
-
   if (st.encased) o.encased = { ...st.encased };
-
-  if (st.share) o.share = { ...st.share };
 
   if (st.wither) o.wither = { ...st.wither };
 
@@ -581,7 +492,6 @@ export function cloneState(s: BattleState): BattleState {
     },
     souls: s.souls.map(o => ({ ...o })),
     calls: s.calls.map(c => ({ ...c, recall: c.recall ? { ...c.recall } : null })),
-    threads: s.threads.map(t => ({ ...t })),
     callRound: [s.callRound[0], s.callRound[1]],
   };
 }

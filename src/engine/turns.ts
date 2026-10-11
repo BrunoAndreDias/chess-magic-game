@@ -1,5 +1,5 @@
 import { actionsOf, cheb, current, idx, isAlive, standing, terrAt } from './board';
-import { addStatus, breakThreads, checkWinner, damage, fxEmpty, heal, landCalls, webOfFate } from './combat';
+import { addStatus, checkWinner, damage, fxEmpty, heal, landCalls } from './combat';
 import { endOfRound } from './hazards';
 import { BURN, DARK_ROUND, MAX_ROUNDS, NODE_N, PAIR_N, SHRINE_HEAL, WET_TURNS } from './tables';
 import type { BattleEvent, BattleState, Team, Unit, UnitId } from './types';
@@ -63,11 +63,10 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     landCalls(s, u, ev);
 
     if (over(s)) return;
-    delete u.st.share;
     delete u.st.guard;
 
     if (u.life.kind === 'downed') {
-      if (u.mods.undying && u.souls > 0 && !u.st.encased) { u.souls--; ev.push({ type: 'spend', id: u.id }); return; }
+      if (u.mods.undying && u.souls > 0) { u.souls--; ev.push({ type: 'spend', id: u.id }); return; }
 
       bleed(s, u, ev);
 
@@ -78,7 +77,6 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     }
 
     if (standing(u)) startOfTurn(s, u, ev);
-    breakThreads(s, ev);
 
     if (!standing(u) || over(s)) {
       if (over(s)) return;
@@ -104,12 +102,9 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
   }
 }
 
-/** A Downed unit's turn: it bleeds, unless Encased (a Cocoon) or lying within reach of its party's standing Ferryman. */
+/** A Downed unit's turn: it bleeds, unless lying within reach of its party's standing Ferryman. */
 function bleed(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   if (u.life.kind !== 'downed') return;
-  const enc = u.st.encased;
-
-  if (enc) { if (--enc.t <= 0) delete u.st.encased; return; }
 
   if (s.units.some(f => f.team === u.team && f.mods.ferryman && standing(f) && cheb(f.x, f.z, u.x, u.z) <= NODE_N.g_ferry.range)) return;
   const left = u.life.bleed - (s.party[u.team === 0 ? 1 : 0].has('deathknell') ? PAIR_N.deathknell.bleed : 1);
@@ -137,22 +132,14 @@ function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
 
   if (u.st.burn) damage(s, u, u.st.burn.dmg, ev, 'burn', null);
 
-  if (standing(u) && u.st.poison) damage(s, u, u.st.poison.dmg, ev, 'poison', null);
-
   if (!standing(u)) return;
-
-  if (u.mods.webOfFate) {
-    const n = s.threads.filter(t => t.by === u.id).length;
-
-    if (n && NODE_N.w_fate.shield * n > u.shield) { u.shield = NODE_N.w_fate.shield * n; ev.push({ type: 'shield', id: u.id, amount: NODE_N.w_fate.shield * n }); }
-  }
 
   const ward = (u.mods.soulShield || 0) * u.souls;
 
   if (ward > u.shield && !u.st.wither) { u.shield = ward; ev.push({ type: 'shield', id: u.id, amount: ward }); }
 }
 
-const TICKING = ['root', 'expose', 'burn', 'poison', 'wither', 'hush', 'haste'] as const;
+const TICKING = ['root', 'expose', 'burn', 'wither', 'hush', 'haste'] as const;
 
 function tickStatuses(s: BattleState, u: Unit): void {
   for (const k of TICKING) {
@@ -175,8 +162,7 @@ function thaw(s: BattleState, u: Unit, ev: BattleEvent[]): void {
 
   if (!enc || --enc.t > 0) return;
   delete u.st.encased;
-
-  if (enc.ice) addStatus(u, 'wet', { t: WET_TURNS, by: enc.by }, ev);
+  addStatus(u, 'wet', { t: WET_TURNS, by: enc.by }, ev);
 }
 
 /** Starts whoever's turn the queue now points at: after a Final Hour Toll moved the caster's own turn to the end. */
@@ -206,11 +192,9 @@ export function endActivation(s: BattleState): BattleEvent[] {
 
     if (t === '~') addStatus(u, 'wet', { t: WET_TURNS, by: u.st.wet ? u.st.wet.by : null }, ev);
     tickStatuses(s, u);
-    webOfFate(s, u, ev);
   }
 
   u.moved = true; u.acted = true;
-  breakThreads(s, ev);
   checkWinner(s);
 
   if (over(s)) return ev;
@@ -232,7 +216,7 @@ function advance(s: BattleState, ev: BattleEvent[]): boolean {
   return false;
 }
 
-const EXPIRING = ['fire', 'smoke', 'ice', 'web', 'bone'] as const;
+const EXPIRING = ['fire', 'smoke', 'ice', 'bone'] as const;
 
 function endRound(s: BattleState, ev: BattleEvent[]): void {
   endOfRound(s, ev);

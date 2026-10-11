@@ -10,7 +10,7 @@ export { treeValid, canTake, canDrop, modsOf, partyBonuses, roleOf, newMember } 
 
 export {
   current, statusKeys, reachable, castTargets, aoeTiles, canUse, cdOf, moveOf, actionsOf, terrAt, isSolid, los, concealed, standing, unitAt, getUnit,
-  canDeploy, validDeploy, inDeploy, idx, inb, cheb, holders, threadCap, callsOf, puppetMoves, soulCap, soulAt, soulsInReach, actedThisRound, undying,
+  canDeploy, validDeploy, inDeploy, idx, inb, cheb, callsOf, soulCap, soulAt, soulsInReach, actedThisRound, undying,
 } from './board';
 
 export type { Target } from './board';

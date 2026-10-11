@@ -8,7 +8,7 @@ import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from '.
 
 export type FxKey = Exclude<keyof TileFx, 'spent'>;
 
-export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'web', 'bone'];
+export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'bone'];
 
 interface Brazier { flame: THREE.Sprite; core: THREE.Sprite; light: THREE.PointLight; ph: number }
 
@@ -80,48 +80,6 @@ const HZ_TEX = (() => {
 
 const HL_Y = 0.045;
 
-function canvasTex(draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  draw(c.getContext('2d')!);
-
-  return new THREE.CanvasTexture(c);
-}
-
-/** Eight spokes and a spiral of silk, white on clear. */
-function drawWeb(g: CanvasRenderingContext2D): void {
-  g.translate(64, 64);
-  const fill = g.createRadialGradient(0, 0, 0, 0, 0, 64);
-  fill.addColorStop(0, 'rgba(255,255,255,0.22)');
-  fill.addColorStop(1, 'rgba(255,255,255,0.04)');
-  g.fillStyle = fill;
-  g.fillRect(-64, -64, 128, 128);
-  g.strokeStyle = 'rgba(250,245,255,0.95)';
-  g.lineWidth = 3;
-  const spokes = 8;
-
-  for (let i = 0; i < spokes; i++) {
-    const a = (i / spokes) * Math.PI * 2;
-    g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 64, Math.sin(a) * 64); g.stroke();
-  }
-
-  g.lineWidth = 2.2;
-
-  for (let r = 10; r < 62; r += 9) {
-    g.beginPath();
-
-    for (let i = 0; i <= spokes; i++) {
-      const a = (i / spokes) * Math.PI * 2, rr = r + (i % 2) * 2;
-
-      // Each strand sags toward the centre between spokes.
-      if (i === 0) g.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
-      else { const m = a - Math.PI / spokes; g.quadraticCurveTo(Math.cos(m) * rr * 0.86, Math.sin(m) * rr * 0.86, Math.cos(a) * rr, Math.sin(a) * rr); }
-    }
-
-    g.stroke();
-  }
-}
-
 const pickMat = keep(new THREE.MeshBasicMaterial({ visible: false }));
 
 const shared = {
@@ -129,7 +87,6 @@ const shared = {
   bowl: mat(0x6a4a2a, { metalness: 0.4 }), leg: mat(0x3a2a1a), plank: mat(0x8a6a44), band: mat(0x5a4a34),
   ice: new THREE.MeshStandardMaterial({ color: 0xcff4ff, emissive: 0x5ab6e0, emissiveIntensity: 0.35, roughness: 0.1, transparent: true, opacity: 0.9 }),
   fireBase: basic(0xff5a1a, 0.35),
-  web: new THREE.MeshBasicMaterial({ map: canvasTex(drawWeb), transparent: true, depthWrite: false }),
   bone: mat(0xe8e2d0, { roughness: 0.6 }), marrow: mat(0x9a8f78),
 };
 
@@ -274,14 +231,6 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
     g.add(rib);
 
     return g;
-  },
-  web: () => {
-    const w = decal(new THREE.PlaneGeometry(1.02, 1.02), shared.web, 0.07);
-    w.rotation.z = Math.random() * Math.PI;
-    // Above the hazard stripes: a web changes how the tile plays, so it must read through them.
-    w.renderOrder = 5;
-
-    return w;
   },
 };
 

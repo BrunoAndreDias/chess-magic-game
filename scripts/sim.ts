@@ -1,4 +1,4 @@
-import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
+import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
 // Plays AI-vs-AI battles with random builds and prints win shares, combos and mechanic use.
@@ -63,9 +63,9 @@ function keystonePath(m: MemberBuild): string {
 }
 
 /** Each class's mechanic, and the Gravecaller's Rites on top: the share of battles a side had the class and used it. */
-type Mechanic = 'call' | 'thread' | 'harvest' | 'rite' | 'toll';
+type Mechanic = 'call' | 'harvest' | 'rite' | 'toll';
 
-const MECHANICS_OF: Record<ClassId, readonly Mechanic[]> = { astromancer: ['call'], weaver: ['thread'], gravecaller: ['harvest', 'rite'], bellringer: ['toll'] };
+const MECHANICS_OF: Record<ClassId, readonly Mechanic[]> = { astromancer: ['call'], gravecaller: ['harvest', 'rite'], bellringer: ['toll'] };
 
 interface MapStats { n: number; rounds: number; reasons: Record<string, number>; storm: number; falls: number; awareWins: number; draws: number }
 
@@ -75,7 +75,7 @@ const wins: [number, number, number] = [0, 0, 0], combos: Record<string, number>
 
 const cls: Record<string, [number, number]> = {}, path: Record<string, [number, number]> = {};
 
-const mech: Record<Mechanic, [number, number]> = { call: [0, 0], thread: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0] };
+const mech: Record<Mechanic, [number, number]> = { call: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0] };
 
 let rounds = 0, ms = 0, starterWins = 0;
 
@@ -113,8 +113,6 @@ for (let i = from; i < from + battles; i++) {
         if (e.type === 'fall' && !res.events.some(c => c.type === 'combo' && c.name === 'ABYSS' && c.id === e.id)) st.falls++;
 
         if (e.type === 'call') used[e.team]?.add('call');
-
-        if (e.type === 'thread') { const u = getUnit(s, e.by); if (u) used[u.team]?.add('thread'); }
 
         if (e.type === 'cast' && e.skill === 'harvest') used[e.team]?.add('harvest');
 

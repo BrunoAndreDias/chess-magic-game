@@ -20,7 +20,7 @@ describe('storm', () => {
 
   test('the round-1 strike hits the edge columns: its damage, more when Wet, and it finishes the Downed', () => {
     const s0 = stage({
-      a: [bare('weaver'), bare('weaver'), bare('weaver')], b: [bare('weaver'), bare('weaver')],
+      a: [bare('bellringer'), bare('bellringer'), bare('bellringer')], b: [bare('bellringer'), bare('bellringer')],
       place: { 1: [0, 2], 2: [10, 3], 3: [2, 0], 4: [5, 9], 5: [11, 8] }, life: { 5: { kind: 'downed', bleed: 2 } },
     });
 
@@ -36,7 +36,7 @@ describe('storm', () => {
       { type: 'death', id: 5, team: 1, cause: 'finished' },
       { type: 'roundEnd', round: 1, burnt: [] },
     ]);
-    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([170 - dmg, 170 - wet, 170, 170]);
+    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([175 - dmg, 175 - wet, 175, 175]);
 
     const r2 = run(r.state, end(1), end(4), end(2), end(3));
     const [strike2, ...rest2] = after(r2.events, 'storm');
@@ -48,7 +48,7 @@ describe('storm', () => {
 describe('crumble', () => {
   test('at the end of round 3 the side bridges fall: the standing are Downed, the Downed are lost', () => {
     const s0 = stage({
-      map: 'span', round: 3, a: [bare('weaver'), bare('astromancer')], b: [bare('weaver'), bare('astromancer')],
+      map: 'span', round: 3, a: [bare('bellringer'), bare('astromancer')], b: [bare('bellringer'), bare('astromancer')],
       place: { 1: [1, 4], 2: [5, 2], 3: [10, 6], 4: [6, 9] }, life: { 3: { kind: 'downed', bleed: 2 } },
     });
 
@@ -67,7 +67,7 @@ describe('crumble', () => {
   });
 
   test('a fall that leaves a party nobody standing ends the battle', () => {
-    const s0 = stage({ map: 'span', round: 3, a: [bare('weaver')], b: [bare('weaver')], place: { 1: [5, 2], 2: [1, 5] } });
+    const s0 = stage({ map: 'span', round: 3, a: [bare('bellringer')], b: [bare('bellringer')], place: { 1: [5, 2], 2: [1, 5] } });
     const r = run(s0, begin, end(1), end(2));
     expect(after(r.events, 'crumble').slice(1)).toEqual([
       { type: 'fall', id: 2, x: 3, z: 5 },
@@ -80,7 +80,7 @@ describe('crumble', () => {
 
 describe('altar', () => {
   const hold = (place: Record<number, [number, number]>, favor: [number, number] = [0, 0]) => {
-    const s0 = stage({ map: 'altar', a: [bare('astromancer'), bare('weaver')], b: [bare('astromancer'), bare('weaver')], place });
+    const s0 = stage({ map: 'altar', a: [bare('astromancer'), bare('bellringer')], b: [bare('astromancer'), bare('bellringer')], place });
     s0.favor = favor;
 
     return run(s0, begin, end(1), end(3), end(4), end(2));
@@ -102,7 +102,7 @@ describe('altar', () => {
 
 describe('doomed', () => {
   test('a Rooted unit on a strike line is doomed; one that still has its turn is not', () => {
-    const s0 = stage({ a: [bare('weaver')], b: [bare('astromancer')], starter: 1, place: { 1: [0, 5], 2: [4, 5] } });
+    const s0 = stage({ a: [bare('bellringer')], b: [bare('astromancer')], starter: 1, place: { 1: [0, 5], 2: [4, 5] } });
     const live = run(s0, begin).state;
     expect(doomed(live, unit(live, 1))).toBe(false);
     const pinned = run(live, cast(2, 'frostbolt', 0, 5)).state;

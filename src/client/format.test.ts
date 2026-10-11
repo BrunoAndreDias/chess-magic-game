@@ -8,10 +8,10 @@ const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tre
 
 const s = createBattle({
   map: 'storm', starter: 0,
-  teams: [[newMember('weaver', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
-    [pathed(newMember('weaver', 'Morvath'), ['w_poison', 'w_fang', 'w_bite', 'w_feast']),
+  teams: [[newMember('gravecaller', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
+    [pathed(newMember('gravecaller', 'Morvath'), ['g_bolt', 'g_reach', 'g_burst', 'g_reap']),
       pathed(newMember('astromancer', 'Ysolde'), ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']),
-      pathed(newMember('weaver', 'Grix'), ['w_hp', 'w_leash', 'w_thread', 'w_fate'])]],
+      pathed(newMember('bellringer', 'Grix'), ['b_hp', 'b_clapper', 'b_guard', 'b_thee'])]],
   deploy: [[{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 2, z: 0 }], [{ x: 0, z: 11 }, { x: 1, z: 11 }, { x: 2, z: 11 }]],
 }, mulberry32(1));
 
@@ -27,8 +27,8 @@ suite('describe', () => {
   test('casts name the skill and the target, coloured by the caster', () => {
     expect(line({ type: 'cast', id: id(2), team: 0, skill: 'frostbolt', tx: 1, tz: 9, fx: 1, fz: 2, target: id(4) }))
       .toEqual({ tone: 't0', text: 'Seren uses Frostbolt on Morvath.' });
-    expect(line({ type: 'cast', id: id(4), team: 1, skill: 'web', tx: 1, tz: 9, fx: 1, fz: 9, target: null }))
-      .toEqual({ tone: 't1', text: 'Morvath uses Web.' });
+    expect(line({ type: 'cast', id: id(4), team: 1, skill: 'bonewall', tx: 1, tz: 9, fx: 1, fz: 9, target: null }))
+      .toEqual({ tone: 't1', text: 'Morvath uses Bone Wall.' });
   });
   test('damage reads its kind and what the shield took', () => {
     expect(line({ type: 'damage', id: id(4), amount: 18, absorbed: 6, kind: 'fire' })).toEqual({ tone: 't1', text: 'Morvath takes 18 fire damage (6 blocked).' });
@@ -59,10 +59,6 @@ suite('describe', () => {
     expect(line({ type: 'death', id: id(4), team: 1, cause: 'fell' })).toEqual({ tone: 'sys', text: 'Morvath is lost to the abyss.' });
     expect(line({ type: 'over', winner: 0, reason: 'altar' })).toEqual({ tone: 'sys', text: 'Blue party wins. The Sun Altar grants them victory.' });
   });
-  test('Shared Pain names who took the blow', () => {
-    expect(line({ type: 'shared', id: id(5), by: id(4) })).toEqual({ tone: 't1', text: 'Morvath takes half the blow for Ysolde.' });
-    expect(line({ type: 'damage', id: id(4), amount: 6, absorbed: 0, kind: 'share' })).toEqual({ tone: 't1', text: 'Morvath takes 6 through Shared Pain.' });
-  });
   test('a Call says when it lands, then lands or fizzles', () => {
     expect(line({ type: 'call', id: id(2), team: 0, skill: 'meteor', tiles: [] })).toEqual({ tone: 't0', text: "Meteor is called: it lands at the start of Seren's next turn." });
     expect(line({ type: 'land', id: id(2), skill: 'meteor', x: 5, z: 5, tiles: [], power: 1 })).toEqual({ tone: 't0', text: "Seren's Meteor lands!" });
@@ -78,10 +74,6 @@ suite('describe', () => {
     expect(line({ type: 'queue', queue: [{ id: id(1), extra: false }, { id: id(4), extra: false }, { id: id(2), extra: true }] }))
       .toEqual({ tone: 'sys', text: 'The order is now Aldric → Morvath → Seren (extra).' });
   });
-  test('Threads are tied and break, coloured by the Weaver', () => {
-    expect(line({ type: 'thread', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: 'Morvath ties a Thread to Aldric.' });
-    expect(line({ type: 'snap', by: id(4), to: id(1) })).toEqual({ tone: 't1', text: "Morvath's Thread to Aldric breaks." });
-  });
   test('pushes say how far; walks and slides that go nowhere stay quiet', () => {
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath is pushed back 2 tiles.' });
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }], slide: true })).toBe(null);
@@ -91,10 +83,10 @@ suite('describe', () => {
 
 suite('combos', () => {
   test('credit the setup and the payoff', () => {
-    expect(comboCredit({ type: 'combo', name: 'SHATTER', id: id(4), by: id(3), team: 0, setup: id(2) }, s)).toBe('Seren set it up → Kip pays off: SHATTER!');
+    expect(comboCredit({ type: 'combo', name: 'FREEZE', id: id(4), by: id(3), team: 0, setup: id(2) }, s)).toBe('Seren set it up → Kip pays off: FREEZE!');
     expect(comboCredit({ type: 'combo', name: 'IGNITE', id: null, by: id(2), team: 0, setup: null }, s)).toBe('Seren pays off: IGNITE!');
     expect(comboCredit({ type: 'combo', name: 'SLAM', id: id(1), by: id(5), team: 1, setup: id(5) }, s)).toBe('Ysolde sets it up and pays off: SLAM!');
-    expect(line({ type: 'combo', name: 'SHATTER', id: id(4), by: id(3), team: 0, setup: id(2) })).toEqual({ tone: 'combo', text: '⚡ Seren set it up → Kip pays off: SHATTER!' });
+    expect(line({ type: 'combo', name: 'FREEZE', id: id(4), by: id(3), team: 0, setup: id(2) })).toEqual({ tone: 'combo', text: '⚡ Seren set it up → Kip pays off: FREEZE!' });
   });
 });
 
@@ -102,21 +94,21 @@ suite('previewLines', () => {
   test('summarise a predicted cast', () => {
     const ev: BattleEvent[] = [
       { type: 'damage', id: id(4), amount: 40, absorbed: 0, kind: 'phys' },
-      { type: 'combo', name: 'SHATTER', id: id(4), by: id(3), team: 0, setup: id(2) },
+      { type: 'combo', name: 'FREEZE', id: id(4), by: id(3), team: 0, setup: id(2) },
       { type: 'downed', id: id(4), team: 1 },
       { type: 'activate', id: id(1), team: 0, qi: 0 },
     ];
 
-    expect(previewLines(ev, s).map(l => l.text)).toEqual(['Morvath: −40', '⚡ COMBO: SHATTER', '✖ Morvath goes down']);
+    expect(previewLines(ev, s).map(l => l.text)).toEqual(['Morvath: −40', '⚡ COMBO: FREEZE', '✖ Morvath goes down']);
   });
 });
 
 suite('openingLines', () => {
   const pair = (p: PairId) => PAIRS.find(x => x.id === p)?.name;
   test('list a party\'s bonuses in table order with Role Coverage last, and say none when it has none', () => {
-    const st: BattleState = { ...s, party: [new Set<PartyBonusId>(['coverage', 'greatweb', 'startether']), new Set<PartyBonusId>()] };
+    const st: BattleState = { ...s, party: [new Set<PartyBonusId>(['coverage', 'conjunction', 'seconddawn']), new Set<PartyBonusId>()] };
     expect(openingLines(st).slice(1).map(l => l.text)).toEqual([
-      `Blue party bonuses: ${pair('startether')}, ${pair('greatweb')}, ${COVERAGE.name}`,
+      `Blue party bonuses: ${pair('seconddawn')}, ${pair('conjunction')}, ${COVERAGE.name}`,
       'Red party bonuses: none',
     ]);
   });
