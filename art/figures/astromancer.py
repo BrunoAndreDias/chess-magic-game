@@ -355,7 +355,6 @@ def robe_shape(i, j, x, y, z):
     return (x * k, y * k, z)
 
 
-# It is cut in two at a ring under the sash: the skirt stays rigid and only the top is skinned to turn with the chest.
 WAIST = next(i for i, (_, z) in enumerate(ROBE_R) if z > 0.65)
 lathe('robe', ROBE_R[:WAIST + 1], RSIDES, MAIN, sy=SY, shape=robe_shape, levels=1,
       mask=lambda i, j: float(ROBE_R[i][1] < HEM_TOP))
@@ -631,10 +630,6 @@ for ob in set(bpy.data.objects) - before_head:
     ob.matrix_world = tip @ ob.matrix_world
 UPPER = [ob for ob in bpy.data.objects if ob not in before_upper and ob.parent is None]
 
-# The arms are an armature like the Gravecaller's: hips and chest, then per side a clavicle, upper arm, forearm and hand.
-# Per arm: shoulder, elbow, wrist, the bell sleeve's radius from shoulder to opening, and how far down the forearm the
-# sleeve reaches. Both forearms rest level, elbows bent at the sides: the right fist holds the sceptre at the hip, the
-# left palm is held out under the planet.
 ARMS = {
     'r': (Vector((-0.16, 0.0, 0.93)), Vector((-0.262, -0.02, 0.72)), None, (0.058, 0.061, 0.065, 0.069, 0.073, 0.078, 0.084)),
     'l': (Vector((0.16, 0.0, 0.93)), Vector((0.278, 0.0, 0.745)), Vector((0.302, -0.205, 0.77)),
@@ -686,8 +681,6 @@ for side in ARMS:
         bone_parent(ob, RIG, f'hand_{side}')
 bone_parent(empty('grip_r', RIGHT_HAND), RIG, 'hand_r')
 
-# Sleeves: wide bell sleeves, their dark hems piped in gold, each one tube skinned along its arm so the elbow bends
-# without a seam. The gold cuff and the lining funnelled inside the opening fall with the bell's opening.
 for side, (s, e, w, radii) in ARMS.items():
     end = opening(side)
     path, along, elbow = sleeve_path(s, e, end, bend=0.05)
@@ -705,13 +698,10 @@ for side, (s, e, w, radii) in ARMS.items():
     # An undersleeve funnels from the cuff down to the forearm, so the open sleeve shows lit lining, not a dark hole.
     skin(sweep('undersleeve', [end - f * 0.006, end - f * 0.04], [rs[-1] - 0.012, 0.03], 14, LINING, caps=False),
          RIG, lambda v: rim)
-    # The gloved forearm runs from the elbow, where a falling sleeve bares it, to the wrist; a gold band rings it
-    # where the glove's cuff ends, just out of the sleeve.
     _, obs = made(lambda: forearm(e + f * 0.03, end.lerp(w, 0.3), w, 0.022))
     for ob in obs:
         bone_parent(ob, RIG, f'forearm_{side}')
 
-# The planet floats over the left palm and rides it.
 P = LEFT_HAND + Vector((0, 0, 0.12))
 planet = bone_parent(empty('planet', P), RIG, 'hand_l')
 parent(blob('planet_body', P, 0.035, GEM, subdiv=3), planet)
@@ -863,8 +853,6 @@ for k, (a, z, r, rise, kind) in enumerate(DRIFT):
         parent(torus('planet_small_ring', p, (1.2, 0.3, 0), 0.042, 0.003, GOLD, segs=24, minor_segs=4), bob)
     loop(bob, 'location', 2, [z, z + rise], 60 + 12 * k)
 
-# The torso turns at the waist: the robe's top, its panel and piping are skinned from the hips, under the sash, to the
-# chest above it, and the collar, the head, the brooch and the rings over the head ride the chest.
 for ob in UPPER + [bpy.data.objects[n] for n in ('brooch', 'brooch_disc')] + [armill, halo]:
     bone_parent(ob, RIG, 'chest')
 for ob in [robe_top] + [o for o in bpy.data.objects if o.name.split('.')[0] in ('panel', 'panel_piping')]:
@@ -874,8 +862,6 @@ for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, flock):
         parent(ob, breath)
 
-# The arms breathe with the body: the collarbones rise on the in-breath, the arms ease out from the sides and the
-# planet's palm lifts a little.
 for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('upperarm_r', 2, 0.02), ('upperarm_l', 2, -0.025),
                       ('upperarm_l', 0, -0.03), ('forearm_l', 0, -0.03), ('hand_l', 0, 0.06)):
     loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 96)
@@ -891,10 +877,6 @@ def wields(keys, sceptre, palm):
 
 
 R, L = 'rotation_euler', 'location'
-# Clip axes. The chest turns at the waist: +x leans it forward, +y turns its front toward the figure's left (the planet
-# side), +z bends it toward its right. On an arm bone -x swings the arm forward and up, or bends the elbow; z on a
-# hanging upper arm swings it out, +z for the right arm and -z for the left. Every clip reads from behind and above,
-# as the battle camera sees it: the torso turns and leans, and the arms leave the silhouette.
 CHEST = key('chest', X), key('chest', Y), key('chest', Z)
 
 
@@ -904,8 +886,6 @@ def flare(frames):
     return {(flock, 'scale', 0): frames, (flock, 'scale', 1): frames}
 
 
-# Cast: the seer draws the planet in to her side as she gathers, then turns her planet shoulder to the target and lifts
-# the open palm high, tipping it forward so the planet rises off it; the sceptre rises with her, then all settles.
 act('cast', 12, wields({
     CHEST[0]: [(0, 0), (5, 0.12), (12, -0.12), (16, -0.08), (24, 0)],
     CHEST[1]: [(0, 0), (5, 0.08), (12, -0.2), (16, -0.15), (24, 0)],
@@ -923,8 +903,6 @@ act('cast', 12, wields({
     (planet, L, 2): [(0, 0), (5, -0.02), (12, 0.1), (16, 0.08), (24, 0)],
 } | flare([(0, 0), (4, 0.12), (9, 0.38), (17, 0.35), (24, 0)]), [(0, 0), (5, -0.05), (12, 0.15), (16, 0.1), (24, 0)],
    [(0, 0), (5, -0.25), (12, 0.35), (16, 0.25), (24, 0)]))
-# Attack: she winds the sceptre back over her shoulder, turning away, then snaps round and thrusts the astrolabe at the
-# target, follows through and recovers. The planet hand swings against it.
 act('attack', 9, wields({
     CHEST[0]: [(0, 0), (5, -0.08), (9, 0.2), (13, 0.24), (22, 0)],
     CHEST[1]: [(0, 0), (5, 0.3), (9, -0.35), (13, -0.45), (22, 0)],
@@ -939,8 +917,6 @@ act('attack', 9, wields({
     key('forearm_l', X): [(0, 0), (5, -0.3), (9, 0.2), (22, 0)],
 } | flare([(0, 0), (4, 0.3), (13, 0.3), (22, 0)]), [(0, 0), (5, -0.35), (9, 0.85), (13, 1.0), (22, 0)],
    [(0, 0), (5, 0.1), (9, -0.1), (22, 0)]))
-# Hit: the chest snaps back and the shoulders shrug as both arms pull in to the body, then it recovers through a
-# small lean forward.
 act('hit', 2, wields({
     CHEST[0]: [(0, 0), (2, -0.3), (6, 0.06), (14, 0)],
     CHEST[1]: [(0, 0), (2, -0.12), (6, 0.03), (14, 0)],
@@ -956,8 +932,6 @@ act('hit', 2, wields({
     (planet, L, 2): [(0, 0), (2, 0.05), (6, -0.02), (14, 0)],
 } | flare([(0, 0), (2, 0.3), (8, 0.25), (14, 0)]), [(0, 0), (2, -0.2), (6, 0.06), (14, 0)],
    [(0, 0), (2, -0.3), (7, 0.05), (14, 0)]))
-# Move loops two steps every 8 frames, about the board's two hops: the chest counter-turns against a full swing of the
-# planet arm and the body rolls from foot to foot; the sceptre arm, planting the rod, swings less.
 act('move', 0, wields({
     (breath, R, 0): [(0, 0.06), (8, 0.06)],
     (breath, R, 1): [(0, 0), (2, 0.05), (4, 0), (6, -0.05), (8, 0)],
@@ -969,9 +943,6 @@ act('move', 0, wields({
     key('forearm_r', X): [(0, -0.3), (4, -0.2), (8, -0.3)],
 } | flare([(0, 0.3), (8, 0.3)]), [(0, 0.12), (4, -0.05), (8, 0.12)],
    [(0, 0), (8, 0)]))
-# Down plays while the board tips the body onto its back: the arms fly up, then reach back and out to break the fall,
-# the chest curling forward against it. It holds its last frame while the unit is downed, and rise starts from that
-# frame, pushing off the ground behind and curling up before it settles.
 DOWNED = {CHEST[0]: 0.3, (breath, 'scale', 2): -0.1, key('clavicle_l', X): 0.12, key('clavicle_r', X): 0.12,
           key('upperarm_l', X): 0.8, key('upperarm_l', Z): -0.75, key('forearm_l', X): 0.4,
           key('upperarm_r', X): 0.7, key('upperarm_r', Z): 0.6, key('forearm_r', X): 0.3}

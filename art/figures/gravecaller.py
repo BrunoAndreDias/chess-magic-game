@@ -529,11 +529,6 @@ bell('charm_bell', end, 0.022)
 end = chain(Vector((0.1, -0.17, 0.66)), 0.07, 0.01, 4)
 blob('charm_bead', end - Vector((0, 0, 0.012)), 0.013, GOLD, subdiv=1)
 
-# The arms are an armature: chest, then per side a clavicle, upper arm, forearm and hand. Each sleeve is one tube
-# skinned to its arm, so the elbow bends without a seam; each fist and what it holds ride its hand bone.
-# Per arm: shoulder, elbow, wrist, the sleeve's radius from shoulder to cuff, and where along it the gold hem starts.
-# The scythe hand holds the pole at the chest, forearm forward; the bell hand hangs with the elbow soft.
-# The right sleeve gathers into a cuff at the wrist: an open bell under the raised hand reads as a cup, not a sleeve.
 ARMS = {
     'r': (Vector((-0.175, 0.0, 0.975)), Vector((-0.29, -0.03, 0.75)), Vector((-0.315, -0.215, 0.83)),
           (0.068, 0.072, 0.078, 0.082, 0.08, 0.068, 0.05), 0.95),
@@ -555,10 +550,6 @@ BAIL = Vector((0, -1, 0))
 LEFT_HAND = fist(*sleeve_end('l'), BAIL, 0.005, BONE, right=False, detail='bone', name='fist_l')
 GRIPS = {'r': RIGHT_HAND, 'l': LEFT_HAND}
 
-# The torso turns at the waist: the coat's top is skinned from the hips, under the belt, to the chest above it, and the
-# hood, scarf and pauldron ride the chest. Every arm bone's x axis runs to the figure's left, so -x on it swings the
-# arm forward or bends the joint. `shoulder_*` and `elbow_*` turn halfway with the upper arm and forearm, and
-# `drape_l` lets the wide bell sleeve fall down a raised forearm (see halfway() and drape()).
 RIG = armature('rig', [('hips', (0, 0, 0.3), (0, 0, 0.74), None, (1, 0, 0)), ('chest', (0, 0, 0.74), (0, 0, 1.0), 'hips', (1, 0, 0))] + [
     bone for side, (s, e, w, _, _) in ARMS.items() for bone in (
         (f'clavicle_{side}', (0, 0.0, 0.99), s, 'chest', (0, 1 if side == 'r' else -1, 0)),
@@ -576,7 +567,6 @@ drape(RIG, 'drape_l', slide=0.5, droop=1.2)
 for side, grip in GRIPS.items():
     bone_parent(bpy.data.objects[f'fist_{side}'], RIG, f'hand_{side}')
     bone_parent(empty(f'grip_{side}', grip), RIG, f'hand_{side}')
-# The radius and ulna under the bell sleeve show when it falls back.
 s, e, w, _, _ = ARMS['l']
 for dx in (-0.012, 0.012):
     bone_parent(limb('forearm_bone', w + Vector((dx, 0, 0)), e.lerp(w, 0.25) + Vector((dx, 0, 0)), 0.011, 0.009, BONE),
@@ -759,8 +749,6 @@ for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, orbit):
         parent(ob, breath)
 
-# The arms breathe with the body: the collarbones rise on the in-breath, the arms ease out from the sides and the
-# bell elbow opens a little.
 for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('upperarm_r', 2, 0.02), ('upperarm_l', 2, -0.03),
                       ('upperarm_l', 0, 0.02), ('forearm_l', 0, 0.04), ('hand_l', 0, -0.05)):
     loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 84)
@@ -775,13 +763,7 @@ def wields(keys, lean):
 
 
 R, S = 'rotation_euler', 'scale'
-# Clip axes. The chest turns at the waist: +x leans it forward, +y turns its front toward the figure's left (the bell
-# side), +z bends it toward its right. On an arm bone -x swings the arm forward and up, or bends the elbow; z on a
-# hanging upper arm swings it out, +z for the right arm and -z for the left. Every clip reads from behind and above,
-# as the battle camera sees it: the torso turns and leans, and the arms leave the silhouette.
 CHEST = arm('chest', X), arm('chest', Y), arm('chest', Z)
-# Cast: the chest gathers forward with the bell drawn back low, then opens up and back as the bell is thrust over the
-# hood and rung at the target; the scythe arm lifts the pole with it, then everything settles.
 act('cast', 11, wields({
     CHEST[0]: [(0, 0), (5, 0.15), (11, -0.14), (15, -0.08), (22, 0)],
     CHEST[1]: [(0, 0), (5, -0.15), (11, 0.15), (15, 0.1), (22, 0)],
@@ -799,9 +781,6 @@ act('cast', 11, wields({
     (breath, R, 0): [(0, 0), (5, 0.04), (11, -0.03), (22, 0)],
     (swing, R, 0): [(0, 0), (5, 0.6), (11, -0.9), (13, 0.5), (16, -0.3), (19, 0.12), (22, 0)],
 }, [(0, 0), (5, 0.0), (11, 0.25), (15, 0.15), (22, 0)]))
-# Attack: a one-handed reap. The chest winds back toward the scythe with the elbow folded and the blade cocked over the
-# shoulder, then snaps round as the arm whips the blade forward and down, follows through past the target and
-# recovers. The bell arm swings against the scythe all the way.
 act('attack', 9, wields({
     CHEST[0]: [(0, 0), (6, -0.1), (9, 0.22), (13, 0.28), (22, 0)],
     CHEST[1]: [(0, 0), (6, -0.5), (9, 0.35), (13, 0.5), (22, 0)],
@@ -816,8 +795,6 @@ act('attack', 9, wields({
     arm('forearm_l', X): [(0, 0), (6, -0.5), (9, -0.15), (22, 0)],
     (swing, R, 0): [(0, 0), (6, -0.5), (9, 0.6), (13, 0.5), (17, -0.2), (22, 0)],
 }, [(0, 0), (6, -0.75), (9, 0.95), (13, 1.2), (22, 0)]))
-# Hit: the chest snaps back and the shoulders shrug as both arms pull in to the body, then it recovers through a
-# small lean forward.
 act('hit', 2, wields({
     CHEST[0]: [(0, 0), (2, -0.3), (6, 0.06), (14, 0)],
     CHEST[1]: [(0, 0), (2, 0.12), (6, -0.03), (14, 0)],
@@ -832,8 +809,6 @@ act('hit', 2, wields({
     arm('forearm_r', X): [(0, 0), (2, -0.4), (7, -0.2), (11, -0.1), (14, 0)],
     (swing, R, 0): [(0, 0), (2, 0.7), (5, -0.5), (8, 0.15), (11, -0.05), (14, 0)],
 }, [(0, 0), (2, -0.2), (6, 0.06), (14, 0)]))
-# Move loops two steps every 8 frames, about the board's two hops: the chest counter-turns against a full bell-arm
-# swing and the body rolls from foot to foot; the scythe arm, carrying the weight, swings less.
 act('move', 0, wields({
     (breath, R, 0): [(0, 0.08), (8, 0.08)],
     (breath, R, 1): [(0, 0), (2, 0.06), (4, 0), (6, -0.06), (8, 0)],
@@ -845,9 +820,6 @@ act('move', 0, wields({
     arm('forearm_r', X): [(0, -0.35), (4, -0.45), (8, -0.35)],
     (swing, R, 0): [(0, 0.45), (2, 0.1), (4, -0.4), (6, -0.1), (8, 0.45)],
 }, [(0, 0.15), (4, -0.05), (8, 0.15)]))
-# Down plays while the board tips the body onto its back: the arms fly up, then reach back and out to break the fall,
-# the chest curling forward against it. It holds its last frame while the unit is downed, and rise starts from that
-# frame, pushing off the ground behind and curling up before it settles.
 DOWNED = {CHEST[0]: 0.3, (breath, S, 2): -0.1, arm('clavicle_l', X): 0.12, arm('clavicle_r', X): 0.12,
           arm('upperarm_l', X): 0.8, arm('upperarm_l', Z): -0.75, arm('forearm_l', X): -0.35, arm('hand_l', X): 0.5,
           arm('upperarm_r', X): 0.7, arm('upperarm_r', Z): 0.6, arm('forearm_r', X): -0.4}

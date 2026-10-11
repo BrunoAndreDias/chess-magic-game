@@ -6,9 +6,6 @@ catches it in. The arms are the skin weighted mostly to arm bones and every mesh
 forearms, held props). Per clip this prints, for each orbit, the smallest distance from the arms to its solid (to
 2 mm, capped at 0.1), and exits non-zero if any is under 0.005 (5 mm): a shard passing through a sleeve or a sceptre.
 
-The gate is proven by breaking it: drop the Astromancer's flare() so its shards keep their resting orbits while the
-arms reach out, and the cast reports the flock at 0 and the run exits 1.
-
 usage: blender --background --factory-startup --python art/orbits.py -- public/models/<class>.glb
 """
 import os
