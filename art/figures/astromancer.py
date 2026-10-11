@@ -841,6 +841,7 @@ part(glow(DC + Vector((0, -0.04, 0)), LILAC, 0.16, name='glow_astrolabe'))
 
 # Star shards and two small planets drift round the body, each on its own bob, the whole flock wheeling slowly.
 flock = empty('flock')
+flock['clear'] = True
 spin(flock, axis=2, period=288, turns=-1)
 # Each orbit (angle, height, radius, bob) keeps out of the band the resting arms, hands and planet fill (0.62 to 1.18
 # high), under the sceptre's astrolabe and wide enough to pass its rod. The clips flare the flock wider while the arms

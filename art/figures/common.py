@@ -18,6 +18,8 @@ What the game reads from a figure (src/client/board/models.ts):
 - Empties `grip_<side>` at the centre of each closed fist, riding the hand, and `hold_<side>` on the held prop where
   that fist closes, riding the prop. art/grips.py fails a figure whose pairs part, or whose held prop dips under the
   floor, in any frame of any clip.
+- an Empty with the custom prop `clear`, spun about its z by an idle clip, is an orbit the arms must keep out of:
+  art/orbits.py fails a figure whose arms or held props come within 5 mm of what it sweeps, in any frame of any clip.
 
 Units: 1 Blender unit = 1 tile. The figure stands on z = 0, centred on the origin, faces -Y (Blender's front view).
 
