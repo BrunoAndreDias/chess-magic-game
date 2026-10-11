@@ -14,9 +14,34 @@ What the game reads from a figure (src/client/board/models.ts):
   then `cast`), and a figure without either keeps the board's procedural motion. Every other clip loops as idle motion;
 - an Empty named `glow...` with custom props `color` ("#rrggbb") and `size` (metres) becomes a soft additive halo;
 - an armature (`armature()`) may skin meshes and carry objects on its bones (`bone_parent()`); its bones key like any
-  object in a clip, and each unit gets its own skeleton.
+  object in a clip, and each unit gets its own skeleton;
+- Empties `grip_<side>` at the centre of each closed fist, riding the hand, and `hold_<side>` on the held prop where
+  that fist closes, riding the prop. art/grips.py fails a figure whose pairs part, or whose held prop dips under the
+  floor, in any frame of any clip.
 
 Units: 1 Blender unit = 1 tile. The figure stands on z = 0, centred on the origin, faces -Y (Blender's front view).
+
+Arms on an armature (the Gravecaller is the reference):
+- Bones. `hips` > `chest` > per side `clavicle_<s>` > `upperarm_<s>` > `forearm_<s>` > `hand_<s>`. Roll every arm
+  bone's local x toward the figure's left (+X), so -x on any of them swings the arm forward and up or bends the joint,
+  on both sides alike; give the spine bones x = +X too, so +x on the chest leans it forward and +y turns its front
+  toward the figure's left. On a hanging upper arm z swings it out (+z right arm, -z left); once the arm is raised,
+  z twists it and y swings it out instead.
+- What rides what. A sleeve is one tube skinned along its arm, so the elbow bends without a seam. A cloak or coat
+  that should turn with the torso is skinned from `hips` to `chest` across a band something rigid covers (a belt);
+  cut the mesh under that band so only the top carries skin weights. Rigid parts ride their bone with `bone_parent()`:
+  the head, hood and shoulder pieces on `chest`; each fist, its `grip_<side>` and what it holds (`weapon`, a bell's
+  swing pivot) on `hand_<side>`, with the prop's `hold_<side>` under the prop. Everything else rides the root empty
+  that breathes. Keep a prop's own keys on its children (a bell swinging on its bail), never on what the hand holds.
+- Clips. act() keys bones by path, as offsets from rest (`pose.bones["chest"].rotation_euler`). Key the chest in
+  every clip: from the battle camera, behind and above, the torso turning and leaning is what reads first. Pass
+  the keys through `wield()` for a hand that carries a long prop, so it holds its lean whatever the arm does; then
+  check that grips.py passes, since a chest leaning forward lowers the hand and can drive the prop into the floor.
+- Helpers. `halfway()` registers a copy of a joint's bone, hung from that bone's parent, that every clip turns half as
+  far; weight the skin rings round the crease to it and the joint keeps its volume (shoulder and elbow).
+  `drape()` registers a bone from the elbow to a wide sleeve's opening that every clip slides and droops by the
+  forearm's elevation; weight the sleeve to it from nothing at the elbow to all of it at the opening, and put the
+  bare forearm under the sleeve, since it shows. act() keys both from the clip's own keys; idle loops do not.
 """
 import math
 import sys
