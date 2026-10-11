@@ -2,7 +2,7 @@
 
 A turn-based 3v3 party tactics game. Each character is one player's build: a class, 3 of its 7 skills and a passive tree.
 
-There are three classes (a fourth slot is open), and each owns one mechanic through an innate skill every build has: the Astromancer casts Calls that land at the start of its next turn (Snap), the Gravecaller gathers the Souls that hard hits and Downs drop and spends them on Rites (Harvest), and the Bellringer moves turns in the round's queue (Toll). The passive tree has 3 paths of 4 nodes, one each for tank, damage and support, and 6 points: enough for one keystone and a dip into a second path. A character's role is its keystone path's, and a party covering all three roles gets Role Coverage. `docs/classes.md` is the full rules spec.
+There are five classes, and each owns one mechanic through an innate skill every build has: the Astromancer casts Calls that land at the start of its next turn (Snap), the Gravecaller gathers the Souls that hard hits and Downs drop and spends them on Rites (Harvest), the Bellringer moves turns in the round's queue (Toll), the Marionettist works a Doll, a second body on the board it walks, swaps with and fights through (Strings), and the Mirrormime turns hits back on whoever threw them (Reflect) and raises glass that bounces enemy shots. The passive tree has 3 paths of 4 nodes, one each for tank, damage and support, and 6 points: enough for one keystone and a dip into a second path. A character's role is its keystone path's, and a party covering all three roles gets Role Coverage. `docs/classes.md` is the full rules spec.
 
 ## Run it
 
@@ -23,7 +23,7 @@ npm run build
 npm run sim -- 200       # 200 AI battles with random builds: wins, rounds, combos, class and path win share, mechanic use
 npm run sim -- 300 --blind  # one side ignores the map rule: the aware side's win rate per map
 npm run sim -- 300 --dumb   # three damage keystones against a party covering tank, damage and support
-MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium and counts Calls and Encases (ALL_AI=1 spectates)
+MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium and counts Calls, Encases, Strings, Dolls, Mirrors and glass (ALL_AI=1 spectates)
 ```
 
 ## Layout

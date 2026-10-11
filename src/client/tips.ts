@@ -1,9 +1,11 @@
-import { CLASSES, NODE, SKILLS, STATUS, TERRAIN, UNDYING_MOVE, actedThisRound, callTiles, getUnit, idx, moveOf, roleOf, soulAt, soulCap, statusKeys, undying } from '../engine/index';
+import {
+  CLASSES, DOLL, NODE, SKILLS, STATUS, TERRAIN, UNDYING_MOVE, actedThisRound, callTiles, dollOf, getUnit, idx, moveOf, roleOf, soulAt, soulCap, statusKeys, undying,
+} from '../engine/index';
 import type { BattleState, Unit } from '../engine/index';
 import { h } from './dom';
 import type { Child } from './dom';
 import { doomTip, hazardTip } from './rules';
-import { TEAM_TEXT } from './theme';
+import { TEAM_NAME, TEAM_TEXT, other } from './theme';
 
 /** Small status chips with the remaining turns; each explains itself on hover via `title`. */
 export function statusChips(u: Unit): HTMLElement[] {
@@ -25,6 +27,14 @@ function mechanicLines(s: BattleState, u: Unit): HTMLElement[] {
 
   if (cap) out.push(h('div', { class: 'souls' }, `👻 Holds ${u.souls} of ${cap} Souls: each Rite spends one.`));
 
+  const doll = dollOf(s, u);
+
+  if (doll) {
+    out.push(h('div', { style: { color: '#d9a066' } }, doll.life.kind === 'up'
+      ? `🪆 Its Doll: ${doll.hp}/${doll.maxHp} HP${doll.shield ? ` · ${doll.shield} shield` : ''}.`
+      : `🪆 Its Doll is broken${doll.reform !== undefined ? `: it reforms at the start of ${u.name}’s turn in round ${doll.reform}` : ''}.`));
+  }
+
   if (undying(u)) out.push(h('div', { class: 'souls' }, `Undying: still takes its turns while Downed (move ${UNDYING_MOVE}, one skill), spending a Soul instead of bleeding.`));
 
   if (s.phase.kind === 'act' && u.life.kind !== 'dead') out.push(h('div', { class: 'm' }, actedThisRound(s, u.id) ? '🔔 Late: already acted this round.' : '🔔 Early: hasn’t acted yet this round.'));
@@ -32,7 +42,20 @@ function mechanicLines(s: BattleState, u: Unit): HTMLElement[] {
   return out;
 }
 
+/** A Doll: its HP, whose it is and what it does; it has no class, path or skills of its own. */
+function dollTip(s: BattleState, u: Unit): Child[] {
+  const owner = getUnit(s, u.owner);
+
+  return [
+    h('div', { class: 'tt', style: { color: TEAM_TEXT[u.team] } }, u.name, h('span', { class: 'm' }, ' · 🪆 Doll')),
+    u.life.kind === 'up' ? h('div', null, `HP ${u.hp}/${u.maxHp}${u.shield ? ` · ${u.shield} shield` : ''}`) : h('div', { class: 'm' }, 'Broken.'),
+    h('div', { class: 'm' }, `${owner?.name ?? 'Its Marionettist'} walks it ${DOLL.walk} tiles a turn with Strings. It blocks the way, takes hits and no statuses, and never acts. Broken, it reforms ${DOLL.reform} rounds later.`),
+    owner?.st.standin ? h('div', { style: { color: STATUS.standin.color } }, `${STATUS.standin.icon} Stand-In: hits on allies next to it come here.`) : null,
+  ];
+}
+
 export function unitTip(s: BattleState, u: Unit, human: boolean): Child[] {
+  if (u.owner !== undefined) return dollTip(s, u);
   const C = CLASSES[u.cls], keys = u.tree.map(id => NODE[id]).filter(n => n?.key);
 
   const life = u.life.kind === 'downed'
@@ -69,6 +92,8 @@ export function terrainTip(s: BattleState, x: number, z: number): HTMLElement[] 
   if (f.fire) out.push(h('div', null, h('b', { style: { color: '#ff8a4a' } }, '🔥 Fire'), ` (${rounds(f.fire)}): sets whoever steps or stands here Burning.`));
 
   if (f.smoke) out.push(h('div', null, h('b', { style: { color: '#b8bcc8' } }, '💨 Smoke'), ` (${rounds(f.smoke)}): blocks line of sight.`));
+
+  if (f.glass) out.push(h('div', null, h('b', { style: { color: '#d8f0ff' } }, '🧱 Invisible Wall'), ` (${rounds(f.glass)}): blocks moves, not sight. ${f.glassBy === undefined ? '' : `A shot by the ${TEAM_NAME[other(f.glassBy)]} aimed through it hits the shooter.`}`));
 
   if (f.ice) out.push(h('div', null, h('b', { style: { color: '#cff4ff' } }, '❄ Ice'), ` (${rounds(f.ice)}): walkable, no Wet.`));
 

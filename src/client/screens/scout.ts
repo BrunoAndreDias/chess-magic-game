@@ -19,7 +19,7 @@ function same(a: Pos, b: Pos): boolean { return a.x === b.x && a.z === b.z; }
  */
 export function mountScout(ctx: Ctx, draft: Draft): Mounted {
   const base = createBattle(battleSetup(draft, null), mulberry32(ctx.seed ^ 0xdeb10));
-  const posOf = (t: Team): Pos[] => base.units.flatMap(u => (u.team === t ? [{ x: u.x, z: u.z }] : []));
+  const posOf = (t: Team): Pos[] => base.units.flatMap(u => (u.team === t && u.owner === undefined ? [{ x: u.x, z: u.z }] : []));
   const picks: [Pos[], Pos[]] = [posOf(0), posOf(1)];
   const queue = humanTeams(draft);
   let team: Team = 0, sel = 0, deadline: number | null = null, hover: Pos | null = null;
@@ -29,7 +29,8 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
   const tick = setInterval(renderTimer, 200);
 
   function preview(): BattleState {
-    const units = base.units.filter(u => u.team === team || team === 1).map(u => {
+    // Dolls stand next to their Marionettists once the battle begins; scouting places characters only.
+    const units = base.units.filter(u => u.owner === undefined && (u.team === team || team === 1)).map(u => {
       const p = picks[u.team][u.slot] ?? u;
 
       return { ...u, x: p.x, z: p.z };
@@ -87,7 +88,7 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
 
   function render(): void {
     const M = MAPS[draft.map];
-    const mine = base.units.filter(u => u.team === team);
+    const mine = base.units.filter(u => u.team === team && u.owner === undefined);
     panel.replaceChildren(
       h('div', null, h('div', { class: 'tag', style: { color: TEAM_COLOR[team] } }, `${M.name} · scout & deploy`), h('h2', null, `${TEAM_NAME[team]}: read the map, place your party`)),
       h('div', { class: 'timer', id: 'sc-timer' }),

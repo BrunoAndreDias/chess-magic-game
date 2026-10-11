@@ -4,7 +4,7 @@ import type { Life, StatusKey, Team, Unit, UnitId } from '../../engine/index';
 import { GOLD, TEAM_HEX, basic, decal, glow, keep, mesh } from './art';
 import { h } from '../dom';
 import type { Rig } from './acts';
-import { buildModel } from './models';
+import { buildDoll, buildModel } from './models';
 
 /** What the unit's label and aura show right now: `before` at the start of a play, nudged by each event, `after` at its end. */
 export interface Shown { name: string; hp: number; maxHp: number; shield: number; life: Life; st: Set<StatusKey> }
@@ -41,7 +41,11 @@ export const UNIT_OF = new WeakMap<THREE.Object3D, UnitId>();
 const iceMat = keep(new THREE.MeshStandardMaterial({ color: 0xbfeaff, emissive: 0x3a9ad0, emissiveIntensity: 0.45, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.55, flatShading: true }));
 
 export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
-  const group = new THREE.Group(), { body, main, height, weapon, rig } = buildModel(u.cls, u.team);
+  const group = new THREE.Group(), { body, main, height, weapon, rig } = u.owner === undefined ? buildModel(u.cls, u.team) : buildDoll(u.team);
+  // The Marionettist's hand puppet is its Doll, which stands on the board as its own unit while the battle runs.
+  const held = u.owner === undefined ? body.getObjectByName('doll') : undefined;
+
+  if (held) held.visible = false;
   const ice = mesh(new THREE.BoxGeometry(0.86, height + 0.25, 0.86), iceMat, 0, (height + 0.25) / 2, 0);
   ice.visible = false;
   body.add(ice);
@@ -86,7 +90,8 @@ export function setPose(v: UnitView, down: number): void {
 }
 
 const AURA: readonly (readonly [StatusKey, number])[] = [
-  ['burn', 0xff6a2b], ['stun', 0xffd36b], ['hush', 0xc8b4ff], ['wither', 0xb89a6a], ['expose', 0xff8a8a], ['guard', 0xe0b04a], ['wet', 0x4fb3ff],
+  ['burn', 0xff6a2b], ['stun', 0xffd36b], ['hush', 0xc8b4ff], ['mock', 0xff9ad0], ['wither', 0xb89a6a], ['expose', 0xff8a8a], ['guard', 0xe0b04a],
+  ['mirror', 0xe0e8ff], ['standin', 0xd9a066], ['wet', 0x4fb3ff],
 ];
 
 export function animateUnit(v: UnitView, time: number): void {

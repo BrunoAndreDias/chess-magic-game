@@ -1,6 +1,6 @@
 import {
   CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aoeTiles, callsOf, canUse, castTargets, current, getUnit, idx, isCall,
-  moveOf, predict, reachable, roundQueue, soulCap, soulsInReach, unitAt,
+  dollOf, moveOf, predict, reachable, roundQueue, soulCap, soulsInReach, standingDoll, unitAt,
 } from '../../engine/index';
 import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Turn, Unit, UnitId } from '../../engine/index';
 import type { Match } from '../../host/match';
@@ -341,7 +341,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   }
 
   function renderRoster(el: HTMLElement, t: Team): void {
-    const cur = current(shown), units = shown.units.filter(u => u.team === t);
+    const cur = current(shown), units = shown.units.filter(u => u.team === t && u.owner === undefined);
     el.replaceChildren(
       h('div', { class: 'rbon' }, bonusChips(units, false)),
       ...units.map(u => {
@@ -352,7 +352,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
           : u.life.kind === 'downed' ? h('span', { class: 'dn' }, `DOWNED · ${u.life.bleed} turn${u.life.bleed > 1 ? 's' : ''}`)
           : h('span', null, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`);
 
-        const cap = soulCap(shown, u), souls = cap ? h('span', { class: 'souls', title: `Holds ${u.souls} of ${cap} Souls` }, ` 👻${u.souls}/${cap}`) : null;
+        const cap = soulCap(shown, u), souls = cap ? h('span', { class: 'souls', title: `Holds ${u.souls} of ${cap} Souls` }, ` 👻${u.souls}/${cap}`) : dollChip(u);
 
         return withTip(h('div', { class: `rcard t${t}${cur?.id === u.id ? ' now' : ''}${life}`, data: { unit: String(u.id) } },
           h('div', { class: 'rtop' }, h('b', null, u.name, human(u) ? null : h('span', { style: { 'font-size': '11px' } }, ' 🤖')), h('span', null, `${C.icon} ${C.name}`)),
@@ -376,7 +376,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     selinfo.replaceChildren(
       h('b', { style: { color: TEAM_TEXT[u.team] } }, u.name),
       h('div', null, `${C.icon} ${C.name}${human(u) ? '' : ' · 🤖'}`),
-      h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`, soulCap(s, u) ? h('span', { class: 'souls' }, ` · 👻 ${u.souls}/${soulCap(s, u)}`) : null),
+      h('div', { class: 'mv' }, `${u.hp}/${u.maxHp}${u.shield ? ` +${u.shield}🛡` : ''}`, soulCap(s, u) ? h('span', { class: 'souls' }, ` · 👻 ${u.souls}/${soulCap(s, u)}`) : dollChip(u)),
       h('div', { class: 'mv' }, `${u.st.root ? '🌿 Rooted' : u.moved ? 'Move used' : `Move ${moveOf(u)}`} · ${u.acted ? 'action used' : 'action ready'}`));
     endBtn.disabled = !mine;
 
@@ -401,9 +401,27 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     }));
   }
 
+  /** A Marionettist's Doll on its roster card: its HP, or that it's broken. */
+  function dollChip(u: Unit): HTMLElement | null {
+    const d = dollOf(shown, u);
+
+    if (!d) return null;
+
+    return h('span', { class: 'doll', title: d.life.kind === 'up' ? `Its Doll: ${d.hp}/${d.maxHp} HP` : `Its Doll is broken${d.reform ? `: reforms in round ${d.reform}` : ''}` },
+      d.life.kind === 'up' ? ` 🪆${d.hp}` : ' 🪆✖');
+  }
+
   /** Why a ready skill can't be used right now, for the class mechanics that gate it. */
   function blocked(s: BattleState, u: Unit, id: SkillId): string | null {
     if (u.st.hush && !SKILLS[id].basic) return 'Hushed';
+
+    if (['strings', 'switch', 'tangle', 'splinter', 'standin', 'razorwire'].includes(id) && !standingDoll(s, u)) return 'Doll broken';
+
+    if (id === 'razorwire' && !canUse(s, u, id)) return 'Doll too far';
+
+    if (id === 'rebuild' && !canUse(s, u, id)) return 'Doll unhurt';
+
+    if (id === 'shatter' && !canUse(s, u, id)) return 'No glass up';
 
     if (SKILLS[id].rite && u.souls < 1) return 'Needs a Soul';
 

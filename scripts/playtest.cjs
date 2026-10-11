@@ -171,11 +171,13 @@ async function serve() {
     await wait(600);
     await shot('01-picks');
 
-    // Blue selects and locks its members in order, the middle one switched to a second Bellringer; Red's AI locks between.
+    // Blue selects and locks its members in order, the last two switched to a Marionettist and a Mirrormime; Red's AI locks between.
     for (let k = 0; k < 3; k++) {
       await p.click(`#su-teams .pslot[data-team="0"][data-slot="${k}"]`);
 
-      if (k === 1) await p.click('.sheet .ccard[data-cls="bellringer"]');
+      if (k === 1) await p.click('.sheet .ccard[data-cls="marionettist"]');
+
+      if (k === 2) await p.click('.sheet .ccard[data-cls="mirrormime"]');
 
       if (!(await until(() => p.$eval('#pk-lock', b => !b.disabled).catch(() => false), 5000))) throw new Error(`lock ${k} never enabled`);
 
@@ -188,7 +190,7 @@ async function serve() {
     await shot('01-picks-done');
     const track = await p.$eval('#pk-track', el => el.textContent);
 
-    if ((track.match(/Bellringer/g) ?? []).length < 2) throw new Error(`the turn order does not show the switched Bellringer lock: ${track}`);
+    if (!track.includes('Marionettist') || !track.includes('Mirrormime')) throw new Error(`the turn order does not show the switched locks: ${track}`);
     const strip = await p.textContent('#su-mapinfo');
 
     if (!strip.includes(mapName)) throw new Error(`draft strip does not name ${mapName}: ${strip}`);
@@ -242,7 +244,10 @@ async function serve() {
   }
 
   // How often each class mechanic showed up in the battle log, so a run proves the classes were actually played.
-  const MECHANICS = { calls: /is called: it lands/, lands: /lands( at half power)?!/, encased: /is Encased/ };
+  const MECHANICS = {
+    calls: /is called: it lands/, lands: /lands( at half power)?!/, encased: /is Encased/,
+    strings: /uses Strings/, dolls: /Doll (breaks|reforms)/, mirrors: /Mirror turns/, glass: /Invisible Wall goes up/,
+  };
 
   const mechanics = () => p.evaluate(m => {
     const lines = window.__logLines ?? [];

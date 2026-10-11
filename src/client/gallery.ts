@@ -40,6 +40,9 @@ function lit(s: THREE.Scene, b = B): void {
 
 const rigs: Rig[] = [];
 
+/** The middle of the row, so the classes stand centred however many there are. */
+const MID = (CLASS_ORDER.length - 1) / 2;
+
 function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x: number, z: number, turn: number): void {
   const root = new THREE.Group(), { body, rig } = buildModel(cls, team);
   root.add(body, decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[team], 0.35), 0.02));
@@ -69,7 +72,7 @@ floor.receiveShadow = true;
 close.add(floor);
 
 CLASS_ORDER.forEach((cls, i) => {
-  for (const team of [0, 1] as const) place(close, cls, team, (i - 1.5) * 2.6 + (team ? 0.55 : -0.55), 0, team ? -0.5 : 0.5);
+  for (const team of [0, 1] as const) place(close, cls, team, (i - MID) * 2.6 + (team ? 0.55 : -0.55), 0, team ? -0.5 : 0.5);
 });
 
 const far = new THREE.Scene();
@@ -89,8 +92,8 @@ for (let x = -4; x <= 3; x++) for (let z = -2; z <= 1; z++) {
 }
 
 CLASS_ORDER.forEach((cls, i) => {
-  place(far, cls, 0, (i - 1.5) * 2 + 0.5, -0.5, 0);
-  place(far, cls, 1, (i - 1.5) * 2 - 0.5, 1.5, Math.PI);
+  place(far, cls, 0, (i - MID) * 2 + 0.5, -0.5, 0);
+  place(far, cls, 1, (i - MID) * 2 - 0.5, 1.5, Math.PI);
 });
 
 const label = CLASS_ORDER.map(cls => {
@@ -115,7 +118,7 @@ function frame(t: number): void {
   farCam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(22.5)) * ((h - split) / h)));
   farCam.aspect = w / (h - split);
   farCam.updateProjectionMatrix();
-  label.forEach((d, i) => { d.style.left = `${((i + 0.5) / 4) * 100}%`; d.style.top = '14px'; });
+  label.forEach((d, i) => { d.style.left = `${((i + 0.5) / CLASS_ORDER.length) * 100}%`; d.style.top = '14px'; });
   renderer.setViewport(0, h - split, w, split);
   renderer.setScissor(0, h - split, w, split);
   renderer.render(close, closeCam);

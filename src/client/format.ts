@@ -17,7 +17,7 @@ function teamOf(s: BattleState, id: UnitId): Tone {
 function toneOf(t: Team): Tone { return t === 0 ? 't0' : 't1'; }
 
 const DAMAGE_WORD: Record<DamageKind, string> = {
-  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', burn: ' burn', dark: '', slam: ' slam', storm: ' lightning', drain: ' drain',
+  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', burn: ' burn', dark: '', slam: ' slam', storm: ' lightning', drain: ' drain', mirror: ' reflected',
 };
 
 export const REASON: Record<OverReason, string> = {
@@ -95,6 +95,12 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'soul': return null;
     case 'gather': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} gathers ${e.from.length === 1 ? 'a Soul' : `${e.from.length} Souls`}.` };
     case 'spend': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} spends a Soul.` };
+    case 'reflect': return { tone: teamOf(s, e.id), text: e.amount > 0 ? `${name(s, e.id)}'s Mirror turns ${e.amount} back on ${name(s, e.to)}.` : `${name(s, e.id)}'s Mirror turns the debuff back on ${name(s, e.to)}.` };
+    case 'bounce': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s shot bounces off the glass and comes back!` };
+    case 'standin': return { tone: teamOf(s, e.to), text: `${name(s, e.to)} takes the hit for ${name(s, e.from)}.` };
+    case 'break': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} breaks. It reforms in round ${e.reform}.` };
+    case 'reform': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} reforms.` };
+    case 'shatter': return { tone: 'sys', text: `The glass shatters: ${e.tiles.length} tile${e.tiles.length === 1 ? '' : 's'}.` };
     case 'over': return { tone: 'sys', text: `${winnerTitle(e.winner)}. ${REASON[e.reason]}` };
   }
 }
@@ -105,6 +111,7 @@ const TERRAIN_LINE: Readonly<Record<TerrainChange, string>> = {
   ice: 'The water freezes into ice.',
   smoke: 'Smoke fills the air.',
   bone: 'A Bone Wall rises.',
+  glass: 'An Invisible Wall goes up.',
 };
 
 function bonusNames(s: BattleState, t: Team): string[] {
@@ -143,6 +150,11 @@ export function previewLines(events: readonly BattleEvent[], s: BattleState): Li
       case 'soul': out.push({ tone: 'sys', text: 'A Soul drops' }); break;
       case 'gather': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: +${e.from.length} Soul${e.from.length === 1 ? '' : 's'}` }); break;
       case 'spend': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: spends a Soul` }); break;
+      case 'reflect': out.push({ tone: teamOf(s, e.id), text: `🪞 ${name(s, e.id)} turns it back on ${name(s, e.to)}` }); break;
+      case 'bounce': out.push({ tone: 'combo', text: '⚠ Bounces off the glass back at you' }); break;
+      case 'standin': out.push({ tone: teamOf(s, e.to), text: `🪆 ${name(s, e.to)} takes it for ${name(s, e.from)}` }); break;
+      case 'break': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)} breaks` }); break;
+      case 'reform': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)} reforms` }); break;
       case 'queue': out.push({ tone: 'sys', text: `Order: ${e.queue.map(t => `${name(s, t.id)}${t.extra ? '+' : ''}`).join(' → ')}` }); break;
       default: break;
     }

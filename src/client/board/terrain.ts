@@ -6,9 +6,9 @@ import { BIOMES } from '../biome';
 import type { Biome } from '../biome';
 import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
 
-export type FxKey = Exclude<keyof TileFx, 'spent'>;
+export type FxKey = Exclude<keyof TileFx, 'spent' | 'glassBy'>;
 
-export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'bone'];
+export const FX_KEYS: readonly FxKey[] = ['fire', 'smoke', 'ice', 'bone', 'glass'];
 
 interface Brazier { flame: THREE.Sprite; core: THREE.Sprite; light: THREE.PointLight; ph: number }
 
@@ -88,6 +88,8 @@ const shared = {
   ice: new THREE.MeshStandardMaterial({ color: 0xcff4ff, emissive: 0x5ab6e0, emissiveIntensity: 0.35, roughness: 0.1, transparent: true, opacity: 0.9 }),
   fireBase: basic(0xff5a1a, 0.35),
   bone: mat(0xe8e2d0, { roughness: 0.6 }), marrow: mat(0x9a8f78),
+  glass: new THREE.MeshStandardMaterial({ color: 0xe8f6ff, emissive: 0x6a8aff, emissiveIntensity: 0.25, roughness: 0.02, metalness: 0.3, transparent: true, opacity: 0.28, depthWrite: false }),
+  glassEdge: new THREE.LineBasicMaterial({ color: 0xf4fbff, transparent: true, opacity: 0.85 }),
 };
 
 for (const m of Object.values(shared)) keep(m);
@@ -229,6 +231,20 @@ const FX_BUILD: Readonly<Record<FxKey, () => THREE.Object3D>> = {
 
     const rib = mesh(new THREE.TorusGeometry(0.42, 0.03, 5, 16, Math.PI), shared.bone, 0, 0.75, 0);
     g.add(rib);
+
+    return g;
+  },
+  /** A mime's invisible wall made visible: a clear block of glass with bright edges and a glint, so it reads as a wall you can see through. */
+  glass: () => {
+    const g = new THREE.Group(), box = new THREE.BoxGeometry(0.9, 1.2, 0.9);
+    const pane = mesh(box, shared.glass, 0, 0.6, 0);
+    pane.renderOrder = 4;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box), shared.glassEdge);
+    edges.position.y = 0.6;
+    const glint = glow(0xeaf4ff, 0.5, 0.8);
+    glint.position.set(0.3, 1.05, 0.3);
+    PHASE.set(glint, Math.random() * 9);
+    g.add(pane, edges, glint);
 
     return g;
   },
@@ -410,6 +426,13 @@ export class Terrain {
         if (ph === undefined || !(c instanceof THREE.Sprite)) continue;
         c.position.y += Math.sin(time + ph) * 0.002;
         c.material.rotation += 0.004;
+      }
+
+      if (t.fx.glass) for (const c of t.fx.glass.children) {
+        const ph = PHASE.get(c);
+
+        // The glint slides down the pane now and then.
+        if (ph !== undefined) c.position.y = 0.25 + ((time * 0.6 + ph) % 3 < 1 ? 0.85 * (1 - ((time * 0.6 + ph) % 1)) : 0.85);
       }
     }
   }
