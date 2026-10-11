@@ -23,6 +23,8 @@ LANDS = {
     'astromancer': dict(main='#5a30c4', accent='#e8b648', glow='#c9a8ff', team='#e8b648', sky='#120a2e', frame=1, head=0.26, turn=24, key=110, rim=1.0, halo=1.6),
     'gravecaller': dict(main='#275f48', accent='#ddd0b0', glow='#5dffc0', team='#ddd0b0', sky='#06140f', frame=1, head=0.27, turn=-22, key=110, rim=1.0, halo=1.2),
     'bellringer': dict(main='#ad7a2c', accent='#f5cc52', glow='#ffb640', team='#b08a3a', sky='#1c1006', frame=1, head=0.27, turn=26, key=260, rim=0.8, halo=0.8),
+    'marionettist': dict(main='#ad7a2c', accent='#f5cc52', glow='#ffb640', team='#e2cf9c', sky='#1c1006', frame=1, head=0.27, turn=20, key=280, rim=0.6, halo=0.9),
+    'mirrormime': dict(main='#5a30c4', accent='#e8b648', glow='#c9a8ff', team='#e8b648', sky='#120a2e', frame=1, head=0.28, turn=18, key=220, rim=0.75, halo=1.4),
 }
 
 
