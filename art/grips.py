@@ -8,7 +8,7 @@ point of each held prop (every mesh under the object that carries `hold_<side>`)
 floor at z = 0. Exits non-zero if a hand slips more than 0.01 (1 cm) or a prop sinks more than 0.005 into the floor.
 
 The gate is proven by breaking it: reparent `hold_r` to `breath` after the import (keeping its world transform), and
-attack and cast report a slip of about 0.2 and exit 1.
+on the Gravecaller every action clip reports a slip of 0.13 to 0.45 and the run exits 1.
 
 usage: blender --background --factory-startup --python art/grips.py -- public/models/<class>.glb
 """
