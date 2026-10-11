@@ -470,6 +470,8 @@ def finish():
     bpy.ops.export_scene.gltf(
         filepath=out, export_format='GLB', export_apply=True, export_extras=True, export_animations=True,
         export_yup=True, export_cameras=False, export_lights=False,
+        # A bone a clip leaves unkeyed rests anyway: the client blends what no clip moves back to its rest pose.
+        export_optimize_animation_keep_anim_armature=False,
     )
     if '--preview' in argv:
         preview(argv[argv.index('--preview') + 1])
