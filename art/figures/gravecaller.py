@@ -770,7 +770,8 @@ def arm(bone, axis):
 
 
 def wields(keys, lean):
-    return wield(keys, RIG, 'hand_r', lean, 'chest')
+    """`keys` with the scythe held at `lean` and the soul bell hanging plumb from the other fist."""
+    return hang(wield(keys, RIG, 'hand_r', lean, 'chest'), RIG, ((swing, 'hand_l'),))
 
 
 R, S = 'rotation_euler', 'scale'
