@@ -5,6 +5,7 @@ skulls burning around it. Smooth subdivided forms, painted by lookdev and baked 
 import math
 import os
 import sys
+from functools import partial
 
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
@@ -765,8 +766,7 @@ for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('uppera
     loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 84)
 
 
-def arm(bone, axis):
-    return RIG, f'pose.bones["{bone}"].rotation_euler', axis
+arm = partial(bone_key, RIG)
 
 
 def wields(keys, lean):
@@ -775,7 +775,6 @@ def wields(keys, lean):
 
 
 R, S = 'rotation_euler', 'scale'
-X, Y, Z = 0, 1, 2
 # Clip axes. The chest turns at the waist: +x leans it forward, +y turns its front toward the figure's left (the bell
 # side), +z bends it toward its right. On an arm bone -x swings the arm forward and up, or bends the elbow; z on a
 # hanging upper arm swings it out, +z for the right arm and -z for the left. Every clip reads from behind and above,

@@ -7,6 +7,7 @@ and star shards drift round the body. Painted by lookdev and baked from a high-p
 import math
 import os
 import sys
+from functools import partial
 
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
@@ -880,8 +881,7 @@ for b, axis, peak in (('clavicle_r', 0, 0.03), ('clavicle_l', 0, 0.03), ('uppera
     loop(RIG, f'pose.bones["{b}"].rotation_euler', axis, [0.0, peak], 96)
 
 
-def key(bone, axis):
-    return RIG, f'pose.bones["{bone}"].rotation_euler', axis
+key = partial(bone_key, RIG)
 
 
 def wields(keys, sceptre, palm):
@@ -891,7 +891,6 @@ def wields(keys, sceptre, palm):
 
 
 R, L = 'rotation_euler', 'location'
-X, Y, Z = 0, 1, 2
 # Clip axes. The chest turns at the waist: +x leans it forward, +y turns its front toward the figure's left (the planet
 # side), +z bends it toward its right. On an arm bone -x swings the arm forward and up, or bends the elbow; z on a
 # hanging upper arm swings it out, +z for the right arm and -z for the left. Every clip reads from behind and above,

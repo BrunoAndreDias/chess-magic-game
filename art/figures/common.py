@@ -172,6 +172,14 @@ def _bone(bone, prop='rotation_euler'):
     return f'pose.bones["{bone}"].{prop}'
 
 
+X, Y, Z = 0, 1, 2
+
+
+def bone_key(rig, bone, axis):
+    """The `act()` key for `bone`'s rotation about `axis` (X, Y or Z)."""
+    return rig, _bone(bone), axis
+
+
 def _turn(keys, ob, path, f):
     rest = ob.path_resolve(path)
     return Euler([rest[i] + keyed(keys.get((ob, path, i), [(0, 0)]), f) for i in range(3)]).to_matrix()
