@@ -224,20 +224,6 @@ def ribbon(name, path, widths, side, mat, thickness=0.022, belly=0.012, notch=0.
     return ob
 
 
-def bezier(p0, p1, p2, p3, n):
-    pts = []
-    for i in range(n + 1):
-        t = i / n
-        u = 1 - t
-        pts.append(Vector(p0) * u ** 3 + Vector(p1) * 3 * u * u * t + Vector(p2) * 3 * u * t * t + Vector(p3) * t ** 3)
-    return pts
-
-
-def smoothstep(e0, e1, x):
-    t = min(1.0, max(0.0, (x - e0) / (e1 - e0)))
-    return t * t * (3 - 2 * t)
-
-
 def interp(table, z):
     """Linear lookup in a list of (value, z) pairs ordered by z, either way."""
     pts = sorted(table, key=lambda p: p[1])
@@ -699,65 +685,25 @@ for side in ARMS:
         bone_parent(ob, RIG, f'hand_{side}')
 bone_parent(empty('grip_r', RIGHT_HAND), RIG, 'hand_r')
 
-SHOULDER = 5
-
-
-def sleeve_path(s, e, end, bend=0.05):
-    """Shoulder to the bell's opening, its rings packed round the shoulder and the rounded-off elbow, how far along it
-    each ring is, and how far along it the elbow is."""
-    u, f = (e - s).normalized(), (end - e).normalized()
-    pts = [s.lerp(e - u * bend, k / SHOULDER) for k in range(SHOULDER)]
-    pts += bezier(e - u * bend, e - u * bend / 3, e + f * bend / 3, e + f * bend, 6)[:-1]
-    pts += [(e + f * bend).lerp(end, k / 4) for k in range(5)]
-    d = [0.0]
-    for a, b in zip(pts, pts[1:]):
-        d.append(d[-1] + (b - a).length)
-    return pts, [x / d[-1] for x in d], d[SHOULDER + 3] / d[-1]
-
-
-def weights(t, elbow):
-    """A sleeve point's share per arm bone at `t` along it: the top holds on to the collarbone, the rings under it and
-    round the elbow turn halfway with their joint, and the forearm's half falls with the drape toward the opening."""
-    clav = 0.5 * smoothstep(0.08, 0.0, t)
-    shoulder = (1 - clav) * smoothstep(0.24, 0.06, t)
-    bend = smoothstep(0.14, 0.0, abs(t - elbow))
-    limb = 1 - clav - shoulder
-    upper, fore = limb * (1 - bend) * (t < elbow), limb * (1 - bend) * (t >= elbow)
-    fall = smoothstep(elbow, 1.0, t)
-    return {'clavicle': clav, 'shoulder': shoulder, 'upperarm': upper, 'elbow': limb * bend,
-            'forearm': fore * (1 - fall), 'drape': fore * fall}
-
-
-def skin(ob, side, at):
-    """Weights every vertex of `ob` to the arm bones by `at(vertex)`, its share per bone, and hangs it on the rig."""
-    groups = {}
-    for v in ob.data.vertices:
-        for b, wt in at(v).items():
-            g = groups.get(b) or groups.setdefault(b, ob.vertex_groups.new(name=f'{b}_{side}'))
-            g.add([v.index], wt, 'REPLACE')
-    ob.modifiers.new('skin', 'ARMATURE').object = RIG
-    return parent(ob, RIG)
-
-
 # Sleeves: wide bell sleeves, their dark hems piped in gold, each one tube skinned along its arm so the elbow bends
 # without a seam. The gold cuff and the lining funnelled inside the opening fall with the bell's opening.
 for side, (s, e, w, radii) in ARMS.items():
     end = opening(side)
-    path, along, elbow = sleeve_path(s, e, end)
+    path, along, elbow = sleeve_path(s, e, end, bend=0.05)
     rs = [interp([(r, k / (len(radii) - 1)) for k, r in enumerate(radii)], t) for t in along]
     sl = sweep(f'sleeve_{side}', path, rs, 14, MAIN, caps=False, levels=1, mask=lambda i, a=along: float(a[i] >= HEM))
     solidify(sl, 0.012, inner=LINING)
     sl.modifiers['solid'].use_even_offset = False
-    skin(sl, side, lambda v, a=along, el=elbow: weights(a[v.index // 14], el))
+    skin(sl, RIG, lambda v: sleeve(side, along[v.index // 14], elbow))
     _, fr = frames(path)
     f = (end - e).normalized()
     cuff = [end + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (rs[-1] + 0.002)
             for a in [2 * math.pi * k / 40 for k in range(41)]]
-    rim = weights(1.0, elbow)
-    skin(sweep('cuff', cuff, 0.006, 6, GOLD, caps=False), side, lambda v: rim)
+    rim = sleeve(side, 1.0, elbow)
+    skin(sweep('cuff', cuff, 0.006, 6, GOLD, caps=False), RIG, lambda v: rim)
     # An undersleeve funnels from the cuff down to the forearm, so the open sleeve shows lit lining, not a dark hole.
     skin(sweep('undersleeve', [end - f * 0.006, end - f * 0.04], [rs[-1] - 0.012, 0.03], 14, LINING, caps=False),
-         side, lambda v: rim)
+         RIG, lambda v: rim)
     # The gloved forearm runs from the elbow, where a falling sleeve bares it, to the wrist; a gold band rings it
     # where the glove's cuff ends, just out of the sleeve.
     _, obs = made(lambda: forearm(e + f * 0.03, end.lerp(w, 0.3), w, 0.022))
@@ -920,13 +866,7 @@ for k, (a, z, r, rise, kind) in enumerate(DRIFT):
 for ob in UPPER + [bpy.data.objects[n] for n in ('brooch', 'brooch_disc')] + [armill, halo]:
     bone_parent(ob, RIG, 'chest')
 for ob in [robe_top] + [o for o in bpy.data.objects if o.name.split('.')[0] in ('panel', 'panel_piping')]:
-    hips, chest = ob.vertex_groups.new(name='hips'), ob.vertex_groups.new(name='chest')
-    for v in ob.data.vertices:
-        up = smoothstep(0.66, 0.84, v.co.z)
-        hips.add([v.index], 1 - up, 'REPLACE')
-        chest.add([v.index], up, 'REPLACE')
-    ob.modifiers.new('skin', 'ARMATURE').object = RIG
-    parent(ob, RIG)
+    skin(ob, RIG, lambda v: waist(v.co.z, 0.66, 0.84))
 
 for ob in list(bpy.data.objects):
     if ob.parent is None and ob not in (breath, flock):

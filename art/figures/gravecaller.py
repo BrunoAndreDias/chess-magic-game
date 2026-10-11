@@ -237,15 +237,6 @@ def ribbon(name, path, widths, side, mat, thickness=0.022, belly=0.012, notch=0.
     return ob
 
 
-def bezier(p0, p1, p2, p3, n):
-    pts = []
-    for i in range(n + 1):
-        t = i / n
-        u = 1 - t
-        pts.append(Vector(p0) * u ** 3 + Vector(p1) * 3 * u * u * t + Vector(p2) * 3 * u * t * t + Vector(p3) * t ** 3)
-    return pts
-
-
 def interp(table, z):
     """Linear lookup in a list of (value, z) pairs ordered by z, either way."""
     pts = sorted(table, key=lambda p: p[1])
@@ -594,57 +585,17 @@ UPPER = ('hood', 'hood_rim', 'void', 'eye', 'glow_eye', 'scarf', 'scarf_knot', '
 for ob in list(bpy.data.objects):
     if ob.parent is None and (ob.name.split('.')[0] in UPPER or ob.name.startswith('clasp') and ob.location.z > 0.85):
         bone_parent(ob, RIG, 'chest')
-hips, chest = coat.vertex_groups.new(name='hips'), coat.vertex_groups.new(name='chest')
-for v in coat.data.vertices:
-    up = smoothstep(0.77, 0.95, v.co.z)
-    hips.add([v.index], 1 - up, 'REPLACE')
-    chest.add([v.index], up, 'REPLACE')
-coat.modifiers.new('skin', 'ARMATURE').object = RIG
-parent(coat, RIG)
-
-
-SHOULDER = 5
-
-
-def sleeve_path(s, e, w, bend=0.06):
-    """Shoulder to the cuff's opening, its rings packed round the shoulder and the rounded-off elbow, and how far
-    along it the elbow is."""
-    u, f = (e - s).normalized(), (w - e).normalized()
-    pts = [s.lerp(e - u * bend, k / SHOULDER) for k in range(SHOULDER)]
-    pts += bezier(e - u * bend, e - u * bend / 3, e + f * bend / 3, e + f * bend, 6)[:-1]
-    end = w + (w - e) * 0.08
-    pts += [(e + f * bend).lerp(end, k / 4) for k in range(5)]
-    d = [0.0]
-    for a, b in zip(pts, pts[1:]):
-        d.append(d[-1] + (b - a).length)
-    return pts, [x / d[-1] for x in d], d[SHOULDER + 3] / d[-1]
-
+skin(coat, RIG, lambda v: waist(v.co.z, 0.77, 0.95))
 
 for side, (s, e, w, radii, hem) in ARMS.items():
-    path, along, elbow = sleeve_path(s, e, w)
+    path, along, elbow = sleeve_path(s, e, sleeve_end(side)[0])
     rs = [interp([(r, k / (len(radii) - 1)) for k, r in enumerate(radii)], t) for t in along]
     sl = sweep(f'sleeve_{side}', path, rs, 14, MAIN, caps=False, levels=1, mask=lambda i, a=along, h=hem: float(a[i] >= h))
     solidify(sl, 0.014, inner=DARK)
     # Even thickness spikes where the arm folds sharply at the elbow.
     sl.modifiers['solid'].use_even_offset = side == 'l'
-    # The top ring holds on to the collarbone and the rings under it turn halfway with the shoulder, so the sleeve
-    # top bunches as the arm rises; round the elbow the rings turn halfway with it, and the forearm's half falls
-    # with the drape.
-    names = ('clavicle', 'shoulder', 'upperarm', 'elbow', 'forearm', 'drape')
-    groups = {b: sl.vertex_groups.new(name=f'{b}_{side}') for b in names}
-    for i, t in enumerate(along):
-        clav = 0.5 * smoothstep(0.08, 0.0, t)
-        shoulder = (1 - clav) * smoothstep(0.24, 0.06, t)
-        bend = smoothstep(0.14, 0.0, abs(t - elbow))
-        limb_w = 1 - clav - shoulder
-        upper, fore = limb_w * (1 - bend) * (t < elbow), limb_w * (1 - bend) * (t >= elbow)
-        fall = smoothstep(elbow, 1.0, t) if side == 'l' else 0.0
-        weights = (clav, shoulder, upper, limb_w * bend, fore * (1 - fall), fore * fall)
-        ring = list(range(i * 14, i * 14 + 14))
-        for b, wt in zip(names, weights):
-            groups[b].add(ring, wt, 'REPLACE')
-    sl.modifiers.new('skin', 'ARMATURE').object = RIG
-    parent(sl, RIG)
+    # Only the wide bell sleeve falls down a raised forearm.
+    skin(sl, RIG, lambda v: sleeve(side, along[v.index // 14], elbow, falls=side == 'l'))
     _, fr = frames(path)
     cuff = [path[-2].lerp(path[-1], 0.2) + (fr[-1][0] * math.cos(a) + fr[-1][1] * math.sin(a)) * (rs[-1] - 0.006)
             for a in [2 * math.pi * k / 48 for k in range(49)]]
