@@ -92,10 +92,10 @@ test('every action clip strikes within its own length, where the board fires its
   expect(bad).toEqual([]);
 });
 
-test('the gravecaller sleeves are skinned to its arm bones, and its fists and what they hold ride its hand bones', () => {
+test('the gravecaller coat top and sleeves are skinned to its spine and arm bones, its hood rides the chest, and its fists and what they hold ride its hand bones', () => {
   const j = figure('gravecaller'), nodes = j.nodes ?? [];
   const parent = (name: string) => nodes.find(n => n.children?.some(c => nodes[c]?.name === name))?.name;
   const skinned = nodes.filter(n => n.skin !== undefined).map(n => [n.name, j.skins?.[n.skin ?? -1]?.joints.map(i => nodes[i]?.name).sort()]);
-  expect(skinned).toEqual([['rig_skin', ['chest', 'clavicle_l', 'clavicle_r', 'forearm_l', 'forearm_r', 'hand_l', 'hand_r', 'upperarm_l', 'upperarm_r']]]);
-  expect(['hand_r_mesh', 'weapon', 'hand_l_mesh', 'bell_swing'].map(parent)).toEqual(['hand_r', 'hand_r', 'hand_l', 'hand_l']);
+  expect(skinned).toEqual([['rig_skin', ['chest', 'clavicle_l', 'clavicle_r', 'drape_l', 'elbow_l', 'elbow_r', 'forearm_l', 'forearm_r', 'hand_l', 'hand_r', 'hips', 'shoulder_l', 'shoulder_r', 'upperarm_l', 'upperarm_r']]]);
+  expect(['chest_mesh', 'forearm_l_mesh', 'hand_r_mesh', 'weapon', 'hand_l_mesh', 'bell_swing'].map(parent)).toEqual(['chest', 'forearm_l', 'hand_r', 'hand_r', 'hand_l', 'hand_l']);
 });

@@ -136,6 +136,10 @@ def keyed(frames, f):
     return pts[0][1] if f < pts[0][0] else pts[-1][1]
 
 
+def _bone(bone, prop='rotation_euler'):
+    return f'pose.bones["{bone}"].{prop}'
+
+
 def _turn(keys, ob, path, f):
     rest = ob.path_resolve(path)
     return Euler([rest[i] + keyed(keys.get((ob, path, i), [(0, 0)]), f) for i in range(3)]).to_matrix()
@@ -152,7 +156,7 @@ def posed(keys, rig, bone, f, own=True):
         while ob:
             up = ob.matrix_parent_inverse.to_3x3() @ _turn(keys, ob, 'rotation_euler', f) @ up
             ob = ob.parent
-    turn = _turn(keys, rig, f'pose.bones["{bone}"].rotation_euler', f) if own else Matrix.Identity(3)
+    turn = _turn(keys, rig, _bone(bone), f) if own else Matrix.Identity(3)
     return up @ b.matrix_local.to_3x3() @ turn
 
 
@@ -161,7 +165,7 @@ def wield(keys, rig, hand, lean, facing):
     `facing`, whatever the arm above it does: a hand that carries a prop's weight, not one bolted to its forearm.
     It solves every frame that any key or `lean` names."""
     rest, face = rig.data.bones[hand].matrix_local.to_3x3(), rig.data.bones[facing].matrix_local.to_3x3().inverted()
-    path = f'pose.bones["{hand}"].rotation_euler'
+    path = _bone(hand)
     out, prev = [[], [], []], Euler()
     for f in sorted({f for frames in keys.values() for f, _ in frames} | {f for f, _ in lean}):
         ahead = posed(keys, rig, facing, f) @ face @ Vector((0, -1, 0))
@@ -171,6 +175,62 @@ def wield(keys, rig, hand, lean, facing):
             out[i].append((f, prev[i]))
     for i in range(3):
         keys[(rig, path, i)] = out[i]
+    return keys
+
+
+def smoothstep(e0, e1, x):
+    t = min(1.0, max(0.0, (x - e0) / (e1 - e0)))
+    return t * t * (3 - 2 * t)
+
+
+_HALVES, _DRAPES = {}, {}
+
+
+def halfway(rig, helper, bone, bulge=0.0):
+    """Has every clip key `helper` to half of each turn `bone` makes, swelling it across by `bulge` per radian of that
+    turn. Make `helper` a copy of `bone` hung from `bone`'s parent and weight the skin round the joint to it: the ring
+    at the crease then turns rigidly halfway instead of averaging two turns, which is what pinches a bent elbow thin."""
+    _HALVES.setdefault(rig.name, []).append((helper, bone, bulge))
+
+
+def drape(rig, bone, slide, droop):
+    """Has every clip key `bone`, hung from a forearm from the elbow to the sleeve's opening, so the sleeve falls like
+    cloth once the forearm rises past 10 degrees: by 55 it has slid back toward the elbow by `slide` of its length and
+    its opening has swung `droop` radians toward the ground. Weight the sleeve to it from nothing at the elbow to all
+    of it at the opening."""
+    _DRAPES.setdefault(rig.name, []).append((bone, slide, droop))
+
+
+def _derive(keys):
+    """`keys` plus the keys `halfway()` and `drape()` derive from them."""
+    keys = dict(keys)
+    for rig in {ob for ob, _, _ in keys if ob.type == 'ARMATURE'}:
+        for helper, bone, bulge in _HALVES.get(rig.name, ()):
+            src = [keys.get((rig, _bone(bone), i)) or [(0, 0)] for i in range(3)]
+            frames = sorted({f for fr in src for f, _ in fr})
+            turns = [Vector([keyed(fr, f) for fr in src]) for f in frames]
+            if not any(t.length for t in turns):
+                continue
+            for i in range(3):
+                keys[(rig, _bone(helper), i)] = [(f, t[i] / 2) for f, t in zip(frames, turns)]
+                keys[(rig, _bone(helper, 'scale'), i)] = [(f, bulge * t.length * (i != 1)) for f, t in zip(frames, turns)]
+        frames = sorted({f for fr in keys.values() for f, _ in fr})
+        for bone, slide, droop in _DRAPES.get(rig.name, ()):
+            out = {(_bone(bone), i): [] for i in range(3)} | {(_bone(bone, 'scale'), i): [] for i in range(3)}
+            prev = Euler()
+            for f in frames:
+                m = posed(keys, rig, bone, f, own=False)
+                fall = smoothstep(0.17, 0.96, math.asin(max(-1.0, min(1.0, m.col[1].z))))
+                down = m.inverted() @ Vector((0, 0, -1))
+                across = Vector((down.x, 0, down.z))
+                n = across.length
+                turn = Matrix.Rotation(droop * fall * n, 3, Vector((0, 1, 0)).cross(across)) if n > 1e-6 else None
+                prev = turn.to_euler('XYZ', prev) if turn else Euler()
+                for i in range(3):
+                    out[(_bone(bone), i)].append((f, prev[i]))
+                    out[(_bone(bone, 'scale'), i)].append((f, -slide * fall if i == 1 else 0.0))
+            for (path, i), v in out.items():
+                keys[(rig, path, i)] = v
     return keys
 
 
@@ -212,7 +272,7 @@ def act(name, strike, keys):
     clip = bpy.data.actions.new(name)
     clip['strike'] = strike / FPS
     last = max(f for frames in keys.values() for f, _ in frames)
-    keys = dict(keys)
+    keys = _derive(keys)
     for ob, path in {(ob, path) for ob, path, _ in keys}:
         for index in range(len(ob.path_resolve(path))):
             keys.setdefault((ob, path, index), [(0, 0), (last, 0)])
