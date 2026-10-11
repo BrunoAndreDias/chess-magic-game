@@ -70,7 +70,7 @@ const round = (x: number): number => Math.round(x * 100) / 100;
 export function mountPerfHud(debug: { perf(): PerfReport; perfReset(): void }): void {
   const el = document.createElement('div');
   el.id = 'perfhud';
-  el.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:98;padding:3px 7px;border-radius:4px;background:rgba(0,0,0,.65);color:#cfe8d0;font:11px/1.4 ui-monospace,monospace;pointer-events:none;white-space:pre';
+  el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:98;padding:3px 7px;border-radius:4px;background:rgba(0,0,0,.65);color:#cfe8d0;font:11px/1.4 ui-monospace,monospace;pointer-events:none;white-space:pre';
   document.body.append(el);
   setInterval(() => {
     const r = debug.perf();
