@@ -16,6 +16,7 @@ import sys
 
 import bpy
 import numpy as np
+from mathutils import Matrix
 
 LIMIT = 0.01
 FLOOR = -0.005
@@ -39,13 +40,13 @@ def clips():
 
 def play(binds, span, still):
     """Binds a clip on the rest pose: a channel no bound clip keys rests, as in the game, rather than keeping
-    whatever the last clip left there."""
+    whatever the last clip left there. A bone rests at its bind pose; the importer leaves it posed by a clip."""
     for ob in bpy.data.objects:
         ad = ob.animation_data or ob.animation_data_create()
         ad.action = None
         ob.matrix_basis = still[ob]
         for pb in ob.pose.bones if ob.pose else ():
-            pb.matrix_basis = still[pb]
+            pb.matrix_basis = Matrix()
     for ob, (a, slot) in binds.items():
         ob.animation_data.action, ob.animation_data.action_slot = a, slot
     starts, ends = zip(*(a.frame_range for a, _ in span.values()))
@@ -84,7 +85,6 @@ def main():
     scn = bpy.context.scene
     props = {s: points(obs[f'hold_{s}'].parent) for s in sides}
     still = {ob: ob.matrix_basis.copy() for ob in obs}
-    still |= {pb: pb.matrix_basis.copy() for ob in obs if ob.pose for pb in ob.pose.bones}
     worst, floor = 0.0, 0.0
     print(f'{"clip":10s} ' + ' '.join(f'{"grip_" + s:>9s} {"fist_" + s:>9s} {"low_" + s:>8s}' for s in sides))
     for name, binds, span in clips():

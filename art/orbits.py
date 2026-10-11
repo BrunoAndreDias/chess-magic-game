@@ -100,7 +100,6 @@ def main():
     obs = bpy.data.objects
     rig = next(o for o in obs if o.type == 'ARMATURE')
     still = {ob: ob.matrix_basis.copy() for ob in obs}
-    still |= {pb: pb.matrix_basis.copy() for ob in obs if ob.pose for pb in ob.pose.bones}
     every = clips()
     _, idle, span = every[0]
     frames = play(idle, span, still)
