@@ -48,6 +48,12 @@ export const SOULS = 3;
 
 export const HARVEST_RANGE = 3;
 
+/** A Marionettist's Doll: its HP, the rounds it takes to reform, how far Strings walks it and how far from its owner it may end. */
+export const DOLL = { hp: 40, reform: 2, walk: 3, leash: 4 };
+
+/** The share of a hit a Mirrored unit turns back on its attacker. */
+export const REFLECT = 0.5;
+
 export const HIGH_GROUND = { range: 1, dmg: 0.15 };
 
 /** Tall grass: enemies see you from this many tiles. */
@@ -62,6 +68,9 @@ export const pct = (f: number): string => `${Math.round(f * 100)}%`;
 
 /** A share of something as a word where English has one: `half`, `a quarter`; else a percentage. */
 export const part = (f: number): string => (f === 0.5 ? 'half' : f === 0.25 ? 'a quarter' : pct(f));
+
+/** `a quarter` → `A quarter`. */
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 
 /** An area of radius `r` as its side: `1` → `3×3`. */
 const side = (r: number): string => `${2 * r + 1}×${2 * r + 1}`;
@@ -210,9 +219,19 @@ export const CLASSES = {
     plays: 'A monk with a great bronze bell on its back, who calls the hour.', basic: { name: 'Clapper', range: 1, dmg: 15 },
     skills: ['knell', 'hush', 'peal', 'encore', 'overture', 'hourglass', 'bellguard'], defaults: ['knell', 'hush', 'peal'],
     tree: ['b_knell', 'b_last', 'b_peal', 'b_final', 'b_hp', 'b_clapper'] },
+  marionettist: { id: 'marionettist', name: 'Marionettist', icon: '🪆', color: '#d9a066', hp: 150, move: 3, innate: 'strings',
+    mechanic: 'The Doll: a second body on the board that you walk, swap with and fight through.',
+    plays: 'A tall masked puppeteer whose wooden Doll stands where it is needed.', basic: { name: 'Wire Lash', range: 2, dmg: 12 },
+    skills: ['switch', 'dance', 'tangle', 'razorwire', 'splinter', 'standin', 'rebuild'], defaults: ['switch', 'tangle', 'razorwire'],
+    tree: ['p_lash', 'p_wire', 'p_splinter', 'p_ventriloquist', 'p_doll', 'p_hp'] },
+  mirrormime: { id: 'mirrormime', name: 'Mirrormime', icon: '🪞', color: '#c8d4ff', hp: 150, move: 3, innate: 'reflect',
+    mechanic: 'Reflection: turn hits back on whoever threw them.',
+    plays: 'A harlequin mime with a mirrorball, who hands every blow back.', basic: { name: 'Glint', range: 3, dmg: 12 },
+    skills: ['glasswall', 'ricochet', 'retort', 'mock', 'mirrorball', 'shatter', 'reversal'], defaults: ['glasswall', 'ricochet', 'mock'],
+    tree: ['m_hp', 'm_reach', 'm_shield', 'm_quick', 'm_rico', 'm_retort'] },
 } satisfies Record<ClassId, ClassDef>;
 
-export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'gravecaller', 'bellringer'];
+export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'gravecaller', 'bellringer', 'marionettist', 'mirrormime'];
 
 // ---------- passive trees: 3 paths of 4 (three nodes, then a keystone). A node needs the one before it ----------
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
@@ -225,6 +244,9 @@ export const NODE_N = {
   a_benev: { heal: 0.25 },
   g_ferry: { range: 2, hp: 0.6 },
   b_accel: { shield: 15 },
+  p_tangled: { taken: 0.5 },
+  p_understudy: { share: 0.25, shield: 15 },
+  m_hall: { flash: 10, radius: 2 },
 };
 
 /** A node whose text is written from its own mods, so the number shown is the number applied. */
@@ -295,6 +317,44 @@ const TREE_TABLE = {
       node({ id: 'b_hp2', name: 'Steady Hands', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'b_accel', name: 'Accelerando', key: true, mods: { accel: 1, tollCd: 1 },
         text: m => `Allies you Toll get +${HASTE_MOVE} move and a ${NODE_N.b_accel.shield} shield on that turn, and Toll’s ${cd(m.tollCd)}.` })] }],
+  marionettist: [
+    { name: 'Heartwood', role: 'tank', color: '#c08a4a', nodes: [
+      node({ id: 'p_doll', name: 'Oak Limbs', mods: { dollHp: 25 }, text: m => `Your Doll +${m.dollHp} max HP.` }),
+      node({ id: 'p_hp', name: 'Stagehand', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'p_reform', name: 'Spare Parts', mods: { dollReform: 1 }, text: m => `Your Doll reforms ${m.dollReform} round sooner.` }),
+      node({ id: 'p_tangled', name: 'Tangled Strings', key: true, mods: { tangled: 1 },
+        text: () => `Enemies that hit your Doll are Rooted, and it takes ${part(NODE_N.p_tangled.taken)} damage.` })] },
+    { name: 'Ventriloquy', role: 'damage', color: '#ff7a5a', nodes: [
+      node({ id: 'p_lash', name: 'Barbed Wire', mods: { basicDmg: 4 }, text: m => `Wire Lash +${m.basicDmg} damage.` }),
+      node({ id: 'p_wire', name: 'Piano Wire', mods: { wireDmg: 6 }, text: m => `Razor Wire +${m.wireDmg} damage.` }),
+      node({ id: 'p_splinter', name: 'Brittle Pine', mods: { splinterDmg: 6 }, text: m => `Splinter +${m.splinterDmg} damage.` }),
+      node({ id: 'p_ventriloquist', name: 'Ventriloquist', key: true, mods: { ventriloquist: 1 },
+        text: () => 'You can cast your basic and your skills from your Doll’s tile, as if you stood there.' })] },
+    { name: 'Stagecraft', role: 'support', color: '#ffd38a', nodes: [
+      node({ id: 'p_switch', name: 'Long Strings', mods: { switchRange: 2 }, text: m => `Switch range +${m.switchRange}.` }),
+      node({ id: 'p_hp2', name: 'Velvet Coat', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'p_standin', name: 'Quick Change', mods: { standinCd: 1 }, text: m => `Stand-In ${cd(m.standinCd)}.` }),
+      node({ id: 'p_understudy', name: 'Understudy', key: true, mods: { understudy: 1 },
+        text: () => `${cap(part(NODE_N.p_understudy.share))} of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a ${NODE_N.p_understudy.shield} shield.` })] }],
+  mirrormime: [
+    { name: 'Quicksilver', role: 'tank', color: '#b8c8e8', nodes: [
+      node({ id: 'm_hp', name: 'Silvered Skin', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'm_reach', name: 'Long Glance', mods: { reflectRange: 2 }, text: m => `Reflect range +${m.reflectRange}.` }),
+      node({ id: 'm_shield', name: 'Backing Glass', mods: { mirrorShield: 10 }, text: m => `Whoever you Mirror also gets a ${m.mirrorShield} shield.` }),
+      node({ id: 'm_quick', name: 'Quicksilver', key: true, mods: { quicksilver: 1 },
+        text: () => `Units you Mirror turn back ${part(REFLECT)} of every enemy hit until their next turn, not just the first.` })] },
+    { name: 'Hall of Mirrors', role: 'damage', color: '#e08aff', nodes: [
+      node({ id: 'm_rico', name: 'Bank Shot', mods: { ricochetDmg: 4 }, text: m => `Ricochet +${m.ricochetDmg} damage.` }),
+      node({ id: 'm_retort', name: 'Sharp Tongue', mods: { retortDmg: 4 }, text: m => `Retort +${m.retortDmg} damage.` }),
+      node({ id: 'm_shatter', name: 'Thin Glass', mods: { shatterDmg: 6 }, text: m => `Shatter +${m.shatterDmg} damage.` }),
+      node({ id: 'm_hall', name: 'Hall of Mirrors', key: true, mods: { hallMirrors: 1 },
+        text: () => `A hit your Mirror turns back comes back whole, and your Reflect flashes: ${NODE_N.m_hall.flash} to every enemy within ${NODE_N.m_hall.radius} of whoever you Mirror.` })] },
+    { name: 'Smoke and Mirrors', role: 'support', color: '#9fe8d8', nodes: [
+      node({ id: 'm_reversal', name: 'Sleight', mods: { reversalRange: 2 }, text: m => `Reversal range +${m.reversalRange}.` }),
+      node({ id: 'm_hp2', name: 'Greasepaint', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'm_ball', name: 'Spotlight', mods: { ballCd: 1 }, text: m => `Mirrorball ${cd(m.ballCd)}.` }),
+      node({ id: 'm_smoke', name: 'Smoke and Mirrors', key: true, mods: { smokeMirrors: 1, reflectCd: 1 },
+        text: m => `Units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect’s ${cd(m.reflectCd)}.` })] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
 
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
@@ -322,6 +382,11 @@ export const PAIR_N = {
   conjunction: { dmg: 0.25 },
   charnel: { soulTurns: 2, souls: 1 },
   pealofbells: { range: 1, cd: 1 },
+  bonepuppet: { reform: 1 },
+  clockwork: { hp: 20, walk: 1 },
+  commedia: { share: 0.5 },
+  troupe: { hp: 15, reform: 1 },
+  infinitymirror: { range: 1, cd: 1 },
 };
 
 const PN = PAIR_N;
@@ -330,9 +395,18 @@ const PAIR_TABLE = [
   { id: 'seconddawn', a: 'astromancer', b: 'gravecaller', name: 'Second Dawn', text: 'A Recall that lands on a Downed ally stands it back up at the HP it had when you cast.' },
   { id: 'appointedhour', a: 'astromancer', b: 'bellringer', name: 'Appointed Hour', text: 'An enemy Tolled while standing in one of your pending Calls’ areas is Rooted.' },
   { id: 'deathknell', a: 'gravecaller', b: 'bellringer', name: 'Death Knell', text: `Downed enemies lose ${PN.deathknell.bleed} bleed a turn instead of 1.` },
+  { id: 'fatedstrings', a: 'astromancer', b: 'marionettist', name: 'Fated Strings', text: 'An enemy your Dance leaves standing in one of your pending Calls’ areas is Rooted.' },
+  { id: 'bonepuppet', a: 'gravecaller', b: 'marionettist', name: 'Bone Puppet', text: `Your Doll drops a Soul when it breaks, and reforms ${PN.bonepuppet.reform} round sooner.` },
+  { id: 'clockwork', a: 'bellringer', b: 'marionettist', name: 'Clockwork Doll', text: `Your Doll gets +${PN.clockwork.hp} max HP, and Strings walks it ${PN.clockwork.walk} tile farther.` },
+  { id: 'commedia', a: 'marionettist', b: 'mirrormime', name: 'Commedia', text: `A hit on your Doll turns ${part(PN.commedia.share)} of it back on the attacker.` },
+  { id: 'prism', a: 'astromancer', b: 'mirrormime', name: 'Prism', text: 'Your Calls pass through Mirrored allies without hurting them.' },
+  { id: 'blackmirror', a: 'gravecaller', b: 'mirrormime', name: 'Black Mirror', text: 'A hit a Mirror turns back drops a Soul on the attacker’s tile.' },
+  { id: 'echochamber', a: 'bellringer', b: 'mirrormime', name: 'Echo Chamber', text: 'An enemy whose hit a Mirror turns back is Hushed.' },
   { id: 'conjunction', a: 'astromancer', b: 'astromancer', name: 'Conjunction', text: `A Call that lands in a round where another of your Calls already landed deals +${pct(PN.conjunction.dmg)}.` },
   { id: 'charnel', a: 'gravecaller', b: 'gravecaller', name: 'Charnel House', text: `Souls last ${PN.charnel.soulTurns} rounds longer, and each Gravecaller holds ${PN.charnel.souls} more.` },
   { id: 'pealofbells', a: 'bellringer', b: 'bellringer', name: 'Peal of Bells', text: `Each Bellringer’s Toll gets +${PN.pealofbells.range} range and −${PN.pealofbells.cd} cooldown. A unit still can’t be Tolled twice in a round.` },
+  { id: 'troupe', a: 'marionettist', b: 'marionettist', name: 'Troupe', text: `Each Doll gets +${PN.troupe.hp} max HP and reforms ${PN.troupe.reform} round sooner.` },
+  { id: 'infinitymirror', a: 'mirrormime', b: 'mirrormime', name: 'Infinity Mirror', text: `Each Mirrormime’s Reflect gets +${PN.infinitymirror.range} range and −${PN.infinitymirror.cd} cooldown.` },
 ] satisfies readonly PairDef[];
 
 export const PAIRS: readonly PairDef[] = PAIR_TABLE;
@@ -359,6 +433,9 @@ const STATUS_TABLE = {
   hush: { name: 'Hushed', icon: '🔇', color: '#c8b4ff', bad: true, text: 'Can move and use its basic attack, nothing else. Free skills included.' },
   guard: { name: 'Bell Guard', icon: '🛎️', color: '#e0b04a', text: 'Until its next turn, enemies that hit it are Hushed.' },
   haste: { name: 'Quickened', icon: '💨', color: '#8fd1ff', text: `+${HASTE_MOVE} move on its next turn.` },
+  mirror: { name: 'Mirrored', icon: '🪞', color: '#c8d4ff', text: `Until its next turn, ${part(REFLECT)} of the next enemy hit on it goes back to the attacker instead.` },
+  mock: { name: 'Mocked', icon: '🤡', color: '#ff9ad0', bad: true, text: 'Its skills that target a unit can only target the Mirrormime that Mocked it.' },
+  standin: { name: 'Stand-In', icon: '🪆', color: '#d9a066', text: 'Until its next turn, hits on allies next to its Doll go to the Doll instead.' },
 } satisfies Record<StatusKey, StatusDef>;
 
 export const STATUS: Readonly<Record<StatusKey, StatusDef>> = STATUS_TABLE;
@@ -407,6 +484,19 @@ export const SKILL_N = {
   peal: { radius: 2, dmg: 10, perActed: 3 },
   encore: { range: 3 },
   bellguard: { shield: 25 },
+  switch: { range: 3 },
+  dance: { steps: 2 },
+  tangle: { dmg: 6 },
+  razorwire: { dmg: 16, reach: 6 },
+  splinter: { dmg: 22 },
+  rebuild: { shield: 15 },
+  glasswall: { turns: 2 },
+  reflect: { range: 3 },
+  ricochet: { dmg: 12, bounce: 8, reach: 2 },
+  retort: { dmg: 10, took: 0.5 },
+  mirrorball: { radius: 2, dmg: 8 },
+  shatter: { dmg: 16 },
+  reversal: { range: 3, reach: 3 },
   helpup: { hp: 0.3 },
 };
 
@@ -464,12 +554,48 @@ const SKILL_TABLE = {
   bellguard: { name: 'Bell Guard', icon: '🛎️', target: 'self', cd: 3, cls: 'bellringer', color: '#e0b04a',
     text: `A ${K.bellguard.shield} shield. Until your next turn, enemies that hit you are Hushed.` },
 
+  strings: { name: 'Strings', icon: '🧵', target: 'tile', cd: 1, free: true, innate: true, cls: 'marionettist', color: '#d9a066',
+    text: `Free, once a turn. Your Doll walks up to ${DOLL.walk} tiles, ending within ${DOLL.leash} of you.` },
+  switch: { name: 'Switch', icon: '🔀', target: 'ally', range: K.switch.range, cd: 3, free: true, cls: 'marionettist', color: '#ffd38a',
+    text: 'Free. You, or an ally in range, trade places with your Doll.' },
+  dance: { name: 'Dance', icon: '💃', target: 'any', range: 4, cd: 3, cls: 'marionettist', color: '#ff9a6a',
+    text: `Another unit takes up to ${K.dance.steps} steps toward your Doll, stopping at anything in the way.` },
+  tangle: { name: 'Tangle', icon: '🕸️', target: 'self', cd: 3, cls: 'marionettist', color: '#c08a4a', sets: ['Rooted'],
+    text: `Every enemy next to your Doll takes ${K.tangle.dmg} and is Rooted.` },
+  razorwire: { name: 'Razor Wire', icon: '〰️', target: 'self', cd: 2, cls: 'marionettist', color: '#ff7a5a',
+    text: `Every enemy on the line between you and your Doll (up to ${K.razorwire.reach} apart) takes ${K.razorwire.dmg}.` },
+  splinter: { name: 'Splinter', icon: '💥', target: 'self', cd: 3, cls: 'marionettist', color: '#ff9a3a',
+    text: `Your Doll bursts: ${K.splinter.dmg} to every enemy next to it. It breaks.` },
+  standin: { name: 'Stand-In', icon: '🪆', target: 'self', cd: 3, cls: 'marionettist', color: '#d9a066',
+    text: 'Until your next turn, hits on allies next to your Doll go to the Doll instead.' },
+  rebuild: { name: 'Rebuild', icon: '🔨', target: 'self', cd: 4, cls: 'marionettist', color: '#ffd38a',
+    text: `A broken Doll reforms next to you now; a standing one mends to full and gets a ${K.rebuild.shield} shield.` },
+
+  reflect: { name: 'Reflect', icon: '🪞', target: 'ally', range: K.reflect.range, cd: 2, free: true, innate: true, cls: 'mirrormime', color: '#c8d4ff', sets: ['Mirrored'],
+    text: `Free. You or an ally is Mirrored until its next turn: ${part(REFLECT)} of the next enemy hit on it goes back to the attacker instead.` },
+  glasswall: { name: 'Invisible Wall', icon: '🧱', target: 'tile', range: 3, cd: 3, empty: true, map: true, cls: 'mirrormime', color: '#d8f0ff',
+    text: `3 tiles of glass across your line, for ${K.glasswall.turns} rounds. They block moves, not sight, and an enemy’s shot aimed through them hits the shooter.` },
+  ricochet: { name: 'Ricochet', icon: '🎱', target: 'enemy', range: 4, los: true, cd: 2, cls: 'mirrormime', color: '#e08aff',
+    text: `${K.ricochet.dmg}, then it bounces to the nearest other enemy within ${K.ricochet.reach} for ${K.ricochet.bounce}.` },
+  retort: { name: 'Retort', icon: '💬', target: 'enemy', range: 3, los: true, cd: 2, cls: 'mirrormime', color: '#ff8ab0',
+    text: `${K.retort.dmg}, plus ${part(K.retort.took)} the HP you lost since your last turn.` },
+  mock: { name: 'Mock', icon: '🤡', target: 'enemy', range: 3, cd: 3, cls: 'mirrormime', color: '#ff9ad0', sets: ['Mocked'],
+    text: 'Mocked for its next turn: its skills that target a unit can only target you.' },
+  mirrorball: { name: 'Mirrorball', icon: '🪩', target: 'self', aoe: K.mirrorball.radius, cd: 4, cls: 'mirrormime', color: '#f0e0ff', sets: ['Mirrored'],
+    text: `Every ally within ${K.mirrorball.radius} (you too) is Mirrored, and every enemy within ${K.mirrorball.radius} takes ${K.mirrorball.dmg}.` },
+  shatter: { name: 'Shatter', icon: '🔪', target: 'self', cd: 2, cls: 'mirrormime', color: '#d8f0ff',
+    text: `All your glass shatters: ${K.shatter.dmg} to every enemy next to it, once each.` },
+  reversal: { name: 'Reversal', icon: '🔄', target: 'ally', range: K.reversal.range, cd: 3, cls: 'mirrormime', color: '#9fe8d8',
+    text: `An ally’s debuffs go to the nearest enemy within ${K.reversal.reach} of it, with the turns they had left.` },
+
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
     text: `Pull a Downed ally next to you back up at ${pct(K.helpup.hp)} HP, paid from your own HP (never your last).` },
 
   basic_astromancer: basicSkill('astromancer'),
   basic_gravecaller: basicSkill('gravecaller'),
   basic_bellringer: basicSkill('bellringer'),
+  basic_marionettist: basicSkill('marionettist'),
+  basic_mirrormime: basicSkill('mirrormime'),
 } satisfies Record<SkillId, SkillDef>;
 
 export const SKILLS: Readonly<Record<SkillId, SkillDef>> = SKILL_TABLE;

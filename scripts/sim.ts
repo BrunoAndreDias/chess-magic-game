@@ -1,4 +1,4 @@
-import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, mulberry32 } from '../src/engine/index';
+import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
 // Plays AI-vs-AI battles with random builds and prints win shares, combos and mechanic use.
@@ -63,9 +63,11 @@ function keystonePath(m: MemberBuild): string {
 }
 
 /** Each class's mechanic, and the Gravecaller's Rites on top: the share of battles a side had the class and used it. */
-type Mechanic = 'call' | 'harvest' | 'rite' | 'toll';
+type Mechanic = 'call' | 'harvest' | 'rite' | 'toll' | 'strings' | 'reflect' | 'bounce';
 
-const MECHANICS_OF: Record<ClassId, readonly Mechanic[]> = { astromancer: ['call'], gravecaller: ['harvest', 'rite'], bellringer: ['toll'] };
+const MECHANICS_OF: Record<ClassId, readonly Mechanic[]> = {
+  astromancer: ['call'], gravecaller: ['harvest', 'rite'], bellringer: ['toll'], marionettist: ['strings'], mirrormime: ['reflect', 'bounce'],
+};
 
 interface MapStats { n: number; rounds: number; reasons: Record<string, number>; storm: number; falls: number; awareWins: number; draws: number }
 
@@ -75,7 +77,7 @@ const wins: [number, number, number] = [0, 0, 0], combos: Record<string, number>
 
 const cls: Record<string, [number, number]> = {}, path: Record<string, [number, number]> = {};
 
-const mech: Record<Mechanic, [number, number]> = { call: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0] };
+const mech: Record<Mechanic, [number, number]> = { call: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0], strings: [0, 0], reflect: [0, 0], bounce: [0, 0] };
 
 let rounds = 0, ms = 0, starterWins = 0;
 
@@ -119,6 +121,13 @@ for (let i = from; i < from + battles; i++) {
         if (e.type === 'cast' && SKILLS[e.skill].rite) used[e.team]?.add('rite');
 
         if (e.type === 'cast' && e.skill === 'toll') used[e.team]?.add('toll');
+
+        if (e.type === 'cast' && e.skill === 'strings') used[e.team]?.add('strings');
+
+        // A Mirror that turned a hit back, and a shot that bounced off glass: the mechanic paying off, not just cast.
+        if (e.type === 'reflect') { const o = getUnit(s, e.id); if (o) used[o.team]?.add('reflect'); }
+
+        if (e.type === 'bounce') { const o = getUnit(s, e.id); if (o) used[o.team === 0 ? 1 : 0]?.add('bounce'); }
       });
       s = res.state;
     }
@@ -176,7 +185,7 @@ console.log('keystone path win share');
 for (const c of CLASS_ORDER) for (const b of TREES[c]) {
   const v = path[`${c} ${b.name}`];
 
-  if (v) console.log(`  ${c.padEnd(12)}${b.name.padEnd(13)}${b.role.padEnd(8)}${pct(v).padStart(4)}  (n ${v[1]})`);
+  if (v) console.log(`  ${c.padEnd(13)}${b.name.padEnd(18)}${b.role.padEnd(8)}${pct(v).padStart(4)}  (n ${v[1]})`);
 }
 
 console.log('mechanic use (battles where a side had the class)', Object.entries(mech).map(([k, v]) => `${k} ${pct(v)}`).join(', '));

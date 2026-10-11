@@ -76,7 +76,7 @@ describe('picks', () => {
   test('the AI locks its lowest unlocked member in a class the team doesn\'t have yet', () => {
     const p = picks(newPicks(0), { kind: 'lock', team: 0, member: 0, cls: 'astromancer' }, { kind: 'lock', team: 1, member: 0, cls: 'bellringer' });
     expect(aiLock(p, 0, () => 0)).toEqual({ kind: 'lock', team: 0, member: 1, cls: 'gravecaller' });
-    expect(aiLock(p, 0, () => 0.99)).toEqual({ kind: 'lock', team: 0, member: 1, cls: 'bellringer' });
+    expect(aiLock(p, 0, () => 0.99)).toEqual({ kind: 'lock', team: 0, member: 1, cls: 'mirrormime' });
     expect(aiLock(newPicks(0), 0, () => 0)).toEqual({ kind: 'lock', team: 0, member: 0, cls: 'astromancer' });
   });
 });

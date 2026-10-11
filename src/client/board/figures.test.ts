@@ -5,7 +5,7 @@ import { isAct } from './acts';
 
 /** The glTF JSON chunk of a .glb: magic, version, length, then the first chunk's length and type. */
 interface Gltf {
-  nodes?: { name?: string; mesh?: number; rotation?: number[]; extras?: { color?: unknown; size?: unknown } }[];
+  nodes?: { name?: string; mesh?: number; children?: number[]; rotation?: number[]; extras?: { color?: unknown; size?: unknown } }[];
   meshes?: { primitives: { material?: number }[] }[];
   materials?: { name?: string }[];
   animations?: { name?: string; extras?: { strike?: unknown }; samplers: { input: number }[] }[];
@@ -67,11 +67,13 @@ test('the gravecaller ghost skulls, and only they, draw with the spirit material
   expect(spirit.map(n => n.name?.replace(/\.\d+/, ''))).toEqual(['skull_face_mesh', 'skull_face_mesh']);
 });
 
-test('the bellringer alone authors action clips, told apart from its idle clips by name', () => {
+test('the bellringer, marionettist and mirrormime author action clips, told apart from their idle clips by name', () => {
   const acts = Object.fromEntries(CLASS_ORDER.map(cls => [cls, (figure(cls).animations ?? []).flatMap(a => a.name ?? []).filter(isAct).sort()]));
   expect(acts).toEqual({
     astromancer: [], gravecaller: [],
     bellringer: ['attack', 'cast', 'down', 'hit', 'knell', 'move', 'peal', 'rise', 'toll'],
+    marionettist: ['attack', 'cast', 'down', 'hit', 'move', 'rise'],
+    mirrormime: ['attack', 'cast', 'down', 'hit', 'move', 'rise'],
   });
   const idle = (figure('bellringer').animations ?? []).flatMap(a => a.name ?? []).filter(n => !isAct(n)).sort();
   expect(idle).toEqual(['beadsAction', 'bell_swingAction', 'breathAction', 'clapperAction', 'hourglassAction', 'ribbonsAction']);
@@ -89,4 +91,15 @@ test('every action clip strikes within its own length, where the board fires its
   });
 
   expect(bad).toEqual([]);
+});
+
+test('the marionettist carries the doll buildDoll grows into the board Doll: a node with a mesh under it, and no other figure has one', () => {
+  const meshUnder = (j: Gltf, name: string): boolean => {
+    const nodes = j.nodes ?? [], at = nodes.findIndex(n => n.name === name);
+    const walk = (i: number): boolean => nodes[i]?.mesh !== undefined || (nodes[i]?.children ?? []).some(walk);
+
+    return at >= 0 && walk(at);
+  };
+
+  expect(CLASS_ORDER.filter(cls => meshUnder(figure(cls), 'doll'))).toEqual(['marionettist']);
 });

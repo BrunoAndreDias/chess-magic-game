@@ -8,17 +8,19 @@ export type TerrainChar = '.' | '#' | 'o' | '~' | 'G' | '^' | 'B' | '+' | 'I' | 
 
 export type MapId = 'span' | 'storm' | 'altar';
 
-export type ClassId = 'astromancer' | 'gravecaller' | 'bellringer';
+export type ClassId = 'astromancer' | 'gravecaller' | 'bellringer' | 'marionettist' | 'mirrormime';
 
 export type Role = 'tank' | 'damage' | 'support';
 
 export type ClassSkillId =
   | 'meteor' | 'thunderhead' | 'gravitywell' | 'frostbolt' | 'firebolt' | 'prison' | 'recall'
   | 'lastrites' | 'bonewall' | 'wither' | 'soulbolt' | 'soulburst' | 'siphon' | 'equalize'
-  | 'knell' | 'hush' | 'peal' | 'encore' | 'overture' | 'hourglass' | 'bellguard';
+  | 'knell' | 'hush' | 'peal' | 'encore' | 'overture' | 'hourglass' | 'bellguard'
+  | 'switch' | 'dance' | 'tangle' | 'razorwire' | 'splinter' | 'standin' | 'rebuild'
+  | 'glasswall' | 'ricochet' | 'retort' | 'mock' | 'mirrorball' | 'shatter' | 'reversal';
 
 /** Every build has its class's innate: the class mechanic, always on. */
-export type InnateSkillId = 'snap' | 'harvest' | 'toll';
+export type InnateSkillId = 'snap' | 'harvest' | 'toll' | 'strings' | 'reflect';
 
 export type BasicSkillId = `basic_${ClassId}`;
 
@@ -39,7 +41,13 @@ export type NodeId =
   | 'g_rites' | 'g_hp2' | 'g_shield' | 'g_ferry'
   | 'b_hp' | 'b_clapper' | 'b_guard' | 'b_thee'
   | 'b_knell' | 'b_last' | 'b_peal' | 'b_final'
-  | 'b_reach' | 'b_encore' | 'b_hp2' | 'b_accel';
+  | 'b_reach' | 'b_encore' | 'b_hp2' | 'b_accel'
+  | 'p_doll' | 'p_hp' | 'p_reform' | 'p_tangled'
+  | 'p_lash' | 'p_wire' | 'p_splinter' | 'p_ventriloquist'
+  | 'p_switch' | 'p_hp2' | 'p_standin' | 'p_understudy'
+  | 'm_hp' | 'm_reach' | 'm_shield' | 'm_quick'
+  | 'm_rico' | 'm_retort' | 'm_shatter' | 'm_hall'
+  | 'm_reversal' | 'm_hp2' | 'm_ball' | 'm_smoke';
 
 /** Summed numeric effects of a character's passive-tree picks. */
 export type Mods = Partial<Record<
@@ -47,13 +55,17 @@ export type Mods = Partial<Record<
   | 'fireDmg' | 'callRange' | 'burnDmg' | 'twinStars' | 'frostDmg' | 'prisonCd' | 'callWet' | 'absZero'
   | 'recallRange' | 'recallCleanse' | 'benevolent' | 'basicDmg'
   | 'soulCap' | 'soulShield' | 'undying' | 'soulBoltDmg' | 'harvestRange' | 'burstDmg' | 'reap' | 'riteRange' | 'riteShield' | 'ferryman'
-  | 'guardShield' | 'tollHush' | 'tollCd' | 'knellDmg' | 'lastDmg' | 'pealDmg' | 'finalHour' | 'tollRange' | 'encoreCd' | 'accel',
+  | 'guardShield' | 'tollHush' | 'tollCd' | 'knellDmg' | 'lastDmg' | 'pealDmg' | 'finalHour' | 'tollRange' | 'encoreCd' | 'accel'
+  | 'dollHp' | 'dollReform' | 'tangled' | 'wireDmg' | 'splinterDmg' | 'ventriloquist' | 'switchRange' | 'standinCd' | 'understudy'
+  | 'reflectRange' | 'mirrorShield' | 'quicksilver' | 'ricochetDmg' | 'retortDmg' | 'shatterDmg' | 'hallMirrors' | 'reversalRange' | 'ballCd' | 'smokeMirrors' | 'reflectCd',
   number>>;
 
 /** A pair of classes in a party; `a === b` means that class twice. */
 export type PairId =
   | 'seconddawn' | 'appointedhour' | 'deathknell'
-  | 'conjunction' | 'charnel' | 'pealofbells';
+  | 'fatedstrings' | 'bonepuppet' | 'clockwork' | 'commedia'
+  | 'prism' | 'blackmirror' | 'echochamber'
+  | 'conjunction' | 'charnel' | 'pealofbells' | 'troupe' | 'infinitymirror';
 
 export type PartyBonusId = PairId | 'coverage';
 
@@ -80,6 +92,12 @@ export interface Statuses {
   guard?: Timed;
   /** +2 move on its next turn (Accelerando). */
   haste?: Timed;
+  /** Reflect until its next turn: half the next enemy hit on it goes back to the attacker. `spent` once that hit came, kept only while it still turns back debuffs (Smoke and Mirrors). */
+  mirror?: Timed & { spent?: true };
+  /** Its skills that target a unit can only target the Mirrormime that Mocked it. */
+  mock?: Timed;
+  /** Stand-In until the Marionettist's next turn: hits on allies next to its Doll go to the Doll. */
+  standin?: Timed;
 }
 
 export type StatusKey = keyof Statuses;
@@ -110,6 +128,12 @@ export interface Unit {
   acted: boolean;
   /** Souls a Gravecaller holds; 0 for everyone else. */
   souls: number;
+  /** HP lost since the end of its last turn (Retort). */
+  took: number;
+  /** Set on a Marionettist's Doll only: the Marionettist that works it. A Doll never takes a turn and isn't a character. */
+  owner?: UnitId;
+  /** A broken Doll reforms at the start of its owner's first turn in this round or later. */
+  reform?: number;
 }
 
 /** Overlays on a tile. Each number is the rounds left. */
@@ -119,6 +143,9 @@ export interface TileFx {
   ice?: number;
   /** A Bone Wall: blocks moves and sight like a wall. */
   bone?: number;
+  /** An Invisible Wall: blocks moves, not sight; `glassBy` is the party it belongs to, whose enemies' shots through it bounce. */
+  glass?: number;
+  glassBy?: Team;
   spent?: true;
 }
 
@@ -194,9 +221,9 @@ export type Command =
   | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos }
   | { kind: 'endTurn'; unit: UnitId };
 
-export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'burn' | 'dark' | 'slam' | 'storm' | 'drain';
+export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'burn' | 'dark' | 'slam' | 'storm' | 'drain' | 'mirror';
 
-export type TerrainChange = 'ice' | 'smoke' | 'bone';
+export type TerrainChange = 'ice' | 'smoke' | 'bone' | 'glass';
 
 export type BattleEvent =
   | { type: 'round'; round: number; starter: Team; queue: Turn[] }
@@ -237,6 +264,17 @@ export type BattleEvent =
   | { type: 'gather'; id: UnitId; from: Pos[] }
   /** A Gravecaller spends a held Soul: a Rite, or an Undying turn instead of bleeding. */
   | { type: 'spend'; id: UnitId }
+  /** A hit (amount > 0) or a debuff (amount 0) on `id` turns back on `to`. */
+  | { type: 'reflect'; id: UnitId; to: UnitId; amount: number }
+  /** A shot aimed through glass at (x, z) bounces back on the caster `id`. */
+  | { type: 'bounce'; id: UnitId; x: number; z: number }
+  /** A hit on `from` goes to its party's Doll `to` instead (Stand-In, Understudy). */
+  | { type: 'standin'; from: UnitId; to: UnitId }
+  /** A Doll at 0 HP breaks; it reforms at the start of its owner's turn in round `reform`. */
+  | { type: 'break'; id: UnitId; reform: number }
+  | { type: 'reform'; id: UnitId; x: number; z: number }
+  /** Glass shatters off these tiles. */
+  | { type: 'shatter'; tiles: Pos[] }
   | { type: 'roundEnd'; round: number; burnt: number[] }
   | { type: 'over'; winner: Team | 'draw'; reason: OverReason };
 

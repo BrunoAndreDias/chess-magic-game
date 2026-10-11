@@ -1,5 +1,5 @@
-import { actionsOf, cheb, current, idx, isAlive, standing, terrAt } from './board';
-import { addStatus, checkWinner, damage, fxEmpty, heal, landCalls } from './combat';
+import { actionsOf, cheb, current, dollOf, idx, isAlive, isDoll, standing, terrAt } from './board';
+import { addStatus, checkWinner, damage, fxEmpty, heal, landCalls, reformDoll } from './combat';
 import { endOfRound } from './hazards';
 import { BURN, DARK_ROUND, MAX_ROUNDS, NODE_N, PAIR_N, SHRINE_HEAL, WET_TURNS } from './tables';
 import type { BattleEvent, BattleState, Team, Unit, UnitId } from './types';
@@ -25,7 +25,7 @@ export function buildQueue<T>(sOrder: readonly T[], oOrder: readonly T[]): T[] {
 
 /** The round's turns: each team's living units in slot order, which the pick phase made their turn order. */
 export function roundQueue(s: BattleState): UnitId[] {
-  const ids = (t: Team) => s.units.filter(u => u.team === t && isAlive(u)).map(u => u.id);
+  const ids = (t: Team) => s.units.filter(u => u.team === t && isAlive(u) && !isDoll(u)).map(u => u.id);
 
   return buildQueue(ids(s.starter), ids(s.starter === 0 ? 1 : 0));
 }
@@ -63,7 +63,10 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     landCalls(s, u, ev);
 
     if (over(s)) return;
-    delete u.st.guard;
+    delete u.st.guard; delete u.st.mirror; delete u.st.standin;
+    const doll = dollOf(s, u);
+
+    if (doll && standing(u) && !isAlive(doll) && doll.reform !== undefined && s.round >= doll.reform) reformDoll(s, u, doll, ev);
 
     if (u.life.kind === 'downed') {
       if (u.mods.undying && u.souls > 0) { u.souls--; ev.push({ type: 'spend', id: u.id }); return; }
@@ -139,7 +142,7 @@ function startOfTurn(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   if (ward > u.shield && !u.st.wither) { u.shield = ward; ev.push({ type: 'shield', id: u.id, amount: ward }); }
 }
 
-const TICKING = ['root', 'expose', 'burn', 'wither', 'hush', 'haste'] as const;
+const TICKING = ['root', 'expose', 'burn', 'wither', 'hush', 'haste', 'mock'] as const;
 
 function tickStatuses(s: BattleState, u: Unit): void {
   for (const k of TICKING) {
@@ -162,7 +165,7 @@ function thaw(s: BattleState, u: Unit, ev: BattleEvent[]): void {
 
   if (!enc || --enc.t > 0) return;
   delete u.st.encased;
-  addStatus(u, 'wet', { t: WET_TURNS, by: enc.by }, ev);
+  addStatus(s, u, 'wet', { t: WET_TURNS, by: enc.by }, ev);
 }
 
 /** Starts whoever's turn the queue now points at: after a Final Hour Toll moved the caster's own turn to the end. */
@@ -188,13 +191,13 @@ export function endActivation(s: BattleState): BattleEvent[] {
 
     if (t === '+') heal(s, u, SHRINE_HEAL, ev, null);
 
-    if (f?.fire && !u.st.burn) addStatus(u, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, ev);
+    if (f?.fire && !u.st.burn) addStatus(s, u, 'burn', { t: BURN.turns, dmg: BURN.dmg, by: null }, ev);
 
-    if (t === '~') addStatus(u, 'wet', { t: WET_TURNS, by: u.st.wet ? u.st.wet.by : null }, ev);
+    if (t === '~') addStatus(s, u, 'wet', { t: WET_TURNS, by: u.st.wet ? u.st.wet.by : null }, ev);
     tickStatuses(s, u);
   }
 
-  u.moved = true; u.acted = true;
+  u.moved = true; u.acted = true; u.took = 0;
   checkWinner(s);
 
   if (over(s)) return ev;
@@ -216,7 +219,7 @@ function advance(s: BattleState, ev: BattleEvent[]): boolean {
   return false;
 }
 
-const EXPIRING = ['fire', 'smoke', 'ice', 'bone'] as const;
+const EXPIRING = ['fire', 'smoke', 'ice', 'bone', 'glass'] as const;
 
 function endRound(s: BattleState, ev: BattleEvent[]): void {
   endOfRound(s, ev);
@@ -235,6 +238,8 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
 
       delete f[key];
 
+      if (key === 'glass') delete f.glassBy;
+
       if (key === 'fire' && s.terr[k] === 'G') { s.terr[k] = '.'; burnt.push(k); }
     }
 
@@ -249,7 +254,7 @@ function endRound(s: BattleState, ev: BattleEvent[]): void {
   if (s.round > MAX_ROUNDS) {
     const hp = [0, 0];
 
-    for (const u of s.units) if (standing(u)) hp[u.team] = (hp[u.team] ?? 0) + u.hp / u.maxHp;
+    for (const u of s.units) if (standing(u) && !isDoll(u)) hp[u.team] = (hp[u.team] ?? 0) + u.hp / u.maxHp;
     const [h0 = 0, h1 = 0] = hp;
     s.phase = { kind: 'over', winner: h0 > h1 ? 0 : h1 > h0 ? 1 : 'draw', reason: 'rounds' };
 
