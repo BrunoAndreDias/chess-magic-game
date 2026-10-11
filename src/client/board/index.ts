@@ -10,6 +10,8 @@ import { Marks } from './marks';
 import type { MarkCounts } from './marks';
 import { Picker } from './input';
 import { Overlay } from './overlay';
+import { PerfMeter } from './perf';
+import type { PerfReport } from './perf';
 import { Stage } from './stage';
 import { FX_KEYS, Terrain } from './terrain';
 import { Tweens } from './tween';
@@ -25,6 +27,9 @@ export interface BoardDebug {
   busy(): boolean;
   /** Seconds of animation time elapsed, independent of the frame rate. */
   clock(): number;
+  /** Frame cost since the last reset; with `sync` on, each frame waits for the GPU so `work` includes its time. */
+  perf(): PerfReport;
+  perfReset(sync?: boolean): void;
 }
 
 class BoardView implements Board {
@@ -47,6 +52,8 @@ class BoardView implements Board {
   #raf = 0;
   #last = performance.now();
   #time = 0;
+  readonly #meter = new PerfMeter();
+  #sync = false;
   readonly #onVisibility: () => void;
 
   constructor(canvas: HTMLCanvasElement, readonly labels: HTMLElement) {
@@ -88,6 +95,8 @@ class BoardView implements Board {
       },
       busy: () => this.#playing > 0,
       clock: () => this.#time,
+      perf: () => this.#meter.report(this.#stage.renderer.info),
+      perfReset: (sync = false) => { this.#sync = sync; this.#meter.reset(); },
     };
   }
 
@@ -219,7 +228,7 @@ class BoardView implements Board {
 
   readonly #frame = (now: number): void => {
     this.#raf = requestAnimationFrame(this.#frame);
-    const dt = Math.min(0.1, (now - this.#last) / 1000);
+    const start = performance.now(), gap = now - this.#last, dt = Math.min(0.1, gap / 1000);
     this.#last = now;
     this.#time += dt;
     const t = this.#time, st = this.#stage;
@@ -243,6 +252,9 @@ class BoardView implements Board {
     this.#marks.update(dt);
     this.#overlay.update(dt);
     st.render(dt);
+
+    if (this.#sync) st.renderer.getContext().finish();
+    this.#meter.push(performance.now() - start, gap);
   };
 }
 
