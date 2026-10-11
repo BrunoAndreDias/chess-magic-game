@@ -61,8 +61,8 @@ describe('rites', () => {
 
     expect(apply(scene(0), cast(1, 'lastrites', 5, 1))).toEqual({ ok: false, error: 'lastrites is not usable now' });
     const r = run(scene(1), cast(1, 'lastrites', 5, 1));
-    expect(r.events.slice(1)).toEqual([{ type: 'spend', id: 1 }, { type: 'damage', id: 1, amount: 70, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
-    expect([unit(r.state, 1).souls, unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life]).toEqual([0, 90, 70, { kind: 'up' }]);
+    expect(r.events.slice(1)).toEqual([{ type: 'spend', id: 1 }, { type: 'damage', id: 1, amount: 62, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
+    expect([unit(r.state, 1).souls, unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life]).toEqual([0, 98, 62, { kind: 'up' }]);
   });
 
   test('Bone Wall raises 3 tiles across the caster\'s line, skipping the tile with a unit, and nobody walks through it', () => {
@@ -141,14 +141,14 @@ describe('undying', () => {
 });
 
 describe('psychopomp', () => {
-  test('Ferryman: a Downed ally within 2 doesn\'t bleed, and Help Up brings it back at 60%', () => {
+  test('Ferryman: a Downed ally within 3 doesn\'t bleed, and Help Up brings it back at 70%', () => {
     const ferry = bare('gravecaller', undefined, ['g_rites', 'g_hp2', 'g_shield', 'g_ferry']);
     const s0 = stage({ a: [bare('bellringer'), bare('bellringer'), ferry], b: [bare('bellringer')], place: { 1: [5, 1], 2: [6, 1], 3: [3, 1], 4: [9, 9] }, life: { 1: { kind: 'downed', bleed: 2 } } });
     const r = run(s0, begin);
     expect(r.events.slice(1, 3)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'activate', id: 4, team: 1, qi: 1 }]);
     const up = run(r.state, end(4), cast(2, 'helpup', 5, 1));
-    expect(up.events.slice(-2)).toEqual([{ type: 'damage', id: 2, amount: 105, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 1, by: 2 }]);
-    expect([unit(up.state, 1).hp, unit(up.state, 2).hp]).toEqual([105, 70]);
+    expect(up.events.slice(-2)).toEqual([{ type: 'damage', id: 2, amount: 109, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 1, by: 2 }]);
+    expect([unit(up.state, 1).hp, unit(up.state, 2).hp]).toEqual([109, 46]);
   });
 });
 

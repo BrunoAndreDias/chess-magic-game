@@ -448,7 +448,8 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
 
         if (cc && standing(cc) && (cc.x !== cu.x || cc.z !== cu.z)) v += tileScore(c, cc, cc.x, cc.z, opts) - tileScore(sm, cu, cu.x, cu.z, opts);
 
-        if (sk.free) v -= 3;
+        // A free skill must earn its place, except Strings: walking the Doll costs nothing but the turn's attention.
+        if (sk.free && id !== 'strings') v -= 3;
 
         if (v > bcs) { bcs = v; bc = { skill: id, x: t.x, z: t.z }; }
       });

@@ -36,7 +36,7 @@ describe('storm', () => {
       { type: 'death', id: 5, team: 1, cause: 'finished' },
       { type: 'roundEnd', round: 1, burnt: [] },
     ]);
-    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([175 - dmg, 175 - wet, 175, 175]);
+    expect([1, 2, 3, 4].map(id => unit(r.state, id).hp)).toEqual([155 - dmg, 155 - wet, 155, 155]);
 
     const r2 = run(r.state, end(1), end(4), end(2), end(3));
     const [strike2, ...rest2] = after(r2.events, 'storm');

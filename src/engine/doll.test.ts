@@ -9,10 +9,10 @@ const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice
 const vent = ['p_lash', 'p_wire', 'p_splinter', 'p_ventriloquist'] as const;
 
 describe('the doll', () => {
-  test('a Marionettist starts with a 40 HP Doll on the free tile next to it, numbered after the characters and left out of the queue', () => {
+  test('a Marionettist starts with a 50 HP Doll on the free tile next to it, numbered after the characters and left out of the queue', () => {
     const s0 = stage({ a: [bare('marionettist'), bare('astromancer')], b: [bare('bellringer')] });
     const d = unit(s0, 4);
-    expect([d.owner, d.x, d.z, d.hp, d.team]).toEqual([1, 0, 1, 40, 0]);
+    expect([d.owner, d.x, d.z, d.hp, d.team]).toEqual([1, 0, 1, 50, 0]);
     expect(run(s0, begin).state.phase).toEqual({ kind: 'act', queue: turns(1, 3, 2), qi: 0, tolled: [] });
     expect(unit(stage({ a: [bare('bellringer')], b: [bare('bellringer')] }), 1).owner).toBe(undefined);
   });
@@ -53,7 +53,7 @@ describe('the doll', () => {
     expect(round2.events.some(e => e.type === 'reform')).toBe(false);
     const round3 = run(round2.state, end(1), end(2));
     expect(round3.events.slice(-2)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'reform', id: 3, x: 5, z: 0 }]);
-    expect([unit(round3.state, 3).hp, unit(round3.state, 3).life]).toEqual([40, { kind: 'up' }]);
+    expect([unit(round3.state, 3).hp, unit(round3.state, 3).life]).toEqual([50, { kind: 'up' }]);
   });
 
   test('Switch trades places between the Marionettist and its Doll, or an ally and the Doll', () => {
@@ -82,8 +82,8 @@ describe('marionettist skills', () => {
       { type: 'standin', from: 2, to: 4 },
       { type: 'damage', id: 4, amount: 15, absorbed: 0, kind: 'phys' },
     ]);
-    // A Bellringer in the party makes it a Clockwork Doll: 60 HP.
-    expect([unit(guarded.state, 2).hp, unit(guarded.state, 4).hp]).toEqual([175, 45]);
+    // A Bellringer in the party makes it a Clockwork Doll: 70 HP.
+    expect([unit(guarded.state, 2).hp, unit(guarded.state, 4).hp]).toEqual([155, 55]);
     const open = scene([6, 4]);
     expect(after(open.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 15, absorbed: 0, kind: 'phys' }]);
   });
@@ -91,7 +91,7 @@ describe('marionettist skills', () => {
   test('Razor Wire cuts the enemy on the line between the Marionettist and its Doll, not the one beside it', () => {
     const s0 = stage({ a: [bare('marionettist')], b: [bare('bellringer'), bare('bellringer')], place: { 1: [5, 1], 2: [5, 3], 3: [6, 3], 4: [5, 5] } });
     const r = run(s0, begin, cast(1, 'razorwire', 5, 1));
-    expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 16, absorbed: 0, kind: 'phys' }]);
+    expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 24, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 5, z: 3 }]);
   });
 
   test('Dance walks an enemy 2 steps toward the Doll and stops next to it', () => {
@@ -113,11 +113,11 @@ describe('marionettist skills', () => {
 
     const live = run(s0, begin).state;
     expect(after(run(live, cast(1, 'tangle', 5, 1)).events, 'damage')).toEqual([
-      { type: 'damage', id: 2, amount: 6, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 2, amount: 10, absorbed: 0, kind: 'phys' },
       { type: 'status', id: 2, key: 'root' },
     ]);
     const split = run(live, cast(1, 'splinter', 5, 1));
-    expect(after(split.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 22, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 6, z: 5 }, { type: 'break', id: 4, reform: 3 }]);
+    expect(after(split.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 26, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 6, z: 5 }, { type: 'break', id: 4, reform: 3 }]);
   });
 
   test('Tangled Strings: an enemy that hits the Doll is Rooted, and the Doll takes half', () => {

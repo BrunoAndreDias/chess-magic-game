@@ -40,8 +40,8 @@ describe('reflection', () => {
   test('Hall of Mirrors flashes on the enemies near the ally, and turns the whole hit back though the ally still takes only half', () => {
     const r = mirroredAlly(['m_rico', 'm_retort', 'm_shatter', 'm_hall']);
     expect(hits(r.events).slice(0, 5)).toEqual([
-      { type: 'damage', id: 3, amount: 10, absorbed: 0, kind: 'phys' },
-      { type: 'damage', id: 4, amount: 10, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 3, amount: 8, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 4, amount: 8, absorbed: 0, kind: 'phys' },
       { type: 'damage', id: 2, amount: 8, absorbed: 0, kind: 'phys' },
       { type: 'reflect', id: 2, to: 3, amount: 15 },
       { type: 'damage', id: 3, amount: 15, absorbed: 0, kind: 'mirror' },
@@ -77,7 +77,7 @@ describe('glass', () => {
       { type: 'damage', id: 3, amount: 12, absorbed: 0, kind: 'frost' },
       { type: 'status', id: 3, key: 'root' },
     ]);
-    expect(unit(through.state, 1).hp).toBe(150);
+    expect(unit(through.state, 1).hp).toBe(135);
     expect(after(shot([1, 6]).events, 'damage')[0]).toEqual({ type: 'damage', id: 2, amount: 12, absorbed: 0, kind: 'frost' });
   });
 

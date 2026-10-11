@@ -49,7 +49,7 @@ export const SOULS = 3;
 export const HARVEST_RANGE = 3;
 
 /** A Marionettist's Doll: its HP, the rounds it takes to reform, how far Strings walks it and how far from its owner it may end. */
-export const DOLL = { hp: 40, reform: 2, walk: 3, leash: 4 };
+export const DOLL = { hp: 50, reform: 2, walk: 3, leash: 4 };
 
 /** The share of a hit a Mirrored unit turns back on its attacker. */
 export const REFLECT = 0.5;
@@ -204,9 +204,9 @@ export interface ClassDef {
 }
 
 export const CLASSES = {
-  astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', hp: 140, move: 3, innate: 'snap',
+  astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', hp: 155, move: 3, innate: 'snap',
     mechanic: 'Calls: the big spells land at the start of your next turn.',
-    plays: 'The battle mage whose big spells fall from the sky, where the enemy will be.', basic: { name: 'Starbolt', range: 4, dmg: 10 },
+    plays: 'The battle mage whose big spells fall from the sky, where the enemy will be.', basic: { name: 'Starbolt', range: 4, dmg: 12 },
     skills: ['meteor', 'thunderhead', 'gravitywell', 'frostbolt', 'firebolt', 'prison', 'recall'], defaults: ['meteor', 'frostbolt', 'gravitywell'],
     tree: ['a_fire', 'a_range', 'a_burn', 'a_twin', 'a_frost', 'a_prison'] },
   gravecaller: { id: 'gravecaller', name: 'Gravecaller', icon: '💀', color: '#9fe0b8', hp: 160, move: 3, innate: 'harvest',
@@ -214,19 +214,19 @@ export const CLASSES = {
     plays: 'A bone priest who ferries souls, raising the fallen and reaping the dying.', basic: { name: 'Bone Lash', range: 2, dmg: 12 },
     skills: ['lastrites', 'bonewall', 'wither', 'soulbolt', 'soulburst', 'siphon', 'equalize'], defaults: ['soulbolt', 'lastrites', 'siphon'],
     tree: ['g_bolt', 'g_reach', 'g_burst', 'g_reap', 'g_hp', 'g_cap'] },
-  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', hp: 175, move: 3, innate: 'toll',
+  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', hp: 155, move: 3, innate: 'toll',
     mechanic: 'Toll: move a unit’s turn in this round’s queue.',
     plays: 'A monk with a great bronze bell on its back, who calls the hour.', basic: { name: 'Clapper', range: 1, dmg: 15 },
     skills: ['knell', 'hush', 'peal', 'encore', 'overture', 'hourglass', 'bellguard'], defaults: ['knell', 'hush', 'peal'],
     tree: ['b_knell', 'b_last', 'b_peal', 'b_final', 'b_hp', 'b_clapper'] },
-  marionettist: { id: 'marionettist', name: 'Marionettist', icon: '🪆', color: '#d9a066', hp: 150, move: 3, innate: 'strings',
+  marionettist: { id: 'marionettist', name: 'Marionettist', icon: '🪆', color: '#d9a066', hp: 165, move: 3, innate: 'strings',
     mechanic: 'The Doll: a second body on the board that you walk, swap with and fight through.',
-    plays: 'A tall masked puppeteer whose wooden Doll stands where it is needed.', basic: { name: 'Wire Lash', range: 2, dmg: 12 },
+    plays: 'A tall masked puppeteer whose wooden Doll stands where it is needed.', basic: { name: 'Wire Lash', range: 2, dmg: 14 },
     skills: ['switch', 'dance', 'tangle', 'razorwire', 'splinter', 'standin', 'rebuild'], defaults: ['switch', 'tangle', 'razorwire'],
     tree: ['p_lash', 'p_wire', 'p_splinter', 'p_ventriloquist', 'p_doll', 'p_hp'] },
-  mirrormime: { id: 'mirrormime', name: 'Mirrormime', icon: '🪞', color: '#c8d4ff', hp: 150, move: 3, innate: 'reflect',
+  mirrormime: { id: 'mirrormime', name: 'Mirrormime', icon: '🪞', color: '#c8d4ff', hp: 135, move: 3, innate: 'reflect',
     mechanic: 'Reflection: turn hits back on whoever threw them.',
-    plays: 'A harlequin mime with a mirrorball, who hands every blow back.', basic: { name: 'Glint', range: 3, dmg: 12 },
+    plays: 'A harlequin mime with a mirrorball, who hands every blow back.', basic: { name: 'Glint', range: 3, dmg: 10 },
     skills: ['glasswall', 'ricochet', 'retort', 'mock', 'mirrorball', 'shatter', 'reversal'], defaults: ['glasswall', 'ricochet', 'mock'],
     tree: ['m_hp', 'm_reach', 'm_shield', 'm_quick', 'm_rico', 'm_retort'] },
 } satisfies Record<ClassId, ClassDef>;
@@ -242,11 +242,12 @@ export interface BranchDef { name: string; role: Role; color: string; nodes: rea
 export const NODE_N = {
   a_zero: { turns: 2 },
   a_benev: { heal: 0.25 },
-  g_ferry: { range: 2, hp: 0.6 },
-  b_accel: { shield: 15 },
+  g_ferry: { range: 3, hp: 0.7 },
+  b_accel: { shield: 10 },
   p_tangled: { taken: 0.5 },
+  p_ventriloquist: { range: 1 },
   p_understudy: { share: 0.25, shield: 15 },
-  m_hall: { flash: 10, radius: 2 },
+  m_hall: { flash: 8, radius: 2 },
 };
 
 /** A node whose text is written from its own mods, so the number shown is the number applied. */
@@ -263,15 +264,15 @@ const cd = (n: number): string => `cooldown −${n}`;
 const TREE_TABLE = {
   astromancer: [
     { name: 'Rime', role: 'tank', color: '#7fd8ff', nodes: [
-      node({ id: 'a_frost', name: 'Hoarfrost', mods: { frostDmg: 0.2 }, text: m => `Frost +${pct(m.frostDmg)} damage.` }),
+      node({ id: 'a_frost', name: 'Hoarfrost', mods: { frostDmg: 0.3 }, text: m => `Frost +${pct(m.frostDmg)} damage.` }),
       node({ id: 'a_prison', name: 'Cold Cell', mods: { prisonCd: 1 }, text: m => `Glacial Prison ${cd(m.prisonCd)}.` }),
       node({ id: 'a_wet', name: 'Sleet', mods: { callWet: 1 }, text: () => 'Your Calls make everyone they hit Wet.' }),
       node({ id: 'a_zero', name: 'Absolute Zero', key: true, mods: { absZero: 1 },
         text: () => `Units Rooted or Encased when your Call lands are Stunned by it, and Glacial Prison holds an enemy ${NODE_N.a_zero.turns} turns.` })] },
     { name: 'Pyre', role: 'damage', color: '#ff6a2b', nodes: [
-      node({ id: 'a_fire', name: 'Kindling', mods: { fireDmg: 0.2 }, text: m => `Fire +${pct(m.fireDmg)} damage.` }),
+      node({ id: 'a_fire', name: 'Kindling', mods: { fireDmg: 0.3 }, text: m => `Fire +${pct(m.fireDmg)} damage.` }),
       node({ id: 'a_range', name: 'Far Sight', mods: { callRange: 1 }, text: m => `Call range +${m.callRange}.` }),
-      node({ id: 'a_burn', name: 'Searing', mods: { burnDmg: 3 }, text: m => `Burning deals +${m.burnDmg} a turn.` }),
+      node({ id: 'a_burn', name: 'Searing', mods: { burnDmg: 4 }, text: m => `Burning deals +${m.burnDmg} a turn.` }),
       node({ id: 'a_twin', name: 'Twin Stars', key: true, mods: { twinStars: 1 }, text: m => `You can hold ${1 + m.twinStars} Calls at once.` })] },
     { name: 'Orrery', role: 'support', color: '#ffe08a', nodes: [
       node({ id: 'a_recall', name: 'Long Orbit', mods: { recallRange: 2 }, text: m => `Recall range +${m.recallRange}.` }),
@@ -281,9 +282,9 @@ const TREE_TABLE = {
         text: () => `Your Calls heal allies in their area for ${part(NODE_N.a_benev.heal)} of what they’d deal, instead of hurting them.` })] }],
   gravecaller: [
     { name: 'Lich', role: 'tank', color: '#9fe0b8', nodes: [
-      node({ id: 'g_hp', name: 'Grave Flesh', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_hp', name: 'Grave Flesh', mods: { hp: 15 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'g_cap', name: 'Deep Pockets', mods: { soulCap: 1 }, text: m => `Hold ${m.soulCap} more Soul.` }),
-      node({ id: 'g_ward', name: 'Soul Ward', mods: { soulShield: 6 }, text: m => `Start your turn with a ${m.soulShield} shield for each Soul you hold.` }),
+      node({ id: 'g_ward', name: 'Soul Ward', mods: { soulShield: 3 }, text: m => `Start your turn with a ${m.soulShield} shield for each Soul you hold.` }),
       node({ id: 'g_undying', name: 'Undying', key: true, mods: { undying: 1 },
         text: () => `While Downed you still take turns: move ${UNDYING_MOVE}, then one skill but not your basic. Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal.` })] },
     { name: 'Reaper', role: 'damage', color: '#c06aff', nodes: [
@@ -293,18 +294,18 @@ const TREE_TABLE = {
       node({ id: 'g_reap', name: 'Reap', key: true, mods: { reap: 1 },
         text: () => `Enemies a hit of yours leaves at ${pct(REAP_AT)} HP or less are Downed at once (REAP), and every Down you cause hands you its Soul directly.` })] },
     { name: 'Psychopomp', role: 'support', color: '#fff3b0', nodes: [
-      node({ id: 'g_rites', name: 'Far Call', mods: { riteRange: 2 }, text: m => `Last Rites range +${m.riteRange}.` }),
-      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 20 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
+      node({ id: 'g_rites', name: 'Far Call', mods: { riteRange: 3 }, text: m => `Last Rites range +${m.riteRange}.` }),
+      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 40 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 30 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
       node({ id: 'g_ferry', name: 'Ferryman', key: true, mods: { ferryman: 1 },
         text: () => `Downed allies within ${NODE_N.g_ferry.range} of you don’t bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at ${pct(NODE_N.g_ferry.hp)} HP.` })] }],
   bellringer: [
     { name: 'Carillon', role: 'tank', color: '#e0b04a', nodes: [
-      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 30 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'b_clapper', name: 'Heavy Clapper', mods: { basicDmg: 6 }, text: m => `Clapper +${m.basicDmg} damage.` }),
-      node({ id: 'b_guard', name: 'Thick Bell', mods: { guardShield: 15 }, text: m => `Bell Guard +${m.guardShield} shield.` }),
-      node({ id: 'b_thee', name: 'Toll for Thee', key: true, mods: { tollHush: 1, tollCd: 1 },
-        text: m => `Enemies you Toll are Hushed on their moved turn, and Toll’s ${cd(m.tollCd)}.` })] },
+      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 10 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_clapper', name: 'Heavy Clapper', mods: { basicDmg: 4 }, text: m => `Clapper +${m.basicDmg} damage.` }),
+      node({ id: 'b_guard', name: 'Thick Bell', mods: { guardShield: 10 }, text: m => `Bell Guard +${m.guardShield} shield.` }),
+      node({ id: 'b_thee', name: 'Toll for Thee', key: true, mods: { tollHush: 1 },
+        text: () => 'Enemies you Toll are Hushed on their moved turn.' })] },
     { name: 'Herald', role: 'damage', color: '#ff8a4a', nodes: [
       node({ id: 'b_knell', name: 'Deep Knell', mods: { knellDmg: 6 }, text: m => `Knell +${m.knellDmg} damage.` }),
       node({ id: 'b_last', name: 'Last Word', mods: { lastDmg: 0.2 }, text: m => `+${pct(m.lastDmg)} damage when you’re the last of your party to act this round.` }),
@@ -314,22 +315,22 @@ const TREE_TABLE = {
     { name: 'Conductor', role: 'support', color: '#8fd1ff', nodes: [
       node({ id: 'b_reach', name: 'Far Toll', mods: { tollRange: 2 }, text: m => `Toll range +${m.tollRange}.` }),
       node({ id: 'b_encore', name: 'Swift Encore', mods: { encoreCd: 1 }, text: m => `Encore ${cd(m.encoreCd)}.` }),
-      node({ id: 'b_hp2', name: 'Steady Hands', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'b_accel', name: 'Accelerando', key: true, mods: { accel: 1, tollCd: 1 },
-        text: m => `Allies you Toll get +${HASTE_MOVE} move and a ${NODE_N.b_accel.shield} shield on that turn, and Toll’s ${cd(m.tollCd)}.` })] }],
+      node({ id: 'b_hp2', name: 'Steady Hands', mods: { hp: 10 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_accel', name: 'Accelerando', key: true, mods: { accel: 1 },
+        text: () => `Allies you Toll get +${HASTE_MOVE} move and a ${NODE_N.b_accel.shield} shield on that turn.` })] }],
   marionettist: [
     { name: 'Heartwood', role: 'tank', color: '#c08a4a', nodes: [
-      node({ id: 'p_doll', name: 'Oak Limbs', mods: { dollHp: 25 }, text: m => `Your Doll +${m.dollHp} max HP.` }),
-      node({ id: 'p_hp', name: 'Stagehand', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'p_reform', name: 'Spare Parts', mods: { dollReform: 1 }, text: m => `Your Doll reforms ${m.dollReform} round sooner.` }),
+      node({ id: 'p_doll', name: 'Oak Limbs', mods: { dollHp: 40 }, text: m => `Your Doll +${m.dollHp} max HP.` }),
+      node({ id: 'p_hp', name: 'Stagehand', mods: { hp: 35 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'p_reform', name: 'Spare Parts', mods: { dollReform: 1, dollHp: 10 }, text: m => `Your Doll reforms ${m.dollReform} round sooner and gets +${m.dollHp} max HP.` }),
       node({ id: 'p_tangled', name: 'Tangled Strings', key: true, mods: { tangled: 1 },
         text: () => `Enemies that hit your Doll are Rooted, and it takes ${part(NODE_N.p_tangled.taken)} damage.` })] },
     { name: 'Ventriloquy', role: 'damage', color: '#ff7a5a', nodes: [
-      node({ id: 'p_lash', name: 'Barbed Wire', mods: { basicDmg: 4 }, text: m => `Wire Lash +${m.basicDmg} damage.` }),
-      node({ id: 'p_wire', name: 'Piano Wire', mods: { wireDmg: 6 }, text: m => `Razor Wire +${m.wireDmg} damage.` }),
+      node({ id: 'p_lash', name: 'Barbed Wire', mods: { basicDmg: 6 }, text: m => `Wire Lash +${m.basicDmg} damage.` }),
+      node({ id: 'p_wire', name: 'Piano Wire', mods: { wireDmg: 8 }, text: m => `Razor Wire +${m.wireDmg} damage.` }),
       node({ id: 'p_splinter', name: 'Brittle Pine', mods: { splinterDmg: 6 }, text: m => `Splinter +${m.splinterDmg} damage.` }),
       node({ id: 'p_ventriloquist', name: 'Ventriloquist', key: true, mods: { ventriloquist: 1 },
-        text: () => 'You can cast your basic and your skills from your Doll’s tile, as if you stood there.' })] },
+        text: () => `You can cast your basic and your skills from your Doll’s tile, as if you stood there, and Wire Lash gets +${NODE_N.p_ventriloquist.range} range.` })] },
     { name: 'Stagecraft', role: 'support', color: '#ffd38a', nodes: [
       node({ id: 'p_switch', name: 'Long Strings', mods: { switchRange: 2 }, text: m => `Switch range +${m.switchRange}.` }),
       node({ id: 'p_hp2', name: 'Velvet Coat', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
@@ -483,12 +484,12 @@ export const SKILL_N = {
   knell: { dmg: 12, lateMult: 1.5 },
   peal: { radius: 2, dmg: 10, perActed: 3 },
   encore: { range: 3 },
-  bellguard: { shield: 25 },
+  bellguard: { shield: 20 },
   switch: { range: 3 },
   dance: { steps: 2 },
-  tangle: { dmg: 6 },
-  razorwire: { dmg: 16, reach: 6 },
-  splinter: { dmg: 22 },
+  tangle: { dmg: 10 },
+  razorwire: { dmg: 24, reach: 6 },
+  splinter: { dmg: 26 },
   rebuild: { shield: 15 },
   glasswall: { turns: 2 },
   reflect: { range: 3 },
@@ -571,7 +572,7 @@ const SKILL_TABLE = {
   rebuild: { name: 'Rebuild', icon: '🔨', target: 'self', cd: 4, cls: 'marionettist', color: '#ffd38a',
     text: `A broken Doll reforms next to you now; a standing one mends to full and gets a ${K.rebuild.shield} shield.` },
 
-  reflect: { name: 'Reflect', icon: '🪞', target: 'ally', range: K.reflect.range, cd: 2, free: true, innate: true, cls: 'mirrormime', color: '#c8d4ff', sets: ['Mirrored'],
+  reflect: { name: 'Reflect', icon: '🪞', target: 'ally', range: K.reflect.range, cd: 3, free: true, innate: true, cls: 'mirrormime', color: '#c8d4ff',
     text: `Free. You or an ally is Mirrored until its next turn: ${part(REFLECT)} of the next enemy hit on it goes back to the attacker instead.` },
   glasswall: { name: 'Invisible Wall', icon: '🧱', target: 'tile', range: 3, cd: 3, empty: true, map: true, cls: 'mirrormime', color: '#d8f0ff',
     text: `3 tiles of glass across your line, for ${K.glasswall.turns} rounds. They block moves, not sight, and an enemy’s shot aimed through them hits the shooter.` },

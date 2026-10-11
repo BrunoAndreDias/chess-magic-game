@@ -63,8 +63,8 @@ describe('life', () => {
   test('Help Up revives at 30% of max HP', () => {
     const s0 = stage({ a: [bare('astromancer'), bare('bellringer')], b: [bare('astromancer')], life: { 2: { kind: 'downed', bleed: 2 } } });
     const r = run(s0, begin, cast(1, 'helpup', 1, 0));
-    expect(r.events.slice(-2)).toEqual([{ type: 'damage', id: 1, amount: 53, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
-    expect([unit(r.state, 2).hp, unit(r.state, 2).maxHp, unit(r.state, 2).life, unit(r.state, 1).hp]).toEqual([53, 175, { kind: 'up' }, 87]);
+    expect(r.events.slice(-2)).toEqual([{ type: 'damage', id: 1, amount: 47, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
+    expect([unit(r.state, 2).hp, unit(r.state, 2).maxHp, unit(r.state, 2).life, unit(r.state, 1).hp]).toEqual([47, 155, { kind: 'up' }, 108]);
   });
 
   test('Help Up gives only what the caster can spare: at 20 HP the ally stands at 19 and the caster at 1', () => {
@@ -106,7 +106,7 @@ describe('calls', () => {
       { type: 'damage', id: 2, amount: 15, absorbed: 0, kind: 'fire' },
       { type: 'status', id: 2, key: 'burn' },
     ]);
-    expect([unit(landed.state, 3).hp, unit(landed.state, 2).hp, landed.state.calls]).toEqual([145, 160, []]);
+    expect([unit(landed.state, 3).hp, unit(landed.state, 2).hp, landed.state.calls]).toEqual([125, 140, []]);
   });
 
   test('a Call fizzles when its caster is Downed before it lands', () => {
@@ -195,8 +195,8 @@ describe('encased', () => {
     const r = run(s0, begin, end(3), cast(1, 'recall', 2, 2), end(1), move(2, 1, 2), end(2), cast(4, 'basic_astromancer', 1, 2), end(4),
       cast(3, 'prison', 1, 2), end(3));
 
-    expect(after(r.events, 'land').slice(1)).toEqual([{ type: 'heal', id: 2, amount: 34 }]);
-    expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).hp]).toEqual([1, 2, 175]);
+    expect(after(r.events, 'land').slice(1)).toEqual([{ type: 'heal', id: 2, amount: 36 }]);
+    expect([unit(r.state, 2).x, unit(r.state, 2).z, unit(r.state, 2).hp]).toEqual([1, 2, 155]);
   });
 
   test('Absolute Zero on an Encased unit: the skipped turn spends the Encase, and the Stun skips the turn after', () => {

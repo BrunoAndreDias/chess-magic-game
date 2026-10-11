@@ -1,5 +1,5 @@
 import {
-  CLASSES, DEPLOY_ROWS, DIR4, DOLL, GRASS_SIGHT, HARVEST_RANGE, HASTE_MOVE, HIGH_GROUND, N, PAIR_N, SKILLS, SKILL_N, SOULS, STATUS, TERRAIN, UNDYING_MOVE, isCall,
+  CLASSES, DEPLOY_ROWS, DIR4, DOLL, NODE_N, GRASS_SIGHT, HARVEST_RANGE, HASTE_MOVE, HIGH_GROUND, N, PAIR_N, SKILLS, SKILL_N, SOULS, STATUS, TERRAIN, UNDYING_MOVE, isCall,
 } from './tables';
 import type { BasicSkillId, BattleState, Phase, Pos, SkillId, Soul, StatusKey, Statuses, Team, TerrainChar, Unit, UnitId } from './types';
 
@@ -302,8 +302,6 @@ export function cdOf(s: BattleState, u: Unit, id: SkillId): number {
 
   if (id === 'prison') c -= u.mods.prisonCd || 0;
 
-  if (id === 'toll') c -= u.mods.tollCd || 0;
-
   if (id === 'encore') c -= u.mods.encoreCd || 0;
 
   return c;
@@ -321,6 +319,8 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
   if (id === 'reflect') r += (u.mods.reflectRange || 0) + (s.party[u.team].has('infinitymirror') ? PAIR_N.infinitymirror.range : 0);
 
   if (id === 'switch') r += u.mods.switchRange || 0;
+
+  if (id === 'basic_marionettist' && u.mods.ventriloquist) r += NODE_N.p_ventriloquist.range;
 
   if (id === 'reversal') r += u.mods.reversalRange || 0;
 
