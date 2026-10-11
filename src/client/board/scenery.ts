@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { MapId } from '../../engine/index';
 import type { Biome } from '../biome';
-import { OFF, glow, mat, mesh, seeded } from './art';
+import { OFF, glow, mat, merge, mesh, seeded } from './art';
 
 export interface Scenery {
   root: THREE.Group;
@@ -21,7 +21,7 @@ function disc(root: THREE.Group, color: number, radius: number): void {
 
 /** Square ring of boxes around the board; heights are boxes sunk 0.3 into the ground. */
 function wallRing(root: THREE.Group, rnd: () => number, stone: THREE.Material, minH: number, range: number): void {
-  const lim = OFF + 1.2, d = OFF + 1.1;
+  const lim = OFF + 1.2, d = OFF + 1.1, boxes: THREE.Mesh[] = [];
 
   for (let side = 0; side < 4; side++) for (let k = -lim; k <= lim; k += 1) {
     const h = minH + rnd() * range, b = mesh(new THREE.BoxGeometry(1, h, 0.8), stone), y = h / 2 - 0.3;
@@ -31,8 +31,10 @@ function wallRing(root: THREE.Group, rnd: () => number, stone: THREE.Material, m
     else { b.position.set(side === 2 ? -d : d, y, k); b.rotation.y = Math.PI / 2; }
 
     b.castShadow = b.receiveShadow = true;
-    root.add(b);
+    boxes.push(b);
   }
+
+  root.add(merge(boxes));
 }
 
 interface Flame { light: THREE.PointLight; sprite: THREE.Sprite; ph: number }
@@ -60,29 +62,38 @@ function flicker(fs: readonly Flame[], time: number): void {
 }
 
 /** A clump of grass blades on the ground. */
-function tufts(root: THREE.Group, rnd: () => number, m: THREE.Material, x: number, z: number, n: number): void {
-  for (let i = 0; i < n; i++) {
+function tufts(rnd: () => number, m: THREE.Material, x: number, z: number, n: number): THREE.Mesh[] {
+  return Array.from({ length: n }, () => {
     const tuft = mesh(new THREE.ConeGeometry(0.08, 0.4 + rnd() * 0.4, 4), m, x + (rnd() - 0.5) * 1.2, -0.1, z + (rnd() - 0.5) * 1.2);
     tuft.rotation.z = (rnd() - 0.5) * 0.4;
-    root.add(tuft);
-  }
+
+    return tuft;
+  });
 }
 
 function span(b: Biome): Scenery {
   const rnd = seeded(7), root = new THREE.Group();
   const dark = mat(0x332c3c, { roughness: 1 }), lit = mat(0x4a4252, { roughness: 1 }), pillar = mat(b.cap);
 
+  const rock: THREE.Mesh[] = [];
+
   // Cones hang inside the footprint so only their flanks show past the edges in perspective.
   for (const gx of [-4, 0, 4]) for (const gz of [-4, 0, 4]) {
     const len = 3 + rnd() * 2.7, x = gx + (rnd() - 0.5) * 1.2, z = gz + (rnd() - 0.5) * 1.2;
     const c = mesh(new THREE.ConeGeometry(2.7 + rnd() * 0.4, len, 5), rnd() < 0.5 ? dark : lit, x, -1.6 - len / 2, z);
     c.rotation.set(Math.PI + (rnd() - 0.5) * 0.15, rnd() * 3, (rnd() - 0.5) * 0.15);
-    root.add(c);
+    rock.push(c);
   }
 
   const keel = mesh(new THREE.ConeGeometry(OFF + 1, 3, 6), dark, 0, -3.1, 0);
   keel.rotation.x = Math.PI;
-  root.add(keel);
+  rock.push(keel);
+
+  for (const m of [dark, lit]) {
+    const same = rock.filter(c => c.material === m);
+
+    if (same.length) root.add(merge(same));
+  }
 
   const islets: { g: THREE.Group; y: number; ph: number }[] = [];
 
@@ -211,10 +222,11 @@ function altar(): Scenery {
 
   const blades = mat(0x6aa03a);
 
-  for (let i = 0; i < 14; i++) {
+  root.add(merge(Array.from({ length: 14 }, () => {
     const a = rnd() * 6.3, r = OFF + 3 + rnd() * 8;
-    tufts(root, rnd, blades, Math.cos(a) * r, Math.sin(a) * r, 5);
-  }
+
+    return tufts(rnd, blades, Math.cos(a) * r, Math.sin(a) * r, 5);
+  }).flat()));
 
   return { root, update(time) { flicker(fs, time); return 0; } };
 }

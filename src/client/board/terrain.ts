@@ -4,7 +4,7 @@ import type { BattleState, Pos, TerrainChar, TileFx } from '../../engine/index';
 import type { Highlight, HighlightTone } from '../board';
 import { BIOMES } from '../biome';
 import type { Biome } from '../biome';
-import { OFF, basic, decal, disposeTree, glow, keep, mat, mesh, seeded } from './art';
+import { OFF, basic, decal, disposeTree, glow, keep, mat, merge, mesh, seeded } from './art';
 
 export type FxKey = Exclude<keyof TileFx, 'spent' | 'glassBy'>;
 
@@ -135,12 +135,15 @@ const BUILD: Readonly<Record<TerrainChar, Build>> = {
   'G': (t, rnd, _n, look) => {
     slab(t, look);
 
-    for (let i = 0; i < 7; i++) {
+    const tufts = Array.from({ length: 7 }, () => {
       const tuft = mesh(new THREE.ConeGeometry(0.07, 0.5 + rnd() * 0.35, 4), look.grass, (rnd() - 0.5) * 0.8, 0.28, (rnd() - 0.5) * 0.8);
       tuft.rotation.z = (rnd() - 0.5) * 0.4;
       tuft.castShadow = true;
-      t.group.add(tuft);
-    }
+
+      return tuft;
+    });
+
+    t.group.add(merge(tufts));
   },
   '~': (t, _r, _n, look) => {
     slab(t, look);
