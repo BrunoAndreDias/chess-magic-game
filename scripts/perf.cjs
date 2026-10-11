@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Frame cost of an all-AI battle per map: a production build in Chromium on this machine's GPU at a Retina pixel ratio, compared with perf/baseline.json.
+// Frame cost of an all-AI battle per map, and the hitches of a game clicked from the map screen into battle: a production build in Chromium on
+// this machine's GPU at a Retina pixel ratio, compared with perf/baseline.json.
 // Usage: npm run perf [-- --save] [-- --runs N --secs S]   env PORT (default 5299), MAPS (default span,storm,altar), SEED (default 7)
 // --save writes the medians over the runs to perf/baseline.json, so `git log -p perf/baseline.json` is the history.
 // Exits 1 when a scene count (draw calls, triangles, shader programs) grew past the baseline; times swing with machine load and only print.
@@ -61,6 +62,39 @@ async function measure(browser, url, map) {
   return r;
 }
 
+/** One all-AI game from the map screen into battle, the way a player clicks through it: the worst frame and the frames past 25 ms on each screen. */
+async function flow(browser, url) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+  await page.addInitScript(() => {
+    window.__gaps = [];
+    let last = performance.now();
+
+    const tick = now => { window.__gaps.push([window.__party?.phase() ?? 'boot', now - last]); last = now; requestAnimationFrame(tick); };
+
+    requestAnimationFrame(tick);
+  });
+  await page.goto(`${url}/?ai&map=altar&seed=${SEED}`);
+  await page.waitForFunction(() => window.__party?.phase() === 'map', null, { timeout: 30000 });
+  await wait(3000);
+  await page.click('#mp-go');
+  await page.waitForFunction(() => document.querySelector('#pk-go')?.disabled === false, null, { timeout: 60000 });
+  await wait(1000);
+  await page.click('#pk-go');
+  await page.waitForFunction(() => window.__party.phase() === 'battle', null, { timeout: 60000 });
+  await wait(4000);
+  const gaps = await page.evaluate(() => window.__gaps);
+  await page.close();
+  const out = {};
+
+  for (const screen of ['map', 'picks', 'battle']) {
+    const on = gaps.filter(g => g[0] === screen).map(g => g[1]);
+    out[`${screen}Worst`] = Math.round(Math.max(0, ...on));
+    out[`${screen}Janks`] = on.filter(g => g >= 25).length;
+  }
+
+  return out;
+}
+
 function summarize(runs) {
   const at = f => median(runs.map(f));
 
@@ -101,14 +135,22 @@ async function gpuName(browser) {
     console.log(`  ${m} ${i + 1}: ${r.fps} fps, work p50 ${r.work.p50} p95 ${r.work.p95} ms, ${r.janks} janks in ${r.frames} frames, ${r.calls} calls, ${r.tris} tris`);
   }
 
+  const flows = [];
+
+  for (let i = 0; i < RUNS; i++) {
+    flows.push(await flow(browser, `http://localhost:${PORT}`));
+    console.log(`  flow ${i + 1}: ${JSON.stringify(flows.at(-1))}`);
+  }
+
   await browser.close();
   await new Promise(r => server.httpServer.close(r));
 
   const now = Object.fromEntries(MAPS.map(m => [m, summarize(raw[m])]));
+  now.flow = Object.fromEntries(Object.keys(flows[0]).map(k => [k, median(flows.map(f => f[k]))]));
   const saved = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
   const rows = [], worse = [];
 
-  for (const m of MAPS) for (const [k, v] of Object.entries(now[m])) {
+  for (const [m, metrics] of Object.entries(now)) for (const [k, v] of Object.entries(metrics)) {
     const b = saved?.maps[m]?.[k];
     rows.push({ map: m, metric: k, now: v, baseline: b ?? '-', change: b ? `${v >= b ? '+' : ''}${(100 * (v - b) / b).toFixed(1)}%` : '-' });
 

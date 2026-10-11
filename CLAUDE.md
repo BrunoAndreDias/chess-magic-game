@@ -4,6 +4,7 @@
 
 - `npm run check` (oxlint, tsc, vitest) gates every commit through `.githooks/pre-commit`. Run it unpiped; a `| grep` hides a red exit.
 - Prove a client, HUD or rules change through the real UI with the `verify-party-tactics` skill.
+- After a change to the board, a screen or the figures, run `npm run perf`. It fails when draw calls, triangles or shaders grow; read the frame times and hitches yourself, since load on a shared machine moves them. Commit `npm run perf -- --save` with a change that moves the numbers on purpose.
 - Several sessions often share this checkout. Stage files by path, never `git add -A` or `commit -a`, and give a long parallel job its own worktree.
 - macOS zsh: quote globs (`'*.ts'`); `timeout`, ImageMagick (`magick`) and Python's PIL are installed.
 
