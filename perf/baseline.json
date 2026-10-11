@@ -1,0 +1,52 @@
+{
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Unspecified Version)",
+  "seed": 7,
+  "secs": 20,
+  "runs": 3,
+  "maps": {
+    "span": {
+      "fps": 120,
+      "workP50": 1.9,
+      "workP95": 2.3,
+      "gapP95": 9.7,
+      "janks": 0,
+      "calls": 671,
+      "tris": 459836,
+      "programs": 22,
+      "textures": 30,
+      "geometries": 480
+    },
+    "storm": {
+      "fps": 120,
+      "workP50": 1.8,
+      "workP95": 2.4,
+      "gapP95": 10.2,
+      "janks": 0,
+      "calls": 843,
+      "tris": 469200,
+      "programs": 25,
+      "textures": 31,
+      "geometries": 558
+    },
+    "altar": {
+      "fps": 120,
+      "workP50": 1.8,
+      "workP95": 2.2,
+      "gapP95": 10.2,
+      "janks": 0,
+      "calls": 645,
+      "tris": 463362,
+      "programs": 23,
+      "textures": 30,
+      "geometries": 499
+    },
+    "flow": {
+      "mapWorst": 50,
+      "mapJanks": 7,
+      "picksWorst": 184,
+      "picksJanks": 3,
+      "battleWorst": 150,
+      "battleJanks": 2
+    }
+  }
+}
