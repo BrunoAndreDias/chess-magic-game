@@ -75,7 +75,7 @@ test('the bellringer and the gravecaller author action clips, told apart from th
     bellringer: ['attack', 'cast', 'down', 'hit', 'knell', 'move', 'peal', 'rise', 'toll'],
   });
   const idle = (figure('bellringer').animations ?? []).flatMap(a => a.name ?? []).filter(n => !isAct(n)).sort();
-  expect(idle).toEqual(['beadsAction', 'bell_swingAction', 'breathAction', 'clapperAction', 'hourglassAction', 'ribbonsAction']);
+  expect(idle).toEqual(['beadsAction', 'bell_swingAction', 'breathAction', 'clapperAction', 'hourglassAction', 'ribbonsAction', 'rigAction']);
 });
 
 test('every action clip strikes within its own length, where the board fires its effect', () => {
@@ -98,4 +98,12 @@ test('the gravecaller coat top and sleeves are skinned to its spine and arm bone
   const skinned = nodes.filter(n => n.skin !== undefined).map(n => [n.name, j.skins?.[n.skin ?? -1]?.joints.map(i => nodes[i]?.name).sort()]);
   expect(skinned).toEqual([['rig_skin', ['chest', 'clavicle_l', 'clavicle_r', 'drape_l', 'elbow_l', 'elbow_r', 'forearm_l', 'forearm_r', 'hand_l', 'hand_r', 'hips', 'shoulder_l', 'shoulder_r', 'upperarm_l', 'upperarm_r']]]);
   expect(['chest_mesh', 'forearm_l_mesh', 'hand_r_mesh', 'weapon', 'hand_l_mesh', 'bell_swing'].map(parent)).toEqual(['chest', 'forearm_l', 'hand_r', 'hand_r', 'hand_l', 'hand_l']);
+});
+
+test('the bellringer robe, mantle and sleeves are skinned to its spine and arm bones, its head rides the chest, and its fists and what they hold ride its hand bones', () => {
+  const j = figure('bellringer'), nodes = j.nodes ?? [];
+  const parent = (name: string) => nodes.find(n => n.children?.some(c => nodes[c]?.name === name))?.name;
+  const skinned = nodes.filter(n => n.skin !== undefined).map(n => [n.name, j.skins?.[n.skin ?? -1]?.joints.map(i => nodes[i]?.name).sort()]);
+  expect(skinned).toEqual([['rig_skin', ['chest', 'clavicle_l', 'clavicle_r', 'drape_l', 'elbow_l', 'elbow_r', 'forearm_l', 'forearm_r', 'hand_l', 'hand_r', 'hips', 'shoulder_l', 'shoulder_r', 'upperarm_l', 'upperarm_r']]]);
+  expect(['chest_mesh', 'forearm_l_mesh', 'hand_r_mesh', 'weapon', 'hand_l_mesh', 'beads'].map(parent)).toEqual(['chest', 'forearm_l', 'hand_r', 'hand_r', 'hand_l', 'hand_l']);
 });
