@@ -44,19 +44,19 @@ Each land came out of one force loosed by the Unmooring. A character's mechanic 
 | Ashen Ferry | Death | Trade HP, curse, feed on Downs, bring allies back | Moves fast |
 | Sworn Heights | Vows | Guard allies, bend the turn order, set a condition and punish whoever breaks it | Leans on chance |
 
-The four classes already fit. Calls are Rift magic that lands later, Threads are Crown silk that moves things, Souls are the Ferry's trade in the dead, and Toll is the Heights keeping the hour.
+The three classes already fit. Calls are Rift magic that lands later, Souls are the Ferry's trade in the dead, and Toll is the Heights keeping the hour. The Crown has no class yet: its slot is open for a new one.
 
 ## Orders and future characters
 
 | Land | Order today | Class | Other orders and characters it could hold |
 |---|---|---|---|
 | Gilded Rift | **The Last Almanac**, who write down the sky's future and then make it happen | Astromancer | Golem-smiths, alchemists, mirror-witches, rune-tattooed brawlers, beasts the Rift changed |
-| Tangled Crown | **The Hanging Loom**, spider-kin whose city is a loom strung between trees | Weaver | Beast-kin hunters, druids, venom-witches, tree-giants, river raiders |
+| Tangled Crown | None yet; the Crown's order arrives with its class | (open) | Spider-kin, beast-kin hunters, druids, venom-witches, tree-giants, river raiders |
 | Ashen Ferry | **The Ferrymen**, bone priests who row souls across | Gravecaller | Plague doctors, mourners, ghosts, bone-carvers, drowned knights |
 | Sworn Heights | **The Unslept Hour**, monks sworn to ring every hour | Bellringer | The Bronze Vigil (shield-sworn guards), oath-knights, clockwrights, pilgrims, a mute duelist |
 
 ## What this changes in the art
 
 - The Astromancer, Gravecaller and Bellringer already match their land.
-- The Weaver is dark purple with magenta runes today. Its robe moves to bark and moss in the painted pass, and it keeps the magenta glow. Purple is the Rift's colour now.
+- The Crown's colours (bark, moss, orchid glow) wait for its class. Purple is the Rift's colour.
 - Each figure in `art/figures/<class>.py` takes its land's main, accent and glow colours from the table above.

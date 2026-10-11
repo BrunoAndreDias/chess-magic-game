@@ -30,10 +30,10 @@ Preconditions:
 
 - Query `"?map=storm&seed=7"`; `untilPhase('map')`, click `#mp-go`, `untilPhase('picks')`, wait ~800 ms. `dump()` shows `on clock: step 0, team 0`.
 
-- **Edit.** Click `#su-teams .pslot[data-team="0"][data-slot="0"]`, then `#picks .ccard[data-cls="weaver"]`: the plate's `.c` reads `🕸️ Weaver · …` and 3 non-innate `.skc.on` remain. Click an `.skc` without `.on`: still 3, the new one among them. Click `.treewrap .node.on.live` then `.node.live:not(.on)`: `.pts b` goes 0 → 1 → 0. `page.fill('#ed-name', 'Vex')`.
+- **Edit.** Click `#su-teams .pslot[data-team="0"][data-slot="0"]`, then `#picks .ccard[data-cls="bellringer"]`: the plate's `.c` reads `🔔 Bellringer · …` and 3 non-innate `.skc.on` remain. Click an `.skc` without `.on`: still 3, the new one among them. Click `.treewrap .node.on.live` then `.node.live:not(.on)`: `.pts b` goes 0 → 1 → 0. `page.fill('#ed-name', 'Vex')`.
 - **Lock.** Three times: `until` `#pk-lock` is enabled, click it. Red's locks land in between.
 - **Complete.** `until` `#pk-go` is enabled; every `#pk-track .pk-seat` is `.locked` and the seats read Blue, Red, Blue, Red, Red, Blue with seed 7 (`Vex` first).
-- **Go.** `page.selectOption('#su-timer', '0')`, click `#pk-go`, `untilPhase('scout')`: `#sc-timer` reads `∞` and `#sc-units .du` lists Blue in lock order, `Vex 🕸️ Weaver · on floor` first.
+- **Go.** `page.selectOption('#su-timer', '0')`, click `#pk-go`, `untilPhase('scout')`: `#sc-timer` reads `∞` and `#sc-units .du` lists Blue in lock order, `Vex 🔔 Bellringer · on floor` first.
 - Done: `examples/picks-to-scout.cjs` passes and covers clock, lock, select, class, skills, tree, control (name) and go.
 
 ## Gotchas

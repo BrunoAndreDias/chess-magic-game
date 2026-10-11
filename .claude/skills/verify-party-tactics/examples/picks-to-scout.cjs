@@ -11,10 +11,10 @@ module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
 
   const blue0 = '#su-teams .pslot[data-team="0"][data-slot="0"]';
   await page.click(blue0);
-  await page.click('#picks .ccard[data-cls="weaver"]');
+  await page.click('#picks .ccard[data-cls="bellringer"]');
   const cls = await page.textContent(`${blue0} .c`);
   const picks = () => page.$$eval('#ed-skills .skc.on:not(.innate)', els => els.map(e => e.dataset.skill));
-  if (!cls.includes('Weaver') || (await picks()).length !== 3) throw new Error(`class change: plate "${cls}", picks ${await picks()}`);
+  if (!cls.includes('Bellringer') || (await picks()).length !== 3) throw new Error(`class change: plate "${cls}", picks ${await picks()}`);
 
   const added = await page.$eval('#ed-skills .skc:not(.on)', e => e.dataset.skill);
   await page.click(`#ed-skills .skc[data-skill="${added}"]`);
@@ -51,7 +51,7 @@ module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
   log(await dump());
   await shot('scout');
   if (!(await page.textContent('#scout .tag')).includes(mapName)) throw new Error(`scout is not on ${mapName}`);
-  if (!units[0].startsWith('Vex') || !units[0].includes('Weaver')) throw new Error(`Vex, locked first, should lead the scout roster: ${units}`);
+  if (!units[0].startsWith('Vex') || !units[0].includes('Bellringer')) throw new Error(`Vex, locked first, should lead the scout roster: ${units}`);
   if (timer !== '∞') throw new Error(`timer should be off: ${timer}`);
   return `draft locked ${seats.join(' ')}; scout on ${mapName} lists ${units.join(' | ')}`;
 };
