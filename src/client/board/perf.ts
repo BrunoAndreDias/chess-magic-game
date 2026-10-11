@@ -1,9 +1,9 @@
-/** One frame: `work` is the board's own time inside the frame callback, `gap` the time since the previous frame began. */
-interface Frame { work: number; gap: number }
+/** One frame: `work` is the board's own time inside the frame callback, `gap` the time since the previous frame began, `calls` and `tris` what it drew. */
+export interface Frame { work: number; gap: number; calls: number; tris: number }
 
 export interface Spread { p50: number; p95: number; max: number }
 
-/** What a stretch of frames cost. Times in ms; `calls` and `tris` are the last frame's, the rest are live totals. */
+/** What a stretch of frames cost. Times in ms; `calls` and `tris` are the most any one frame drew, the rest are live totals. */
 export interface PerfReport {
   frames: number;
   fps: number;
@@ -19,7 +19,7 @@ export interface PerfReport {
 }
 
 /** The part of three's `renderer.info` the report reads. */
-interface GlInfo { render: { calls: number; triangles: number }; memory: { geometries: number; textures: number }; programs: readonly unknown[] | null }
+interface GlInfo { memory: { geometries: number; textures: number }; programs: readonly unknown[] | null }
 
 const CAP = 7200;
 
@@ -30,9 +30,7 @@ export class PerfMeter {
   readonly #frames: Frame[] = [];
   #at = 0;
 
-  push(work: number, gap: number): void {
-    const f = { work, gap };
-
+  push(f: Frame): void {
     if (this.#frames.length < CAP) this.#frames.push(f);
     else this.#frames[this.#at] = f;
     this.#at = (this.#at + 1) % CAP;
@@ -49,8 +47,8 @@ export class PerfMeter {
       work: spread(fs.map(f => f.work)),
       gap: spread(gaps),
       janks: gaps.filter(g => g >= JANK_MS).length,
-      calls: info.render.calls,
-      tris: info.render.triangles,
+      calls: Math.max(0, ...fs.map(f => f.calls)),
+      tris: Math.max(0, ...fs.map(f => f.tris)),
       geometries: info.memory.geometries,
       textures: info.memory.textures,
       programs: info.programs?.length ?? 0,

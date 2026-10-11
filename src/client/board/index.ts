@@ -257,7 +257,8 @@ class BoardView implements Board {
     st.render(dt);
 
     if (this.#sync) st.renderer.getContext().finish();
-    this.#meter.push(performance.now() - start, gap);
+    const { calls, triangles } = st.renderer.info.render;
+    this.#meter.push({ work: performance.now() - start, gap, calls, tris: triangles });
   };
 }
 
