@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import bmesh
 import bpy
-from mathutils import Euler, Matrix, Vector, noise
+from mathutils import Vector, noise
 from common import *
 from hands import fist
 from lookdev import bake, hi, mark, paint
@@ -782,46 +782,15 @@ def arm(bone, axis):
     return RIG, f'pose.bones["{bone}"].rotation_euler', axis
 
 
-def keyed(frames, f):
-    """The value [(frame, value)] keys give at frame `f`, straight between keys."""
-    pts = sorted(frames)
-    for (f0, v0), (f1, v1) in zip(pts, pts[1:]):
-        if f0 <= f <= f1:
-            return v0 + (v1 - v0) * (f - f0) / (f1 - f0)
-    return pts[0][1] if f < pts[0][0] else pts[-1][1]
-
-
-def wield(keys, tilt):
-    """`keys` with the scythe wrist keyed so the pole leans forward by `tilt` [(frame, radians)] in the body's facing,
-    whatever the shoulder and elbow do: a hand that carries the pole's weight, not one bolted to the forearm."""
-    def turn(ob_path, f):
-        return Euler([keyed(keys.get((*ob_path, i), [(0, 0)]), f) for i in range(3)]).to_matrix()
-
-    def posed(bone, f):
-        b = RIG.data.bones[bone]
-        rest = b.matrix_local.to_3x3()
-        up = posed(b.parent.name, f) @ b.parent.matrix_local.to_3x3().inverted() if b.parent else Matrix.Identity(3)
-        return up @ rest @ turn((RIG, f'pose.bones["{bone}"].rotation_euler'), f)
-
-    rest = RIG.data.bones['hand_r'].matrix_local.to_3x3()
-    out, prev = [[], [], []], Euler()
-    for f, t in tilt:
-        body = turn((breath, R), f)
-        held = Euler((t, 0, keyed(keys.get((breath, R, 2), [(0, 0)]), f))).to_matrix() @ rest
-        carry = body @ posed('forearm_r', f) @ RIG.data.bones['forearm_r'].matrix_local.to_3x3().inverted() @ rest
-        prev = (carry.inverted() @ held).to_euler('XYZ', prev)
-        for i in range(3):
-            out[i].append((f, prev[i]))
-    for i in range(3):
-        keys[arm('hand_r', i)] = out[i]
-    return keys
+def wields(keys, lean):
+    return wield(keys, RIG, 'hand_r', lean, 'chest')
 
 
 R, S = 'rotation_euler', 'scale'
 X, Y, Z = 0, 1, 2
 # Cast: the bell hand swings the soul bell up and out toward the target, the wrist turning as it rings; the scythe arm
 # raises the pole with it.
-act('cast', 10, wield({
+act('cast', 10, wields({
     arm('upperarm_l', X): [(0, 0), (6, -1.5), (10, -2.1), (14, -1.8), (20, 0)],
     arm('upperarm_l', Y): [(0, 0), (6, -0.45), (10, -0.7), (14, -0.6), (20, 0)],
     arm('forearm_l', X): [(0, 0), (6, -0.35), (10, -0.25), (14, -0.3), (20, 0)],
@@ -837,7 +806,7 @@ act('cast', 10, wield({
 }, [(0, 0), (6, -0.1), (10, 0.2), (14, 0.05), (20, 0)]))
 # Attack: a reaping swing from the shoulder, wound back with the elbow bent and the wrist cocked, then whipped
 # through; the bell arm swings back against it.
-act('attack', 8, wield({
+act('attack', 8, wields({
     arm('upperarm_r', X): [(0, 0), (5, 0.35), (8, -0.75), (11, -0.85), (18, 0)],
     arm('upperarm_r', Z): [(0, 0), (5, 0.45), (8, -0.1), (11, -0.25), (18, 0)],
     arm('forearm_r', X): [(0, 0), (5, -0.7), (8, -0.15), (11, -0.2), (18, 0)],
@@ -848,7 +817,7 @@ act('attack', 8, wield({
     (breath, R, 2): [(0, 0), (5, -0.15), (8, 0.2), (11, 0.22), (18, 0)],
     (swing, R, 0): [(0, 0), (5, 0.3), (8, -0.5), (12, 0.3), (18, 0)],
 }, [(0, 0), (5, -0.6), (8, 0.9), (11, 1.1), (18, 0)]))
-act('hit', 2, wield({
+act('hit', 2, wields({
     (breath, R, 0): [(0, 0), (2, -0.14), (6, 0.03), (12, 0)],
     arm('clavicle_l', X): [(0, 0), (2, 0.15), (7, 0.03), (12, 0)],
     arm('clavicle_r', X): [(0, 0), (2, 0.15), (7, 0.03), (12, 0)],
@@ -862,7 +831,7 @@ act('hit', 2, wield({
 }, [(0, 0), (2, -0.15), (6, 0.05), (12, 0)]))
 # Move loops while the unit travels: a rolling stride, the bell arm swinging against it and the scythe arm, carrying
 # the weight, barely.
-act('move', 0, wield({
+act('move', 0, wields({
     (breath, R, 0): [(0, 0.05), (8, 0.05), (16, 0.05)],
     (breath, R, 1): [(0, 0), (4, 0.06), (8, 0), (12, -0.06), (16, 0)],
     (breath, R, 2): [(0, 0.05), (8, -0.05), (16, 0.05)],
@@ -876,8 +845,8 @@ act('move', 0, wield({
 DOWNED = {(breath, S, 2): -0.25, (breath, R, 0): 0.3, arm('upperarm_l', X): -0.9, arm('upperarm_l', Z): -0.2,
           arm('forearm_l', X): 0.3, arm('hand_l', X): -0.4, arm('upperarm_r', X): -0.5, arm('forearm_r', X): 0.2}
 LEAN = 0.15
-act('down', 10, wield({k: [(0, 0), (5, v * 0.4), (14, v)] for k, v in DOWNED.items()}, [(0, 0), (5, 0.1), (14, LEAN)]))
-act('rise', 8, wield({k: [(0, v), (8, v * 0.3 if k[0] is breath else -v * 0.3), (14, 0)] for k, v in DOWNED.items()},
+act('down', 10, wields({k: [(0, 0), (5, v * 0.4), (14, v)] for k, v in DOWNED.items()}, [(0, 0), (5, 0.1), (14, LEAN)]))
+act('rise', 8, wields({k: [(0, v), (8, v * 0.3 if k[0] is breath else -v * 0.3), (14, 0)] for k, v in DOWNED.items()},
                      [(0, LEAN), (8, 0.05), (14, 0)]))
 
 meshes = bake()

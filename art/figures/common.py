@@ -22,7 +22,7 @@ import math
 import sys
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Vector
 
 FPS = 24
 
@@ -125,6 +125,53 @@ def bone_parent(child, rig, bone):
     tip = rig.matrix_world @ rig.pose.bones[bone].matrix @ Matrix.Translation((0, rig.data.bones[bone].length, 0))
     child.matrix_parent_inverse = tip.inverted()
     return child
+
+
+def keyed(frames, f):
+    """The value [(frame, value)] keys give at frame `f`, straight between keys."""
+    pts = sorted(frames)
+    for (f0, v0), (f1, v1) in zip(pts, pts[1:]):
+        if f0 <= f <= f1:
+            return v0 + (v1 - v0) * (f - f0) / (f1 - f0)
+    return pts[0][1] if f < pts[0][0] else pts[-1][1]
+
+
+def _turn(keys, ob, path, f):
+    rest = ob.path_resolve(path)
+    return Euler([rest[i] + keyed(keys.get((ob, path, i), [(0, 0)]), f) for i in range(3)]).to_matrix()
+
+
+def posed(keys, rig, bone, f, own=True):
+    """The world orientation of `bone` at frame `f` of a clip keyed by `keys` (act()'s offsets from rest), through the
+    objects that carry `rig`; `own=False` leaves out the bone's own key."""
+    b = rig.data.bones[bone]
+    if b.parent:
+        up = posed(keys, rig, b.parent.name, f) @ b.parent.matrix_local.to_3x3().inverted()
+    else:
+        up, ob = Matrix.Identity(3), rig
+        while ob:
+            up = ob.matrix_parent_inverse.to_3x3() @ _turn(keys, ob, 'rotation_euler', f) @ up
+            ob = ob.parent
+    turn = _turn(keys, rig, f'pose.bones["{bone}"].rotation_euler', f) if own else Matrix.Identity(3)
+    return up @ b.matrix_local.to_3x3() @ turn
+
+
+def wield(keys, rig, hand, lean, facing):
+    """`keys` with `hand` keyed so what it holds leans forward by `lean` [(frame, radians)] in the facing of bone
+    `facing`, whatever the arm above it does: a hand that carries a prop's weight, not one bolted to its forearm.
+    It solves every frame that any key or `lean` names."""
+    rest, face = rig.data.bones[hand].matrix_local.to_3x3(), rig.data.bones[facing].matrix_local.to_3x3().inverted()
+    path = f'pose.bones["{hand}"].rotation_euler'
+    out, prev = [[], [], []], Euler()
+    for f in sorted({f for frames in keys.values() for f, _ in frames} | {f for f, _ in lean}):
+        ahead = posed(keys, rig, facing, f) @ face @ Vector((0, -1, 0))
+        held = Euler((keyed(lean, f), 0, math.atan2(ahead.x, -ahead.y))).to_matrix() @ rest
+        prev = (posed(keys, rig, hand, f, own=False).inverted() @ held).to_euler('XYZ', prev)
+        for i in range(3):
+            out[i].append((f, prev[i]))
+    for i in range(3):
+        keys[(rig, path, i)] = out[i]
+    return keys
 
 
 def glow(loc, color, size, par=None, name='glow'):
