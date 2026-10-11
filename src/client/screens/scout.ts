@@ -4,7 +4,7 @@ import { Match } from '../../host/match';
 import type { Ctx, Mounted } from '../app';
 import type { TileInput } from '../board';
 import { h } from '../dom';
-import { battleSetup, humanTeams, seats } from '../draft';
+import { battleSetup, clock, humanTeams, seats } from '../draft';
 import type { Draft } from '../draft';
 import { legend, revealLayers } from '../rules';
 import { TEAM_COLOR, TEAM_NAME, other } from '../theme';
@@ -80,7 +80,7 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
     if (deadline === null) { el.textContent = '∞'; return; }
 
     const left = Math.max(0, (deadline - performance.now()) / 1000);
-    el.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    el.textContent = clock(left);
     el.classList.toggle('low', left < 8);
 
     if (left <= 0) { deadline = null; next(); }

@@ -1,4 +1,4 @@
-// Proof for features/picks.md: pass the map, edit Blue's first hero, lock Blue's turns while Red's AI locks between, and see the result on scout.
+// Proof for features/picks.md: pass the map, edit Blue's first hero in the build modal, lock Blue's turns while Red's AI locks between, and see the result on scout.
 // Run: PORT=5294 .claude/skills/verify-party-tactics/scripts/drive.cjs .claude/skills/verify-party-tactics/examples/picks-to-scout.cjs "?map=storm&seed=7"
 module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
   await untilPhase('map');
@@ -13,6 +13,8 @@ module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
   await page.click(blue0);
   await page.click('#picks .ccard[data-cls="bellringer"]');
   const cls = await page.textContent(`${blue0} .c`);
+  await page.click('#ed-open');
+  if (!(await page.$eval('#pk-build', e => !e.classList.contains('hidden')))) throw new Error('#ed-open should open the build modal');
   const picks = () => page.$$eval('#ed-skills .skc.on:not(.innate)', els => els.map(e => e.dataset.skill));
   if (!cls.includes('Bellringer') || (await picks()).length !== 3) throw new Error(`class change: plate "${cls}", picks ${await picks()}`);
 
@@ -27,6 +29,9 @@ module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
   const refunded = await pts();
   await page.click('.treewrap .node.live:not(.on)');
   if (Number(refunded) !== Number(full) + 1 || (await pts()) !== full) throw new Error(`tree points ${full} -> ${refunded} -> ${await pts()}`);
+  await page.click('#pk-build-done');
+  const strip = await page.$$eval('#ed-build .slot:not(.innate)', els => els.map(e => e.dataset.skill));
+  if (strip.join() !== after.join()) throw new Error(`the build strip should show ${after}: ${strip}`);
   await page.fill('#ed-name', 'Vex');
   log(`hero 1: ${cls.trim()}, skills ${after.join(', ')}, tree ${full} -> ${refunded} -> ${full}`);
   await shot('edited');

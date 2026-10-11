@@ -8,6 +8,16 @@ type Timer = 0 | 20 | 30 | 45;
 
 export const TIMERS: readonly Timer[] = [20, 30, 45, 0];
 
+/** Seconds every player gets to finish skills and passives once all six turns are locked. */
+export const FINAL_SEC = 45;
+
+/** Whole seconds left as m:ss. */
+export function clock(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export interface Member extends MemberBuild { human: boolean }
 
 /** Everything the draft screen edits. It outlives a battle, so Rematch and Change parties start from it. */

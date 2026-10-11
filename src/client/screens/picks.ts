@@ -3,14 +3,15 @@ import type { ClassId, PickCmd, PickState, Team } from '../../engine/index';
 import type { Ctx, Mounted } from '../app';
 import { CREST, splash } from '../crest';
 import { h } from '../dom';
-import { TIMERS, afterPicks, humanTeams, randomMember, recommended, selected } from '../draft';
+import { FINAL_SEC, TIMERS, afterPicks, clock, humanTeams, randomMember, recommended, selected } from '../draft';
 import type { Draft, Member } from '../draft';
 import { ruleLine } from '../rules';
 import { isMuted, playLock, setMuted } from '../sound';
 import { TEAMS, TEAM_COLOR, TEAM_NAME, TEAM_TEXT } from '../theme';
 import { BEAT_SEC } from './beat';
 import { Lineup } from './lineup';
-import { bonusChips, loadout, roleLabel } from './loadout';
+import { bonusChips, buildEditor, loadout, roleLabel } from './loadout';
+import type { Loadout } from './loadout';
 
 const AI_MS = 500;
 
@@ -30,6 +31,7 @@ function seatMeaning(seats: readonly Team[], k: number): SeatMeaning {
  * The draft: the starter was drawn before this screen, and the six steps follow the round's queue.
  * Each lock commits a member to a turn and a class for the battle; skills and the passive tree stay editable throughout.
  * Teams with no human are locked by the AI. In hot seat the view follows the human team on the clock.
+ * The sixth lock starts a FINAL_SEC clock for last build edits; scouting starts when it runs out.
  */
 export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   ctx.board.load(createBattle({ map: draft.map, starter: draft.starter, teams: [[], []] }, mulberry32(ctx.seed)));
@@ -46,6 +48,10 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   let holding: ReturnType<typeof setTimeout> | null = null;
   /** The class the hero card last showed, so it only plays its entrance on a change. */
   let shown = '';
+  /** The build editor modal is open over the screen. */
+  let building = false;
+  /** When the final build clock runs out (a `performance.now()` time); null until the sixth lock. */
+  let finalEnds: number | null = null, finalTick: ReturnType<typeof setInterval> | null = null;
 
   for (const cls of CLASS_ORDER) new Image().src = splash(cls);
 
@@ -54,12 +60,19 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
   const tabs = h('div', { class: 'su-tabs' }), plates = h('div', { class: 'su-plates' }), bonus = h('div', { class: 'bonuses su-bonus' });
   const canvas = h('canvas', { class: 'su-canvas' }), hero = h('div', { class: 'pk-hero', id: 'pk-hero', 'aria-live': 'polite' });
   const coin = h('div', { class: 'pk-coin', id: 'pk-coin' }), teamsBox = h('div', { class: 'pk-teams' }), track = h('ol', { class: 'pk-track', id: 'pk-track' });
+  const buildTitle = h('h2', { id: 'pk-build-t' }), buildBody = h('div', { class: 'pk-bbody' });
+
+  const modal = h('div', { class: 'pk-build hidden', id: 'pk-build', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pk-build-t', onclick: ev => { if (ev.target === modal) setBuilding(false); } },
+    h('div', { class: 'pk-bpanel', tabindex: -1 },
+      h('div', { class: 'pk-bhead' }, buildTitle, h('button', { class: 'btn primary', id: 'pk-build-done', onclick: () => setBuilding(false) }, 'Done')),
+      buildBody));
 
   const root = h('div', { id: 'picks', class: 'screen' }, top, mapInfo,
     h('div', { class: 'pk-body' },
       sheet,
       h('div', { class: 'pk-mid' }, cta, h('div', { class: 'su-stage', id: 'su-teams' }, canvas, hero, tabs, plates), bonus),
-      h('aside', { class: 'pk-side' }, coin, teamsBox, track)));
+      h('aside', { class: 'pk-side' }, coin, teamsBox, track)),
+    modal);
 
   ctx.ui.append(root);
   const lineup = new Lineup(canvas, plates, slot => select(draft.sel.team, slot));
@@ -103,6 +116,11 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
       landed = p.locks.length - 1;
       playLock(cmd.cls);
 
+      if (done() && finalEnds === null) {
+        finalEnds = performance.now() + FINAL_SEC * 1000;
+        finalTick = setInterval(() => { if (paintClock() <= 0) finish(); }, 250);
+      }
+
       if (cmd.team === draft.sel.team) {
         draft.sel = { team: cmd.team, slot: cmd.member };
         lineup.lockIn(cmd.member);
@@ -143,6 +161,14 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
     if (selected(draft).cls !== cls) draft.teams[team][slot] = recommended(selected(draft), cls);
     act({ kind: 'hover', team, member: slot, cls });
+  }
+
+  function setBuilding(on: boolean): void {
+    building = on;
+    render();
+
+    if (on) modal.querySelector<HTMLElement>('.pk-bpanel')?.focus();
+    else root.querySelector<HTMLElement>('#ed-open')?.focus();
   }
 
   function setTeamHuman(t: Team, human: boolean): void {
@@ -195,9 +221,12 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
     const c = onClock(p), v = draft.sel.team, m = selected(draft), C = CLASSES[m.cls];
 
     if (c === null) {
-      cta.className = 'pk-cta done';
-      cta.replaceChildren(h('div', { class: 'say' }, h('div', { class: 'ey' }, 'Draft complete'), h('h2', null, 'Every turn is locked.'),
-        h('div', { class: 'sub' }, 'Tune skills and passives, then scout the battlefield.')));
+      cta.className = 'pk-cta final';
+      cta.style.removeProperty('--tc');
+      cta.replaceChildren(h('div', { class: 'say' }, h('div', { class: 'ey' }, 'Final builds'), h('h2', null, 'Lock your skills and passives'),
+        h('div', { class: 'sub' }, 'Scouting starts when the clock runs out.')),
+      h('div', { class: 'pk-clock', role: 'timer', 'aria-label': 'Time left to edit builds' }, h('b', { id: 'pk-final' }), h('i', { class: 'drain' }, h('span'))));
+      paintClock();
 
       return;
     }
@@ -232,6 +261,18 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
         h('div', { class: 'sub' }, open ? 'Choose a hero and a class, then lock it in.' : `${m.name} is already locked. Select an open hero.`)),
       h('button', { class: 'btn primary pk-lockin', id: 'pk-lock', disabled: !open, 'aria-keyshortcuts': 'Enter', onclick: lock },
         h('span', { class: 'big' }, 'Lock in'), h('span', { class: 'who' }, open ? `${m.name} · ${C.name}` : '—'), h('kbd', null, 'Enter')));
+  }
+
+  /** Shows the final clock's time left and returns it in ms. */
+  function paintClock(): number {
+    const left = finalEnds === null ? FINAL_SEC * 1000 : Math.max(0, finalEnds - performance.now());
+    const text = cta.querySelector('#pk-final'), bar = cta.querySelector<HTMLElement>('.drain span');
+
+    if (text) text.textContent = clock(left / 1000);
+    bar?.style.setProperty('transform', `scaleX(${left / (FINAL_SEC * 1000)})`);
+    cta.classList.toggle('urgent', left <= 10000);
+
+    return left;
   }
 
   /** Locks the selected hero, when it is the viewed team's pick and that hero is still open. */
@@ -288,19 +329,31 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
     mapInfo.replaceChildren(h('span', { class: 'tag' }, 'Battlefield'), h('b', null, M.name), h('span', { class: 'm' }, M.tagline), h('span', { class: 'rl' }, ruleLine(draft.map)));
 
     root.style.setProperty('--tc', TEAM_COLOR[t]);
-    const scroll = sheet.scrollTop;
-    sheet.replaceChildren(...loadout({
+
+    const l: Loadout = {
       member: m, team: t, slot, seat: at >= 0 ? seatMeaning(seats, at).label : null,
       choose: at < 0 ? choose : null,
       update,
+      edit: () => setBuilding(true),
       rename: name => {
         selected(draft).name = name;
         const label = plates.querySelector('.pslot.on .nm');
 
         if (label) label.textContent = name;
       },
-    }));
+    };
+
+    const scroll = sheet.scrollTop;
+    sheet.replaceChildren(...loadout(l));
     sheet.scrollTop = scroll;
+    modal.classList.toggle('hidden', !building);
+
+    if (building) {
+      const bscroll = buildBody.scrollTop;
+      buildTitle.textContent = `${m.name} · ${CLASSES[m.cls].name}`;
+      buildBody.replaceChildren(...buildEditor(l));
+      buildBody.scrollTop = bscroll;
+    }
 
     renderCta();
     tabs.replaceChildren(...(fin ? TEAMS.map(x => h('button', { class: `su-tab${x === t ? ' on' : ''}`, style: { '--tc': TEAM_COLOR[x] }, data: { team: String(x) }, onclick: () => select(x, x === t ? slot : 0) },
@@ -331,6 +384,13 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
 
   function key(ev: KeyboardEvent): void {
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+
+    if (building) {
+      if (ev.key === 'Escape') { ev.preventDefault(); setBuilding(false); }
+
+      return;
+    }
+
     const n = Number(ev.key), { team, slot } = draft.sel, onButton = ev.target instanceof HTMLButtonElement;
 
     if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') select(team, (slot + (ev.key === 'ArrowRight' ? 1 : 2)) % 3);
@@ -354,6 +414,6 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
     phase: () => 'picks',
     state: () => null,
     key,
-    dispose: () => { disposed = true; release(); if (aiTimer) clearTimeout(aiTimer); lineup.dispose(); root.remove(); },
+    dispose: () => { disposed = true; release(); if (aiTimer) clearTimeout(aiTimer); if (finalTick) clearInterval(finalTick); lineup.dispose(); root.remove(); },
   };
 }

@@ -6,7 +6,7 @@ export type { Rng } from './rng';
 
 export * from './tables';
 
-export { treeValid, canTake, canDrop, modsOf, partyBonuses, roleOf, newMember } from './builds';
+export { treeValid, canTake, canDrop, modsOf, partyBonuses, pathOf, roleOf, newMember } from './builds';
 
 export {
   current, statusKeys, reachable, castTargets, aoeTiles, canUse, cdOf, moveOf, actionsOf, terrAt, isSolid, los, concealed, standing, unitAt, getUnit,

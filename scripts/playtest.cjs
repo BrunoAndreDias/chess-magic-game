@@ -213,9 +213,10 @@ async function serve() {
     const picked = await p.$eval('#su-teams .pslot.on', e => e.dataset.slot);
 
     if (picked !== '0') throw new Error(`clicking a character in the lineup selected slot ${picked}, not 0`);
-    await p.evaluate(() => document.querySelector('.treewrap').scrollIntoView());
+    await p.click('#ed-open');
     await wait(200);
     await shot('02-draft-tree');
+    await p.keyboard.press('Escape');
     await p.click('#pk-go');
 
     if (!(await until(async () => (await phase()) === 'scout'))) throw new Error('no scout screen');

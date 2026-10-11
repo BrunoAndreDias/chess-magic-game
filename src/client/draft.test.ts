@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { NODE, SKILLS, POINTS, mulberry32, treeValid } from '../engine/index';
 import type { PickState } from '../engine/index';
-import { afterPicks, defaultDraft, randomMember } from './draft';
+import { afterPicks, clock, defaultDraft, randomMember } from './draft';
 
 test('a random member keeps its class and has 3 of its skills, one keystone and the rest of its points in one other path', () => {
   const base = defaultDraft({ allAi: true, map: 'span', starter: 0 }).teams[0][0]!, rnd = mulberry32(5);
@@ -38,4 +38,8 @@ test('the picks put each team in lineup order; a member keeps its build only if 
   expect([out.starter, out.teams[0][0]!.skills, out.teams[0][0]!.tree]).toEqual([1, ['prison', 'recall', 'meteor'], ['a_frost']]);
   const changed = out.teams[0][1]!;
   expect([changed.skills.every(id => SKILLS[id].cls === 'bellringer'), treeValid('bellringer', changed.tree)]).toEqual([true, true]);
+});
+
+test('a clock shows whole seconds left as m:ss, never below zero', () => {
+  expect([45, 44.9, 9.5, 75, -2].map(clock)).toEqual(['0:45', '0:44', '0:09', '1:15', '0:00']);
 });

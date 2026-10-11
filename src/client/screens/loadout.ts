@@ -1,4 +1,4 @@
-import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, SKILL_PICKS, TREES, canDrop, canTake, partyBonuses, roleOf } from '../../engine/index';
+import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, SKILL_PICKS, TREES, canDrop, canTake, partyBonuses, pathOf, roleOf } from '../../engine/index';
 import type { ClassId, NodeDef, NodeId, PairDef, Role, SkillId, Team } from '../../engine/index';
 import { CREST, splash } from '../crest';
 import { h } from '../dom';
@@ -95,6 +95,8 @@ export interface Loadout {
   seat: string | null;
   choose: ((cls: ClassId) => void) | null;
   update(fn: (m: Member) => Member): void;
+  /** Opens the build editor. */
+  edit(): void;
   rename(name: string): void;
 }
 
@@ -181,7 +183,43 @@ function treeSec(l: Loadout): HTMLElement {
       })))));
 }
 
-/** The editor for one member: who plays it, its class, its skills and its passive tree. */
+/** The build at a glance, like a champion's ability bar: the innate, the picked skills under their battle keys, and the keystone path as an emblem. */
+function buildStrip(l: Loadout): HTMLElement {
+  const m = l.member, C = CLASSES[m.cls], br = TREES[m.cls][pathOf(m.cls, m.tree)], role = roleOf(m.cls, m.tree);
+  const key = br?.nodes.find(n => n.key && m.tree.includes(n.id));
+  const pips = TREES[m.cls].flatMap(b => b.nodes.filter(n => m.tree.includes(n.id)).map(() => b.color));
+
+  const tip = (): Child[] => {
+    if (!br) return ['No passives taken.'];
+
+    return key ? nodeInfo(key, br.name, br.role) : [h('div', { class: 'tt' }, br.name), h('div', { class: 'm' }, `${br.role} path`), `${pips.length} of ${POINTS} points spent, no keystone yet.`];
+  };
+
+  const slot = (id: SkillId, k: number, innate: boolean) => withTip(h('button', { class: `slot${innate ? ' innate' : ''}`, style: { '--kc': skillColor(id) }, data: { skill: id }, onclick: l.edit },
+    h('span', { class: 'ab' }, SKILLS[id].icon, h('kbd', null, String(k))), h('span', { class: 'nm' }, SKILLS[id].name)), () => skillInfo(id));
+
+  return h('section', { class: 'sec', id: 'ed-build' },
+    h('h3', null, 'Build', h('small', null, `${m.skills.length} of ${SKILL_PICKS} skills · ${m.tree.length} of ${POINTS} points`),
+      h('button', { class: 'btn ed-open', id: 'ed-open', onclick: l.edit }, 'Edit build')),
+    h('div', { class: 'bar' },
+      slot(C.innate, 2, true),
+      m.skills.map((id, i) => slot(id, i + 3, false)),
+      h('i', { class: 'sep' }),
+      withTip(h('button', { class: `emblem${key ? ' key' : ''}`, id: 'ed-emblem', style: { '--bc': br?.color ?? '#6c6274' }, onclick: l.edit },
+        h('span', { class: 'ring' }, h('span', null, ROLE_ICON[role])),
+        h('span', { class: 'nm' }, key?.name ?? br?.name ?? 'No path'),
+        h('span', { class: 'pips', 'aria-label': `${m.tree.length} of ${POINTS} points` },
+          Array.from({ length: POINTS }, (_, i) => h('i', { style: { '--pc': pips[i] } }))),
+        h('span', { class: 'rl' }, roleLabel(role))),
+      tip)));
+}
+
+/** The sheet for one member: who plays it, its class and its build at a glance. */
 export function loadout(l: Loadout): HTMLElement[] {
-  return [header(l), classSec(l), skillSec(l), treeSec(l)];
+  return [header(l), classSec(l), buildStrip(l)];
+}
+
+/** The full build editor the modal shows: every skill of the class and the passive tree. */
+export function buildEditor(l: Loadout): HTMLElement[] {
+  return [skillSec(l), treeSec(l)];
 }

@@ -46,7 +46,7 @@ Act through the page (clicks, hotkeys, tiles). `window.__party` and `engine()` r
 From `src/client/screens/*.ts`; the feature files say what each does.
 
 - **Map:** `#mapview`, `#mp-name`, `#mp-timeline li`, `#hintbar`, `#tooltip`, `#mp-go`.
-- **Picks:** `#picks`, `#su-mapinfo`, `#pk-coin`, `#pk-cta` (`.sealed` during the lock-in beat), `#pk-lock`, `#pk-hero`, `#pk-sound`, `#pk-go`, `#pk-track .pk-seat[data-step][data-team]` (`.locked` / `.now` / `.fresh`, `.art` splash once locked), team control `.pk-ctrl[data-team] button`, plates `#su-teams .pslot[data-team][data-slot]` (`.on`, `.locked`), `.su-tab[data-team]` (after the draft), `#ed-name`, `#ed-ctrl button`, `.ccard[data-cls]` (open hero) or `#ed-cls` (locked), `#ed-skills .skc[data-skill]` (`.innate`, `.on`), `#ed-rec`, `.treewrap .node[data-node]` (`.on`, `.live`, `.locked`), `.tree .pts b`, `.su-bonus .bchip` (`.off`), `#su-timer`, `#su-random`.
+- **Picks:** `#picks`, `#su-mapinfo`, `#pk-coin`, `#pk-cta` (`.sealed` during the lock-in beat), `#pk-lock`, `#pk-hero`, `#pk-sound`, `#pk-go`, `#pk-track .pk-seat[data-step][data-team]` (`.locked` / `.now` / `.fresh`, `.art` splash once locked), team control `.pk-ctrl[data-team] button`, plates `#su-teams .pslot[data-team][data-slot]` (`.on`, `.locked`), `.su-tab[data-team]` (after the draft), `#ed-name`, `#ed-ctrl button`, `.ccard[data-cls]` (open hero) or `#ed-cls` (locked), build strip `#ed-build .slot[data-skill]` (`.innate`), `#ed-emblem`, `#ed-open`; build modal `#pk-build` (`.hidden` when closed), `#pk-build-t`, `#pk-build-done`, and inside it `#ed-skills .skc[data-skill]` (`.innate`, `.on`), `#ed-rec`, `.treewrap .node[data-node]` (`.on`, `.live`, `.locked`), `.tree .pts b`; final clock `#pk-final` (`#pk-cta.final`, `.urgent` in the last 10 s), `.su-bonus .bchip` (`.off`), `#su-timer`, `#su-random`.
 - **Scout:** `#scout h2`, `#scout .tag`, `#sc-units .du[data-slot]` (`.on`), `#sc-timer`, `#sc-auto`, `#sc-rule`, `#sc-ready`.
 - **Battle:** `#actions .spbtn[data-skill]` (`.on` = aiming), `#actions .wait`, `#endturn`, `#btn-cam`, `#btn-setup`, `#initbar .ichip` (`.now`), `#ib-hazard`, `#roster0`/`#roster1 .rcard[data-unit]`, `#selinfo`, `#log div`, `#hintbar`, `#tooltip .tt`, `#banner`, `#combo`.
 - **Result:** `#res-tag`, `#res-title`, `#res-why`, `table.stats`, `#res-again`, `#res-party`, `#res-map`.
@@ -69,7 +69,7 @@ drive.cjs tears itself down. If one was interrupted, kill only the pid from its 
 
 Each passes as written with the query in its header.
 
-- `examples/picks-to-scout.cjs` (`"?map=storm&seed=7"`): edit a hero, lock Blue's turns between Red's AI locks, see the order and edits on scout.
+- `examples/picks-to-scout.cjs` (`"?map=storm&seed=7"`): edit a hero in the build modal, lock Blue's turns between Red's AI locks, see the order and edits on scout.
 - `examples/scout-deploy.cjs` (`"?quick&map=span&seed=7"`): hover, place, auto-deploy, Ready, the unit stands there in battle.
 - `examples/battle-turn.cjs` (`"?quick&map=span&seed=7"`): move, aim, preview, cancel, cast, end a Blue turn.
 

@@ -63,8 +63,8 @@ export function modsOf(cls: ClassId, picks: readonly NodeId[]): Mods {
   return m;
 }
 
-/** The role of the path holding the keystone; else the path with the most points (first on a tie); else damage. */
-export function roleOf(cls: ClassId, tree: readonly NodeId[]): Role {
+/** The branch index of the path holding the keystone; else the path with the most points (first on a tie); else -1. */
+export function pathOf(cls: ClassId, tree: readonly NodeId[]): number {
   const points = [0, 0, 0];
 
   for (const id of tree) {
@@ -72,14 +72,19 @@ export function roleOf(cls: ClassId, tree: readonly NodeId[]): Role {
 
     if (!n || n.cls !== cls) continue;
 
-    if (n.tier === KEYSTONE_TIER) return TREES[cls][n.branch]?.role ?? 'damage';
+    if (n.tier === KEYSTONE_TIER) return n.branch;
     points[n.branch] = (points[n.branch] ?? 0) + 1;
   }
 
   let best = -1, most = 0;
   points.forEach((p, i) => { if (p > most) { most = p; best = i; } });
 
-  return TREES[cls][best]?.role ?? 'damage';
+  return best;
+}
+
+/** The role of the path `pathOf` picks, damage with no points spent. */
+export function roleOf(cls: ClassId, tree: readonly NodeId[]): Role {
+  return TREES[cls][pathOf(cls, tree)]?.role ?? 'damage';
 }
 
 export function partyBonuses(members: readonly { cls: ClassId; tree: readonly NodeId[] }[]): PartyBonuses {
