@@ -1,5 +1,7 @@
-import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, SKILL_PICKS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
-import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
+import {
+  CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, SKILL_PICKS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32, standing, ultIn,
+} from '../src/engine/index';
+import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team, UnitId } from '../src/engine/index';
 
 // Plays AI-vs-AI battles with random builds and prints win shares, combos and mechanic use.
 //
@@ -79,6 +81,9 @@ const cls: Record<string, [number, number]> = {}, path: Record<string, [number, 
 
 const mech: Record<Mechanic, [number, number]> = { call: [0, 0], harvest: [0, 0], rite: [0, 0], toll: [0, 0], strings: [0, 0], reflect: [0, 0], bounce: [0, 0] };
 
+/** Per class: characters that fired their ultimate, of those that started a turn standing with it ready (their 4th turn on). */
+const ult: Record<string, [number, number]> = {};
+
 let rounds = 0, ms = 0, starterWins = 0;
 
 const started = performance.now(), progressEvery = Math.max(1, Math.ceil(battles / 10));
@@ -100,6 +105,7 @@ for (let i = from; i < from + battles; i++) {
   const starter: Team = i % 2 === 0 ? 0 : 1;
   let s: BattleState = createBattle({ map, starter, teams, deploy }, r);
   const used = [new Set<Mechanic>(), new Set<Mechanic>()];
+  const ultReady = new Set<UnitId>(), ultFired = new Set<UnitId>();
   const t0 = performance.now();
 
   const run = (cmds: Command[]) => {
@@ -124,6 +130,8 @@ for (let i = from; i < from + battles; i++) {
 
         if (e.type === 'cast' && e.skill === 'strings') used[e.team]?.add('strings');
 
+        if (e.type === 'cast' && SKILLS[e.skill].ult) ultFired.add(e.id);
+
         // A Mirror that turned a hit back, and a shot that bounced off glass: the mechanic paying off, not just cast.
         if (e.type === 'reflect') { const o = getUnit(s, e.id); if (o) used[o.team]?.add('reflect'); }
 
@@ -134,8 +142,22 @@ for (let i = from; i < from + battles; i++) {
   };
 
   for (let guard = 0; s.phase.kind !== 'over' && guard < 500; guard++) {
+    const u = current(s);
+
+    if (u && standing(u) && ultIn(u) === 0) ultReady.add(u.id);
+
     if (s.phase.kind === 'ready') run([{ kind: 'begin' }]);
-    else run(aiTurn(s, r, opts(current(s)?.team ?? 0)));
+    else run(aiTurn(s, r, opts(u?.team ?? 0)));
+  }
+
+  for (const id of ultReady) {
+    const o = getUnit(s, id);
+
+    if (!o) continue;
+    const v = (ult[o.cls] ??= [0, 0]);
+    v[1]++;
+
+    if (ultFired.has(id)) v[0]++;
   }
 
   ms += performance.now() - t0;
@@ -189,6 +211,8 @@ for (const c of CLASS_ORDER) for (const b of TREES[c]) {
 }
 
 console.log('mechanic use (battles where a side had the class)', Object.entries(mech).map(([k, v]) => `${k} ${pct(v)}`).join(', '));
+
+console.log('ultimate use (characters that stood with it ready)', CLASS_ORDER.map(c => `${CLASSES[c].ult} ${pct(ult[c] ?? [0, 0])} (n ${ult[c]?.[1] ?? 0})`).join(', '));
 
 if (dumbMode) console.log(`three damage keystones win ${pct([wins[0], battles])} (draws ${wins[2]})`);
 
