@@ -51,6 +51,7 @@ const TONE: Readonly<Record<HighlightTone, { color: number; opacity: number }>> 
   hazard: { color: 0xd65cff, opacity: 0.85 },
   friendly: { color: 0xffe14a, opacity: 0.95 },
   altar: { color: 0xffd36b, opacity: 0.6 },
+  pull: { color: 0xff5cc8, opacity: 0.95 },
 };
 
 /** White fill with a brighter rim, tinted per tone, so a highlight still reads on water and under a unit's disc. */

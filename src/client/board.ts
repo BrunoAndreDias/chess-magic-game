@@ -1,6 +1,6 @@
 import type { BattleEvent, BattleState, Pos, Team, UnitId } from '../engine/types';
 
-export type HighlightTone = 'move' | 'target' | 'aoe' | 'deploy' | 'path' | 'selected' | 'hazard' | 'friendly' | 'altar';
+export type HighlightTone = 'move' | 'target' | 'aoe' | 'deploy' | 'path' | 'selected' | 'hazard' | 'friendly' | 'altar' | 'pull';
 
 /** `hazard` and `friendly` (allies a Call would hit) draw on their own striped layer, so they still show under a move or target tile. `opacity` overrides the tone's. */
 export interface Highlight { tiles: readonly Pos[]; tone: HighlightTone; opacity?: number }

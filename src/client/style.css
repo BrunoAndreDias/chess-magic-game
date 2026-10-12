@@ -311,6 +311,7 @@ button.ccard:hover .art { filter: saturate(.85) brightness(.82); transform: scal
 @media (prefers-reduced-motion: reduce) {
   #picks *, #picks *::before, #picks *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important }
   .pk-lockin::after { display: none }
+  .ub.ready, .spbtn.ultimate.ready { animation: none }
 }
 @media (max-width: 1400px) { .skc .nm { white-space: normal; font-size: 11px } .skc .bdg { flex-wrap: wrap } }
 @media (max-width: 1000px) { .pk-body { flex: none; grid-template-columns: 1fr; grid-auto-rows: auto } .pk-side { overflow: visible } .pk-mid .su-stage { min-height: 420px } #picks { overflow: auto } .pk-hero { left: 14px; top: 12px; max-width: 75% } .pk-hero h2 { font-size: 30px } .pk-hero .q { font-size: 13px } }
@@ -336,6 +337,14 @@ button.ccard:hover .art { filter: saturate(.85) brightness(.82); transform: scal
 .ichip .cstar { position: absolute; top: -7px; right: -6px; font-size: 14px; line-height: 1; color: #c9bfff; text-shadow: 0 0 6px #9a8cff, 0 1px 2px #000; cursor: help }
 .ichip.now { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); background: #2b2433 }
 .ichip .k { position: absolute; top: 2px; left: 4px; font: 700 10px ui-monospace, Menlo, monospace; color: var(--muted) }
+.ichip .ub { display: flex; justify-content: center; margin: 2px -1px 0 }
+.ub { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; line-height: 14px; padding: 0 4px; border-radius: 7px; border: 1px solid #3a3042; background: #120e17; color: var(--muted); filter: saturate(.4); cursor: help }
+.ub b { font: 700 10.5px ui-monospace, Menlo, monospace; color: var(--text) }
+.ub.ready { color: var(--ult); border-color: var(--el, var(--ult)); background: color-mix(in srgb, var(--el, var(--ult)) 22%, #120e17); filter: none; box-shadow: 0 0 8px color-mix(in srgb, var(--el, var(--ult)) 70%, transparent); animation: ultlit 1.6s ease-in-out infinite }
+.ub.ready b { color: var(--ult); font: 700 9px system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase }
+.ub.gone { visibility: hidden }
+.rsub .ub { margin-left: 4px }
+@keyframes ultlit { 50% { box-shadow: 0 0 14px color-mix(in srgb, var(--el, var(--ult)) 90%, transparent) } }
 .ichip.close::after { content: 'closes'; position: absolute; bottom: -15px; left: 0; right: 0; font-size: 9.5px; color: var(--gold); letter-spacing: .06em }
 #menu { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px }
 #menu .btn { padding: 6px 10px; font-size: 12.5px; background: var(--panel) }
@@ -376,6 +385,9 @@ button.ccard:hover .art { filter: saturate(.85) brightness(.82); transform: scal
 .spbtn .st { font-size: 10.5px; color: var(--muted); display: block }
 .spbtn .cb { font-size: 10.5px; display: block }
 .spbtn.innate { border-style: dashed; border-left-style: solid }
+.spbtn.ultimate { border: 2px double color-mix(in srgb, var(--ult) 55%, var(--line)); border-left: 4px solid var(--el); background: linear-gradient(160deg, color-mix(in srgb, var(--el) 16%, #1c1724), #1c1724 70%) }
+.spbtn.ultimate .inn { color: var(--ult) }
+.spbtn.ultimate.ready:not(:disabled) { border-color: var(--ult); border-left-color: var(--el); animation: ultlit 1.6s ease-in-out infinite }
 .spbtn .inn { position: absolute; right: 6px; bottom: 4px; font: 700 8.5px system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--gold) }
 .spbtn .cdb { position: absolute; right: 6px; top: 5px; background: #000a; border-radius: 6px; padding: 0 6px; font-weight: 700 }
 #endturn { background: var(--gold); color: #1b1405; border: none; border-radius: 10px; padding: 0 16px; font-weight: 800; font-size: 14px; min-width: 96px }

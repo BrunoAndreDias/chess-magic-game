@@ -1,6 +1,6 @@
 import {
-  CLASSES, DARK_ROUND, MAPS, SKILLS, actionsOf, aoeTiles, callsOf, canUse, castTargets, current, getUnit, idx, isCall,
-  dollOf, moveOf, predict, reachable, roundQueue, soulCap, soulsInReach, standingDoll, unitAt,
+  CLASSES, DARK_ROUND, MAPS, SKILLS, SKILL_N, actionsOf, aoeTiles, callsOf, canUse, castTargets, current, getUnit, idx, isCall,
+  dollOf, moveOf, predict, puppetHits, puppetWalks, reachable, roundQueue, soulCap, soulsInReach, standingDoll, ultIn, unitAt,
 } from '../../engine/index';
 import type { BattleEvent, BattleState, Command, Pos, SkillId, Target, Team, Turn, Unit, UnitId } from '../../engine/index';
 import type { Match } from '../../host/match';
@@ -9,7 +9,7 @@ import type { Highlight, TileInput } from '../board';
 import { h } from '../dom';
 import { LOCAL } from '../draft';
 import type { Draft } from '../draft';
-import { callLines, comboCredit, comboInfo, describe, openingLines, previewLines } from '../format';
+import { callLines, comboCredit, comboInfo, describe, openingLines, previewLines, ultLine } from '../format';
 import type { Line } from '../format';
 import { banner, clearBanners, comboBanner, reportError } from '../overlay';
 import { endChip, hazardLayer, roundHazard } from '../rules';
@@ -20,7 +20,23 @@ import { bonusChips, skillInfo } from './loadout';
 
 interface Batch { events: readonly BattleEvent[]; state: BattleState }
 
-interface Aim { skill: SkillId; targets: Target[] }
+/**
+ * What the player is aiming, one click per step. A skill takes one click on a target. Command Performance takes three: the enemy,
+ * the tile it walks to, then whom its basic hits (its own new tile for nobody).
+ */
+type Aim =
+  | { step: 'target'; skill: SkillId; targets: Target[] }
+  | { step: 'walk'; skill: 'command'; foe: Unit; walks: Map<number, Pos[]> }
+  | { step: 'hit'; skill: 'command'; foe: Unit; walks: Map<number, Pos[]>; to: Pos; path: Pos[]; hits: Target[] };
+
+/** The tiles a click takes at this step. */
+function picks(aim: Aim): Pos[] {
+  switch (aim.step) {
+    case 'target': return aim.targets;
+    case 'walk': return [...aim.walks.values()].map(p => p[p.length - 1] ?? aim.foe);
+    case 'hit': return [...aim.hits, aim.to];
+  }
+}
 
 /** Who may act right now. Everything the HUD offers is derived from this and the shown state. */
 type Input =
@@ -139,7 +155,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (!u || !human(u)) return { kind: 'locked', why: 'ai' };
     const aim = input.kind === 'turn' && input.unit === u.id ? input.aim : null;
 
-    return { kind: 'turn', unit: u.id, aim: aim && canUse(s, u, aim.skill) ? { skill: aim.skill, targets: castTargets(s, u, aim.skill) } : null };
+    if (!aim || !canUse(s, u, aim.skill)) return { kind: 'turn', unit: u.id, aim: null };
+
+    return { kind: 'turn', unit: u.id, aim: aim.step === 'target' ? { ...aim, targets: castTargets(s, u, aim.skill) } : aim };
   }
 
   function refresh(): void {
@@ -170,7 +188,37 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
     const targets = castTargets(shown, u, id);
 
-    if (targets.length) setAim({ skill: id, targets });
+    if (targets.length) setAim({ step: 'target', skill: id, targets });
+  }
+
+  /** A click on one of the step's tiles: cast, or go on to Command Performance's next step. */
+  function advance(u: Unit, aim: Aim, at: Pos): void {
+    if (aim.step === 'walk') {
+      setAim({ ...aim, step: 'hit', to: at, path: aim.walks.get(idx(at.x, at.z)) ?? [at], hits: puppetHits(shown, aim.foe, at.x, at.z) });
+
+      return;
+    }
+
+    if (aim.step === 'hit') {
+      submit({ kind: 'cast', unit: u.id, skill: aim.skill, at: { x: aim.foe.x, z: aim.foe.z }, puppet: { to: aim.to, hit: same(at, aim.to) ? null : at } });
+
+      return;
+    }
+
+    const foe = aim.skill === 'command' ? unitAt(shown, at.x, at.z) : null;
+
+    if (foe) setAim({ step: 'walk', skill: 'command', foe, walks: puppetWalks(shown, foe) });
+    else submit({ kind: 'cast', unit: u.id, skill: aim.skill, at });
+  }
+
+  /** Esc or right-click: one step back, out of aiming from the first. */
+  function back(): void {
+    if (input.kind !== 'turn' || !input.aim) return;
+    const aim = input.aim, u = getUnit(shown, input.unit);
+
+    if (aim.step === 'hit') setAim({ step: 'walk', skill: aim.skill, foe: aim.foe, walks: aim.walks });
+    else if (aim.step === 'walk' && u) setAim({ step: 'target', skill: aim.skill, targets: castTargets(shown, u, aim.skill) });
+    else setAim(null);
   }
 
   function setAim(aim: Aim | null): void {
@@ -205,7 +253,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       return;
     }
 
-    if (ev.button === 'right') { setAim(null); return; }
+    if (ev.button === 'right') { back(); return; }
 
     if (input.kind !== 'turn') return;
     const u = getUnit(shown, input.unit);
@@ -213,9 +261,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     if (!u) return;
 
     if (input.aim) {
-      const { skill, targets } = input.aim;
+      const at = { x: ev.tile.x, z: ev.tile.z };
 
-      if (targets.some(t => same(t, ev.tile))) submit({ kind: 'cast', unit: u.id, skill, at: { x: ev.tile.x, z: ev.tile.z } });
+      if (picks(input.aim).some(t => same(t, at))) advance(u, input.aim, at);
 
       return;
     }
@@ -224,7 +272,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   }
 
   function key(ev: KeyboardEvent): void {
-    if (ev.key === 'Escape') { setAim(null); return; }
+    if (ev.key === 'Escape') { back(); return; }
 
     if (ev.key === ' ') { ev.preventDefault(); endTurn(); return; }
 
@@ -244,21 +292,8 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     const u = input.kind === 'turn' ? getUnit(shown, input.unit) : null;
 
     if (u && input.kind === 'turn') {
-      if (input.aim) {
-        const { skill, targets } = input.aim;
-        layers.push({ tiles: targets, tone: 'target' });
-
-        if (hover && targets.some(t => same(t, hover ?? t))) {
-          const area = aoeTiles(shown, u, skill, hover.x, hover.z);
-          layers.push({ tiles: area, tone: 'aoe' });
-
-          if (isCall(skill) && skill !== 'recall' && !u.mods.benevolent) {
-            const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && area.some(t => same(t, o)));
-
-            if (hit.length) layers.push({ tiles: hit, tone: 'friendly' });
-          }
-        }
-      } else {
+      if (input.aim) layers.push(...aimLayers(u, input.aim, hover && picks(input.aim).some(t => same(t, hover ?? t)) ? hover : null));
+      else {
         const reach = reachable(shown, u);
         layers.push({ tiles: [...reach.values()].map(p => p[p.length - 1] ?? u), tone: 'move' });
         const path = hover && reach.get(idx(hover.x, hover.z));
@@ -271,12 +306,75 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     board.highlight(layers);
   }
 
+  /** The board while aiming: the step's tiles, and what a click on the hovered one (`at`, null when off them) would do. */
+  function aimLayers(u: Unit, aim: Aim, at: Pos | null): Highlight[] {
+    if (aim.step === 'walk') {
+      const path = at && aim.walks.get(idx(at.x, at.z));
+
+      return [{ tiles: picks(aim), tone: 'move' }, { tiles: [aim.foe], tone: 'pull' },
+        ...(at && path ? [{ tiles: path.slice(1), tone: 'path' as const }, { tiles: puppetHits(shown, aim.foe, at.x, at.z), tone: 'target' as const, opacity: 0.35 }] : [])];
+    }
+
+    if (aim.step === 'hit') return [{ tiles: aim.path, tone: 'path' }, { tiles: [aim.to], tone: 'move' }, { tiles: aim.hits, tone: 'target' }];
+
+    const { skill, targets } = aim, out: Highlight[] = [{ tiles: targets, tone: 'target' }];
+
+    if (!at) return out;
+    const area = aoeTiles(shown, u, skill, at.x, at.z);
+    out.push({ tiles: area, tone: 'aoe' });
+
+    if (skill === 'command') {
+      const foe = unitAt(shown, at.x, at.z);
+
+      if (foe) out.push({ tiles: picks({ step: 'walk', skill, foe, walks: puppetWalks(shown, foe) }), tone: 'move', opacity: 0.35 });
+    }
+
+    if (skill === 'fallingstar') out.push({ tiles: (predict(shown, skill, at.x, at.z) ?? []).flatMap(e => (e.type === 'move' ? e.path : [])), tone: 'pull' });
+
+    if (isCall(skill) && skill !== 'recall' && !u.mods.benevolent) {
+      const hit = shown.units.filter(o => o.team === u.team && o.life.kind !== 'dead' && area.some(t => same(t, o)));
+
+      if (hit.length) out.push({ tiles: hit, tone: 'friendly' });
+    }
+
+    return out;
+  }
+
+  /** The preview for a click at `t` at this step of the aim. */
+  function aimLines(me: Unit, aim: Aim, t: Pos): Line[] {
+    const say = (text: string): Line => ({ tone: 'sys', text });
+
+    if (aim.step === 'walk') {
+      const foe = aim.foe, reach = puppetHits(shown, foe, t.x, t.z).flatMap(o => getUnit(shown, o.id)?.name ?? []);
+
+      return [say(same(t, foe) ? `${foe.name} stays where it is.` : `${foe.name} walks here.`),
+        say(reach.length ? `From here its ${SKILLS[`basic_${foe.cls}`].name} reaches ${reach.join(', ')}.` : `From here its ${SKILLS[`basic_${foe.cls}`].name} reaches nobody.`)];
+    }
+
+    if (aim.step === 'hit') {
+      const hit = same(t, aim.to) ? null : t, lines = previewLines(predict(shown, aim.skill, aim.foe.x, aim.foe.z, { to: aim.to, hit }) ?? [], shown);
+
+      return hit ? lines : [say(`${aim.foe.name} walks there and attacks nobody.`), ...lines];
+    }
+
+    const { skill } = aim;
+
+    if (isCall(skill)) return callLines(shown, me, skill, t.x, t.z, skill === 'fallingstar' ? predict(shown, skill, t.x, t.z) ?? [] : []);
+
+    if (skill === 'command') {
+      const foe = unitAt(shown, t.x, t.z);
+
+      return foe ? [say(`Take ${foe.name}.`), say(`Next: pick where it walks, up to ${SKILL_N.command.walk} tiles, then whom its ${SKILLS[`basic_${foe.cls}`].name} hits.`)] : [];
+    }
+
+    return previewLines(predict(shown, skill, t.x, t.z) ?? [], shown);
+  }
+
   function hoverTip(t: Pos): void {
     const me = input.kind === 'turn' ? getUnit(shown, input.unit) : null;
 
-    if (me && input.kind === 'turn' && input.aim && input.aim.targets.some(x => same(x, t))) {
-      const { skill } = input.aim, sk = SKILLS[skill];
-      const lines = isCall(skill) ? callLines(shown, me, skill, t.x, t.z) : previewLines(predict(shown, skill, t.x, t.z) ?? [], shown);
+    if (me && input.kind === 'turn' && input.aim && picks(input.aim).some(x => same(x, t))) {
+      const { skill } = input.aim, sk = SKILLS[skill], lines = aimLines(me, input.aim, t);
       showTip(h('div', { class: 'tt', style: { color: skillColor(skill) } }, `${sk.icon} ${sk.name}`),
         lines.length ? lines.map(l => h('div', { class: l.tone }, l.text)) : h('div', { class: 'm' }, sk.text));
 
@@ -331,7 +429,8 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
       const star = calls.length ? withTip(h('span', { class: 'cstar' }, '☄'), () => calls.map(c => h('div', null, `${SKILLS[c.skill].icon} ${SKILLS[c.skill].name} lands at the start of ${u.name}'s turn.`))) : null;
       const xtra = extra ? withTip(h('span', { class: 'xtra' }, '+1'), () => [h('div', null, `An extra turn for ${u.name}: cooldowns don't tick on it.`)]) : null;
 
-      return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []), ...(xtra ? [xtra] : []));
+      return chip(u.team, k, closes, state, h('span', { class: 'ic' }, u.life.kind === 'dead' ? '💀' : C.icon), h('span', { class: 'nm' }, u.name), ...(star ? [star] : []), ...(xtra ? [xtra] : []),
+        u.life.kind === 'dead' ? h('span', { class: 'ub gone' }, '·') : ultBadge(u));
     });
 
     const end = endChip(s);
@@ -357,7 +456,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
         return withTip(h('div', { class: `rcard t${t}${cur?.id === u.id ? ' now' : ''}${life}`, data: { unit: String(u.id) } },
           h('div', { class: 'rtop' }, h('b', null, u.name, human(u) ? null : h('span', { style: { 'font-size': '11px' } }, ' 🤖')), h('span', null, `${C.icon} ${C.name}`)),
           h('div', { class: 'rbar' }, h('i', { style: { width: `${hp}%` } }), h('s', { style: { width: `${sh}%` } })),
-          h('div', { class: 'rsub' }, status, souls, statusChips(u))), () => unitTip(shown, u, human(u)));
+          h('div', { class: 'rsub' }, status, souls, statusChips(u), u.life.kind === 'dead' ? null : ultBadge(u))), () => unitTip(shown, u, human(u)));
       }));
   }
 
@@ -390,15 +489,26 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     actions.replaceChildren(...actionsOf(u).map((id, i) => {
       const sk = SKILLS[id], cd = u.cd[id] || 0, hasT = castTargets(s, u, id).length > 0, ok = mine && canUse(s, u, id) && hasT;
 
-      const why = u.acted && !sk.free ? 'Action used' : cd ? `Ready in ${cd}` : blocked(s, u, id) ?? (!hasT ? (id === 'helpup' ? 'No downed ally next to you' : 'No target')
+      const why = u.acted && !sk.free ? 'Action used' : cd ? `Ready in ${cd} turn${cd === 1 ? '' : 's'}` : blocked(s, u, id) ?? (!hasT ? (id === 'helpup' ? 'No downed ally next to you' : 'No target')
         : `${sk.free ? 'Free · ' : ''}${sk.call ? 'Call · ' : ''}${sk.range ? `Range ${sk.range}` : sk.target === 'self' ? 'Around you' : ''}`);
 
       const combo = sk.pays?.[0] ? h('span', { class: 'cb pays' }, sk.pays[0]) : sk.sets?.[0] ? h('span', { class: 'cb sets' }, sk.sets[0]) : null;
 
-      return withTip(h('button', { class: `spbtn${aim?.skill === id ? ' on' : ''}${sk.innate ? ' innate' : ''}`, data: { skill: id }, disabled: !ok, style: { '--el': skillColor(id) }, onclick: () => aimAt(id) },
+      const kind = sk.innate ? ' innate' : sk.ult ? ` ultimate${cd ? '' : ' ready'}` : '';
+
+      return withTip(h('button', { class: `spbtn${aim?.skill === id ? ' on' : ''}${kind}`, data: { skill: id }, disabled: !ok, style: { '--el': skillColor(id) }, onclick: () => aimAt(id) },
         h('span', { class: 'key' }, i + 1), h('span', { class: 'nm' }, `${sk.icon} ${sk.name}`), h('span', { class: 'st' }, why), combo,
-        sk.innate ? h('span', { class: 'inn' }, 'innate') : null, cd ? h('span', { class: 'cdb' }, cd) : null), () => skillInfo(id));
+        sk.innate ? h('span', { class: 'inn' }, 'innate') : sk.ult ? h('span', { class: 'inn' }, 'ultimate') : null, cd ? h('span', { class: 'cdb' }, cd) : null),
+      () => (sk.ult ? [...skillInfo(id), h('div', { class: 'ult' }, ultLine(u))] : skillInfo(id)));
     }));
+  }
+
+  /** A unit's ultimate countdown, public to both parties: the ultimate's icon over its turns left, lit once it is ready. */
+  function ultBadge(u: Unit): HTMLElement {
+    const sk = SKILLS[CLASSES[u.cls].ult], n = ultIn(u);
+
+    return withTip(h('span', { class: `ub${n ? '' : ' ready'}`, data: { ult: String(n) }, style: { '--el': skillColor(CLASSES[u.cls].ult) } }, sk.icon, h('b', null, n ? String(n) : 'ready')),
+      () => [h('div', { class: 'tt', style: { color: skillColor(CLASSES[u.cls].ult) } }, `${sk.icon} ${sk.name} · ${u.name}'s ultimate`), h('div', { class: 'ult' }, ultLine(u)), h('div', { class: 'm' }, sk.text)]);
   }
 
   /** A Marionettist's Doll on its roster card: its HP, or that it's broken. */
@@ -442,9 +552,21 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
 
     if (input.kind !== 'turn') { set(); return; }
 
-    if (input.aim) { set('Click a highlighted tile to use ', h('b', null, SKILLS[input.aim.skill].name), '. Hover to preview. ', h('b', null, 'Esc'), ' or right-click cancels.'); return; }
+    if (input.aim) { set(...aimHint(input.aim)); return; }
 
     set(h('b', null, u.name), ', your turn: ', u.moved ? '' : 'blue tiles = move, ', ...(u.acted ? [] : [h('b', null, `1–${actionsOf(u).length}`), ' = skills, ']), h('b', null, 'Space'), ' = end turn.');
+  }
+
+  function aimHint(aim: Aim): (Node | string)[] {
+    const esc = h('b', null, 'Esc'), name = h('b', null, SKILLS[aim.skill].name);
+
+    if (aim.step === 'walk') return ['Pick where ', h('b', null, aim.foe.name), ' walks: blue tiles, its own to stay. Hover to see whom it reaches from there. ', esc, ' goes back.'];
+
+    if (aim.step === 'hit') return ['Pick whom ', h('b', null, aim.foe.name), ' hits, or click its new tile (blue) to attack nobody. ', esc, ' goes back.'];
+
+    if (aim.skill === 'command') return ['Pick the enemy to take with ', name, '. ', esc, ' or right-click cancels.'];
+
+    return ['Click a highlighted tile to use ', name, '. Hover to preview. ', esc, ' or right-click cancels.'];
   }
 
   /** A broken entrance must not hold the battle back. */
