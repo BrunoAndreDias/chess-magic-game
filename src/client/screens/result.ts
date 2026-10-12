@@ -20,6 +20,7 @@ export function mountResult(ctx: Ctx, draft: Draft, final: BattleState): Mounted
     h('p', { id: 'res-why' }, `${REASON[reason]} After ${Math.min(final.round, MAX_ROUNDS)} round${final.round === 1 ? '' : 's'}.`),
     h('table', { class: 'stats' },
       h('tr', null, h('th'), h('th', { style: { color: TEAM_COLOR[0] } }, TEAM_NAME[0]), h('th', { style: { color: TEAM_COLOR[1] } }, TEAM_NAME[1])),
+      MAPS[final.map].rule.kind === 'altar' ? row('Altar favor', final.favor) : null,
       row('Damage dealt', st.dmg), row('Healing', st.heal), row('Enemies downed', st.downs), row('Revives', st.revives), row('Combos', final.combos)),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', id: 'res-again', onclick: () => ctx.go({ kind: 'scout', draft }) }, 'Rematch'),
