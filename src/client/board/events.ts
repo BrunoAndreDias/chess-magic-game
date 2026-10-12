@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CLASSES, N, SKILLS, STATUS, dollOf, getUnit } from '../../engine/index';
+import { CLASSES, N, SKILLS, STATUS, crossingLine, dollOf, getUnit } from '../../engine/index';
 import type { BattleEvent, BattleState, CallSkill, DamageKind, Pos, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
 import { clipFor, weightAt } from './acts';
 import type { Act } from './acts';
@@ -57,15 +57,15 @@ const GLASS = 0xd8f0ff, WOOD = 0xd9a066, SILVER = 0xe0e8ff;
 
 const DUST = 0x9a7a5a;
 
-type CastKind = 'proj' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'doll';
+type CastKind = 'proj' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'doll' | 'ferry' | 'puppet' | 'stop';
 
 /** How a cast looks from the caster. What it does to the board (a Call's marker) is its own event. */
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
   snap: 'nova', thunderhead: 'call', frostbolt: 'proj', firebolt: 'proj', recall: 'call', fallingstar: 'call',
   toll: 'link', knell: 'proj', hush: 'link', peal: 'nova', bellguard: 'link', encore: 'heal',
-  harvest: 'nova', bonewall: 'raise', wither: 'link', soulbolt: 'proj', siphon: 'link', crossing: 'nova',
-  strings: 'link', switch: 'link', dance: 'link', razorwire: 'doll', standin: 'doll', command: 'link',
-  reflect: 'link', glasswall: 'raise', ricochet: 'proj', retort: 'proj', reversal: 'link', showstopper: 'nova',
+  harvest: 'nova', bonewall: 'raise', wither: 'link', soulbolt: 'proj', siphon: 'link', crossing: 'ferry',
+  strings: 'link', switch: 'link', dance: 'link', razorwire: 'doll', standin: 'doll', command: 'puppet',
+  reflect: 'link', glasswall: 'raise', ricochet: 'proj', retort: 'proj', reversal: 'link', showstopper: 'stop',
   helpup: 'heal',
   basic_astromancer: 'proj', basic_gravecaller: 'proj', basic_bellringer: 'melee', basic_marionettist: 'proj', basic_mirrormime: 'proj',
 };
@@ -103,6 +103,42 @@ const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
     void s.c.fx.ring(above(dv, 0.1), s.color, 2.4, 0.45);
     await s.c.fx.burst(above(dv, 0.6), s.color, 2.2, 0.35);
   },
+  // The ferry's light rows out along The Crossing's line, tile by tile.
+  ferry: async s => {
+    const u = getUnit(s.c.before, s.v.id), tiles = u ? crossingLine(u, s.e.tx, s.e.tz) : [], last = tiles[tiles.length - 1];
+
+    if (!last) return;
+    s.c.fx.wisps(above(s.v, 0.2), s.color, 6, 0.9);
+    const row = s.c.fx.projectile(above(s.v, 0.4), s.c.terrain.at(last.x, last.z, 0.4, false), s.color, 0.36, 0.1 * tiles.length, 0);
+
+    for (const t of tiles) {
+      const g = s.c.terrain.at(t.x, t.z, 0.05, false);
+      s.c.fx.sparkles(g, s.color, 4);
+      void s.c.fx.ring(g, s.color, 0.6, 0.4);
+      await s.c.tweens.wait(0.1);
+    }
+
+    await row;
+  },
+  // Strings drop onto the enemy taken: they hold it through its walk and its attack, which play as its own events.
+  puppet: async s => {
+    const tv = s.e.target !== null ? s.c.views.get(s.e.target) : undefined;
+
+    if (!tv) return;
+    const h = tv.height, ties = [new THREE.Vector3(0, h, 0), new THREE.Vector3(0.3, h * 0.6, 0), new THREE.Vector3(-0.3, h * 0.6, 0)];
+    s.c.fx.bolt(s.from, above(tv, h * 0.8), WOOD, 0.1);
+    s.c.fx.strings(() => { tv.body.updateWorldMatrix(true, false); return ties.map(p => tv.body.localToWorld(p.clone())); }, tv.group.position.y + 9, WOOD, 2.6);
+    s.c.overlay.float('🕹️ on strings', '#ff9a6a', above(tv, 2.4), true);
+    await s.c.tweens.wait(0.35);
+  },
+  // A spotlight nova: the Mirrored look comes from its own status, the Mocks float over each enemy in reach.
+  stop: async s => {
+    const at = above(s.v, 0.1);
+    void s.c.fx.burst(above(s.v, 0.8), 0xffffff, 3.2, 0.45);
+    s.c.fx.shards(above(s.v, 1), SILVER, 14);
+    void s.c.fx.ring(at, s.color, 3.6, 0.6);
+    await s.c.fx.ring(at, SILVER, 2.4, 0.45);
+  },
 };
 
 function skillColor(id: SkillId): number {
@@ -119,14 +155,15 @@ type Land = Extract<BattleEvent, { type: 'land' }>;
 const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vector3 | null) => Promise<void>>> = {
   fallingstar: async (e, c, sigil) => {
     const at = c.terrain.at(e.x, e.z, 0.3, false), k = e.power;
-    const from = (sigil ?? at.clone().add(new THREE.Vector3(0, 2, 0))).clone().add(new THREE.Vector3(1.6, 6, -1.6));
-    await c.fx.projectile(from, at, 0xff6a2b, 0.75 * k + 0.25, 0.5, 0);
-    void c.fx.burst(at, 0xff6a2b, 7 * k, 0.6);
-    void c.fx.burst(at, 0xffe0a0, 3.5 * k, 0.35);
-    void c.fx.ring(at.clone().setY(at.y - 0.2), 0xff8a3a, 2.4 * k, 0.6);
+    const from = (sigil ?? at.clone().add(new THREE.Vector3(0, 2, 0))).clone().add(new THREE.Vector3(2, 8, -2));
+    await c.fx.projectile(from, at, 0xff6a2b, 1.05 * k + 0.3, 0.6, 0);
+    void c.fx.burst(at, 0xff6a2b, 9 * k, 0.7);
+    void c.fx.burst(at, 0xffe0a0, 4.5 * k, 0.4);
+    void c.fx.ring(at.clone().setY(at.y - 0.2), 0xff8a3a, 3.2 * k, 0.7);
+    void c.fx.ring(at.clone().setY(at.y - 0.2), 0xffe0a0, 1.8 * k, 0.5);
 
-    for (const t of e.tiles) c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), 0xff8a3a, 3);
-    c.stage.shake(0.45 * k);
+    for (const t of e.tiles) c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), 0xff8a3a, 4);
+    c.stage.shake(0.6 * k);
     await c.tweens.wait(0.3);
   },
   thunderhead: async (e, c) => {
