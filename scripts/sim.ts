@@ -200,7 +200,7 @@ console.log(`starter (opens and closes every round) wins ${pct([starterWins, bat
 
 console.log('combos', JSON.stringify(combos));
 
-console.log('class win share', Object.entries(cls).map(([k, v]) => `${k} ${pct(v)}`).join(', '));
+console.log('class win share', CLASS_ORDER.map(k => `${k} ${pct(cls[k] ?? [0, 0])} (n ${cls[k]?.[1] ?? 0})`).join(', '));
 
 console.log('keystone path win share');
 
