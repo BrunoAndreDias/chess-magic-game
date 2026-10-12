@@ -1,5 +1,5 @@
-import { BLEED, COMBO_INFO, COVERAGE, MAPS, PAIRS, SKILLS, STATUS, callTiles, getUnit, part, unitAt } from '../engine/index';
-import type { BattleEvent, BattleState, CallSkill, DamageKind, OverReason, Team, TerrainChange, Unit, UnitId } from '../engine/index';
+import { BLEED, CLASSES, COMBO_INFO, COVERAGE, MAPS, PAIRS, SKILLS, STATUS, callTiles, getUnit, part, ultIn, unitAt } from '../engine/index';
+import type { BattleEvent, BattleState, CallSkill, DamageKind, OverReason, Pos, Team, TerrainChange, Unit, UnitId } from '../engine/index';
 import { TEAMS, TEAM_NAME } from './theme';
 
 type Tone = 't0' | 't1' | 'sys' | 'combo';
@@ -52,6 +52,7 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'teleport': return null;
     case 'fall': return { tone: 'sys', text: `${name(s, e.id)} falls into the chasm!` };
     case 'cast': {
+      if (e.skill === 'command' && e.target !== null) return { tone: toneOf(e.team), text: `${name(s, e.id)} takes ${name(s, e.target)} by the strings: Command Performance!` };
       const sk = SKILLS[e.skill], tgt = e.target !== null && e.target !== e.id ? ` on ${name(s, e.target)}` : '';
 
       return { tone: toneOf(e.team), text: `${name(s, e.id)} uses ${sk.name}${tgt}.` };
@@ -160,8 +161,11 @@ export function previewLines(events: readonly BattleEvent[], s: BattleState): Li
   return out;
 }
 
-/** The target preview for a Call: when it lands and who stands in its area right now. */
-export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, z: number): Line[] {
+/**
+ * The target preview for a Call: when it lands, what casting it does right now (`now`: the cast's predicted events, Falling Star's pull),
+ * and who stands in its area once that is done.
+ */
+export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, z: number, now: readonly BattleEvent[] = []): Line[] {
   const out: Line[] = [{ tone: 'sys', text: `Lands at the start of ${u.name}'s next turn.` }];
 
   if (skill === 'recall') {
@@ -172,15 +176,19 @@ export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, 
     return out;
   }
 
+  const pulled = new Map(now.flatMap(e => (e.type === 'move' && e.path.length > 1 ? [[e.id, e.path[e.path.length - 1] ?? e.path[0]] as const] : [])));
+  const gone = new Set(now.flatMap(e => (e.type === 'fall' || e.type === 'death' ? [e.id] : [])));
+  const where = (o: Unit): Pos => pulled.get(o.id) ?? o;
   const tiles = callTiles(skill, x, z);
-  const inside = s.units.filter(o => o.life.kind !== 'dead' && o !== u && tiles.some(t => t.x === o.x && t.z === o.z));
+  const inside = s.units.filter(o => o.life.kind !== 'dead' && o !== u && !gone.has(o.id) && tiles.some(t => t.x === where(o).x && t.z === where(o).z));
 
   if (tiles.some(t => t.x === u.x && t.z === u.z)) inside.unshift(u);
+  out.push(...previewLines(now, s));
 
   for (const o of inside) {
     const tone = teamOf(s, o.id);
 
-    if (o.team !== u.team) out.push({ tone, text: `${o.name}: in the area now` });
+    if (o.team !== u.team) out.push({ tone, text: pulled.has(o.id) ? `${o.name}: pulled into the area` : `${o.name}: in the area now` });
     else if (u.mods.benevolent) out.push({ tone, text: `${o.name}: ally, healed instead (Benevolent Heavens)` });
     else out.push({ tone: 'combo', text: `⚠ ${o.name}: ally in the area, friendly fire` });
   }
@@ -188,4 +196,13 @@ export function callLines(s: BattleState, u: Unit, skill: CallSkill, x: number, 
   if (inside.length === 0) out.push({ tone: 'sys', text: 'Nobody stands there yet.' });
 
   return out;
+}
+
+/** A unit's ultimate countdown in words: ready now, on its next turn, or in some of its turns. */
+export function ultLine(u: Unit): string {
+  const sk = SKILLS[CLASSES[u.cls].ult], n = ultIn(u);
+
+  if (n === 0) return `${sk.name} is ready.`;
+
+  return n === 1 ? `${sk.name} is ready on ${u.name}'s next turn.` : `${sk.name} is ready in ${n} of ${u.name}'s turns.`;
 }

@@ -1,8 +1,8 @@
 import { describe as suite, expect, test } from 'vitest';
-import { BLEED, COVERAGE, PAIRS, createBattle, mulberry32, newMember } from '../engine/index';
-import { uid } from '../engine/testkit';
+import { BLEED, COVERAGE, PAIRS, createBattle, mulberry32, newMember, predict } from '../engine/index';
+import { bare, begin, ready, run, stage, uid, unit } from '../engine/testkit';
 import type { BattleEvent, BattleState, NodeId, PairId, PartyBonusId } from '../engine/index';
-import { callLines, comboCredit, describe, openingLines, previewLines } from './format';
+import { callLines, comboCredit, describe, openingLines, previewLines, ultLine } from './format';
 
 const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tree });
 
@@ -29,6 +29,10 @@ suite('describe', () => {
       .toEqual({ tone: 't0', text: 'Seren uses Frostbolt on Morvath.' });
     expect(line({ type: 'cast', id: id(4), team: 1, skill: 'bonewall', tx: 1, tz: 9, fx: 1, fz: 9, target: null }))
       .toEqual({ tone: 't1', text: 'Morvath uses Bone Wall.' });
+  });
+  test('Command Performance names the enemy it takes', () => {
+    expect(line({ type: 'cast', id: id(2), team: 0, skill: 'command', tx: 2, tz: 11, fx: 1, fz: 0, target: id(6) }))
+      .toEqual({ tone: 't0', text: 'Seren takes Grix by the strings: Command Performance!' });
   });
   test('damage reads its kind and what the shield took', () => {
     expect(line({ type: 'damage', id: id(4), amount: 18, absorbed: 6, kind: 'fire' })).toEqual({ tone: 't1', text: 'Morvath takes 18 fire damage (6 blocked).' });
@@ -149,7 +153,28 @@ suite('callLines', () => {
     expect(callLines(st, seren(st), 'thunderhead', 5, 5)[1]).toEqual({ tone: 't0', text: 'Aldric: ally, healed instead (Benevolent Heavens)' });
     expect(callLines(st, seren(st), 'thunderhead', 8, 5).map(l => l.text)).toEqual(["Lands at the start of Seren's next turn.", 'Nobody stands there yet.']);
   });
+  test('a Falling Star names the enemies its cast pulls into the area, and the SLAM of one pulled into a wall', () => {
+    const scene = (terr: [number, number, '#'][]) => {
+      const named = { ...bare('astromancer'), name: 'Seren' }, grix = { ...bare('bellringer'), name: 'Grix' };
+      const st = run(ready(stage({ a: [named, bare('bellringer')], b: [grix], place: { 1: [2, 0], 2: [4, 2], 3: [6, 4] }, terr }), 1), begin).state;
+
+      return callLines(st, unit(st, 1), 'fallingstar', 6, 2, predict(st, 'fallingstar', 6, 2) ?? []).map(l => l.text);
+    };
+
+    expect(scene([])).toEqual(["Lands at the start of Seren's next turn.", 'Grix: pulled into the area']);
+    expect(scene([[6, 3, '#']])).toEqual(["Lands at the start of Seren's next turn.", '⚡ COMBO: SLAM', 'Grix: −6', 'Grix: 💫 Stunned', 'Nobody stands there yet.']);
+  });
   test('Recall names the ally it will bring back', () => {
     expect(callLines(s, seren(s), 'recall', 0, 0)[1]).toEqual({ tone: 't0', text: 'Aldric snaps back to this tile and regains the HP it lost.' });
+  });
+});
+
+suite('ultLine', () => {
+  const seren = s.units.find(u => u.id === 2)!, grix = s.units.find(u => u.id === 6)!;
+  test('counts the turns of its own until the class ultimate is ready', () => {
+    expect(ultLine({ ...seren, cd: {} })).toBe('Falling Star is ready.');
+    expect(ultLine({ ...seren, cd: { fallingstar: 1 } })).toBe("Falling Star is ready on Seren's next turn.");
+    expect(ultLine({ ...seren, cd: { fallingstar: 3, frostbolt: 1 } })).toBe("Falling Star is ready in 3 of Seren's turns.");
+    expect(ultLine({ ...grix, cd: { encore: 2 } })).toBe("Encore is ready in 2 of Grix's turns.");
   });
 });
