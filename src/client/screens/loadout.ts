@@ -1,4 +1,4 @@
-import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, SKILL_PICKS, TREES, canDrop, canTake, partyBonuses, pathOf, roleOf } from '../../engine/index';
+import { CLASSES, CLASS_ORDER, COVERAGE, PAIRS, POINTS, SKILLS, SKILL_PICKS, TREES, ULT_TURNS, canDrop, canTake, partyBonuses, pathOf, roleOf } from '../../engine/index';
 import type { ClassId, NodeDef, NodeId, PairDef, Role, SkillId, Team } from '../../engine/index';
 import { CREST, splash } from '../crest';
 import { h } from '../dom';
@@ -39,13 +39,14 @@ export function skillInfo(id: SkillId): Child[] {
   return [
     h('div', { class: 'tt' }, `${sk.icon} ${sk.name}`), sk.text,
     sk.innate ? h('div', { class: 'innate' }, 'Innate: every build has it, always on.') : null,
+    sk.ult ? h('div', { class: 'ult' }, `Ultimate: every build of the class has it. Ready on your ${ULT_TURNS.ready}th turn, then every ${ULT_TURNS.cd}; both parties see the countdown.`) : null,
     sk.call ? h('div', { class: 'call' }, 'Call: marks its area now and lands at the start of your next turn. Hits allies too.') : null,
     sk.rite ? h('div', { class: 'souls' }, 'Rite: costs one held Soul, and can’t be cast without one.') : null,
     sk.free ? h('div', { class: 'free' }, 'Free: doesn’t use your action.') : null,
     sk.sets ? h('div', { class: 'sets' }, 'Sets up: ', h('b', null, sk.sets.join(', '))) : null,
     sk.pays ? h('div', { class: 'pays' }, 'Pays off: ', h('b', null, sk.pays.join(', '))) : null,
     sk.map ? h('div', { class: 'mapc' }, 'Changes the map') : null,
-    h('div', { class: 'm' }, [reach, sk.cd ? `cooldown ${sk.cd}` : ''].filter(Boolean).join(' · ')),
+    h('div', { class: 'm' }, [reach, sk.cd && !sk.ult ? `cooldown ${sk.cd}` : ''].filter(Boolean).join(' · ')),
   ];
 }
 
@@ -139,7 +140,7 @@ function classSec(l: Loadout): HTMLElement {
 function skillSec(l: Loadout): HTMLElement {
   const m = l.member, last = m.skills[m.skills.length - 1];
   const d = detailLine(() => (last ? [h('b', null, `${SKILLS[last].icon} ${SKILLS[last].name}. `), SKILLS[last].text] : [`Pick ${SKILL_PICKS} skills.`]));
-  const C = CLASSES[m.cls], innate = SKILLS[C.innate];
+  const C = CLASSES[m.cls], innate = SKILLS[C.innate], ult = SKILLS[C.ult];
 
   return h('section', { class: 'sec' },
     h('h3', null, 'Skills', h('small', null, `${m.skills.length} of ${SKILL_PICKS} picked · `, h('span', { class: 'sets' }, 'blue sets up'), ', ', h('span', { class: 'pays' }, 'orange pays off'))),
@@ -151,7 +152,9 @@ function skillSec(l: Loadout): HTMLElement {
 
         return d.hover(h('button', { class: `skc${on ? ' on' : ''}`, style: { '--kc': skillColor(id) }, data: { skill: id }, onclick: () => l.update(x => toggleSkill(x, id)) },
           h('span', { class: 'ic' }, sk.icon), h('span', { class: 'nm' }, sk.name), badges(id)), () => skillInfo(id));
-      })),
+      }),
+      d.hover(h('div', { class: 'skc on ult', style: { '--kc': skillColor(C.ult) }, data: { skill: C.ult } },
+        h('span', { class: 'ic' }, ult.icon), h('span', { class: 'nm' }, ult.name), h('span', { class: 'bdg' }, h('i', { class: 'ult' }, 'ULTIMATE'))), () => skillInfo(C.ult))),
     d.el);
 }
 
@@ -183,7 +186,7 @@ function treeSec(l: Loadout): HTMLElement {
       })))));
 }
 
-/** The build at a glance, like a champion's ability bar: the innate, the picked skills under their battle keys, and the keystone path as an emblem. */
+/** The build at a glance, like a champion's ability bar: the basic, the innate, the picked skills and the ultimate under their battle keys, and the keystone path as an emblem. */
 function buildStrip(l: Loadout): HTMLElement {
   const m = l.member, C = CLASSES[m.cls], br = TREES[m.cls][pathOf(m.cls, m.tree)], role = roleOf(m.cls, m.tree);
   const key = br?.nodes.find(n => n.key && m.tree.includes(n.id));
@@ -195,15 +198,17 @@ function buildStrip(l: Loadout): HTMLElement {
     return key ? nodeInfo(key, br.name, br.role) : [h('div', { class: 'tt' }, br.name), h('div', { class: 'm' }, `${br.role} path`), `${pips.length} of ${POINTS} points spent, no keystone yet.`];
   };
 
-  const slot = (id: SkillId, k: number, innate: boolean) => withTip(h('button', { class: `slot${innate ? ' innate' : ''}`, style: { '--kc': skillColor(id) }, data: { skill: id }, onclick: l.edit },
+  const slot = (id: SkillId, k: number, kind: '' | ' basic' | ' innate' | ' ult') => withTip(h('button', { class: `slot${kind}`, style: { '--kc': skillColor(id) }, data: { skill: id }, onclick: l.edit },
     h('span', { class: 'ab' }, SKILLS[id].icon, h('kbd', null, String(k))), h('span', { class: 'nm' }, SKILLS[id].name)), () => skillInfo(id));
 
   return h('section', { class: 'sec', id: 'ed-build' },
     h('h3', null, 'Build', h('small', null, `${m.skills.length} of ${SKILL_PICKS} skills · ${m.tree.length} of ${POINTS} points`),
       h('button', { class: 'btn ed-open', id: 'ed-open', onclick: l.edit }, 'Edit build')),
     h('div', { class: 'bar' },
-      slot(C.innate, 2, true),
-      m.skills.map((id, i) => slot(id, i + 3, false)),
+      slot(`basic_${m.cls}`, 1, ' basic'),
+      slot(C.innate, 2, ' innate'),
+      m.skills.map((id, i) => slot(id, i + 3, '')),
+      slot(C.ult, m.skills.length + 3, ' ult'),
       h('i', { class: 'sep' }),
       withTip(h('button', { class: `emblem${key ? ' key' : ''}`, id: 'ed-emblem', style: { '--bc': br?.color ?? '#6c6274' }, onclick: l.edit },
         h('span', { class: 'ring' }, h('span', null, ROLE_ICON[role])),

@@ -15,13 +15,13 @@ module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
   const cls = await page.textContent(`${blue0} .c`);
   await page.click('#ed-open');
   if (!(await page.$eval('#pk-build', e => !e.classList.contains('hidden')))) throw new Error('#ed-open should open the build modal');
-  const picks = () => page.$$eval('#ed-skills .skc.on:not(.innate)', els => els.map(e => e.dataset.skill));
-  if (!cls.includes('Bellringer') || (await picks()).length !== 3) throw new Error(`class change: plate "${cls}", picks ${await picks()}`);
+  const picks = () => page.$$eval('#ed-skills .skc.on:not(.innate):not(.ult)', els => els.map(e => e.dataset.skill));
+  if (!cls.includes('Bellringer') || (await picks()).length !== 2) throw new Error(`class change: plate "${cls}", picks ${await picks()}`);
 
   const added = await page.$eval('#ed-skills .skc:not(.on)', e => e.dataset.skill);
   await page.click(`#ed-skills .skc[data-skill="${added}"]`);
   const after = await picks();
-  if (after.length !== 3 || !after.includes(added)) throw new Error(`a fourth pick should replace the oldest: ${after}`);
+  if (after.length !== 2 || !after.includes(added)) throw new Error(`a third pick should replace the oldest: ${after}`);
 
   const pts = () => page.textContent('.tree .pts b');
   const full = await pts();
@@ -30,8 +30,8 @@ module.exports = async ({ page, log, shot, dump, untilPhase, until, wait }) => {
   await page.click('.treewrap .node.live:not(.on)');
   if (Number(refunded) !== Number(full) + 1 || (await pts()) !== full) throw new Error(`tree points ${full} -> ${refunded} -> ${await pts()}`);
   await page.click('#pk-build-done');
-  const strip = await page.$$eval('#ed-build .slot:not(.innate)', els => els.map(e => e.dataset.skill));
-  if (strip.join() !== after.join()) throw new Error(`the build strip should show ${after}: ${strip}`);
+  const strip = await page.$$eval('#ed-build .slot:not(.innate):not(.basic):not(.ult)', els => els.map(e => e.dataset.skill));
+  if (strip.slice().sort().join() !== after.slice().sort().join() || strip.at(-1) !== added) throw new Error(`the build strip should show ${after}, ${added} last: ${strip}`);
   await page.fill('#ed-name', 'Vex');
   log(`hero 1: ${cls.trim()}, skills ${after.join(', ')}, tree ${full} -> ${refunded} -> ${full}`);
   await shot('edited');
