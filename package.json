@@ -8,8 +8,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sim": "tsx scripts/sim.ts",
+    "games": "tsx scripts/games.ts",
     "perf": "node scripts/perf.cjs",
-    "lint": "oxlint --deny-warnings src scripts",
+    "lint": "oxlint --deny-warnings src scripts vite.config.ts",
     "check": "npm run lint && npm run typecheck && npm test",
     "prepare": "git config core.hooksPath .githooks"
   },

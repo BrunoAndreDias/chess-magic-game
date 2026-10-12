@@ -53,7 +53,7 @@ From `src/client/screens/*.ts`; the feature files say what each does.
 
 ## Evidence
 
-The run's directory (printed as `evidence:`, default `$TMPDIR/verify-party-tactics/<stamp>-<steps>/`) holds the shots, `console.log` and `result.json` (pass, url, summary, step log, errors).
+The run's directory (printed as `evidence:`, default `$TMPDIR/verify-party-tactics/<stamp>-<steps>/`) holds the shots, `console.log` and `result.json` (pass, url, summary, step log, errors). A battle that reaches the result screen also leaves its replayable record as one line in `games.jsonl` there (never in the player's `games/games.jsonl`).
 
 A proof is done when all hold:
 

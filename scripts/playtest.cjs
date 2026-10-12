@@ -28,6 +28,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // HMR is off so edits elsewhere in the repo during a run don't reload the page mid-battle.
 async function serve() {
   const { createServer } = await import('vite');
+  // The dev server records finished battles; keep a test run's games out of the player's games/games.jsonl.
+  process.env.GAMES_FILE = path.join(SHOTS, 'games.jsonl');
   const server = await createServer({ root: ROOT, logLevel: 'error', server: { port: Number(PORT), strictPort: true, hmr: false, watch: null } });
   await server.listen();
 

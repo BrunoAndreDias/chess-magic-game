@@ -1,6 +1,7 @@
 import { CLASSES, MAPS, N, TERRAIN, aiDeploy, canDeploy, createBattle, inDeploy, mulberry32, terrAt } from '../../engine/index';
 import type { BattleState, Pos, Team } from '../../engine/index';
 import { Match } from '../../host/match';
+import { saveRecord } from '../records';
 import type { Ctx, Mounted } from '../app';
 import type { TileInput } from '../board';
 import { h } from '../dom';
@@ -56,6 +57,14 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
   function begin(): void {
     clearInterval(tick);
     const match = new Match(battleSetup(draft, [picks[0], picks[1]]), seats(draft), ctx.seed);
+    let saved = false;
+    match.subscribe((_, state) => {
+      if (saved || state.phase.kind !== 'over') return;
+      saved = true;
+      const record = match.record();
+
+      if (record) saveRecord(record);
+    });
     ctx.go({ kind: 'battle', draft, match });
   }
 

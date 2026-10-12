@@ -53,6 +53,8 @@ function dumpScreen() {
 (async () => {
   fs.mkdirSync(EVIDENCE, { recursive: true });
   const { createServer } = await import(require.resolve('vite', { paths: [ROOT] }));
+  // The dev server records finished battles; keep a test run's games out of the player's games/games.jsonl.
+  process.env.GAMES_FILE = path.join(EVIDENCE, 'games.jsonl');
   // HMR off so edits elsewhere in the repo don't reload the page mid-run.
   const vite = await createServer({ root: ROOT, logLevel: 'error', server: { port: PORT, strictPort: true, hmr: false, watch: null } });
   await vite.listen();
