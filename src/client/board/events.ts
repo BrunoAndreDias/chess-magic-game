@@ -47,7 +47,7 @@ const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
 };
 
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
-  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', expose: 'Exposed!', encased: 'Encased', wither: 'Withered!', hush: 'Hushed!', guard: 'Bell Guard', haste: 'Quickened',
+  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', expose: 'Exposed!', wither: 'Withered!', hush: 'Hushed!', guard: 'Bell Guard', haste: 'Quickened',
   mirror: 'Mirrored', mock: 'Mocked!', standin: 'Stand-In',
 };
 
@@ -61,11 +61,11 @@ type CastKind = 'proj' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' |
 
 /** How a cast looks from the caster. What it does to the board (a Call's marker) is its own event. */
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
-  snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
-  toll: 'link', knell: 'proj', hush: 'link', peal: 'nova', encore: 'heal', overture: 'nova', hourglass: 'link', bellguard: 'nova',
-  harvest: 'nova', lastrites: 'heal', bonewall: 'raise', wither: 'link', soulbolt: 'proj', soulburst: 'raise', siphon: 'link', equalize: 'link',
-  strings: 'link', switch: 'link', dance: 'link', tangle: 'doll', razorwire: 'doll', splinter: 'doll', standin: 'doll', rebuild: 'heal',
-  reflect: 'link', glasswall: 'raise', ricochet: 'proj', retort: 'proj', mock: 'link', mirrorball: 'nova', shatter: 'nova', reversal: 'link',
+  snap: 'nova', thunderhead: 'call', frostbolt: 'proj', firebolt: 'proj', recall: 'call', fallingstar: 'call',
+  toll: 'link', knell: 'proj', hush: 'link', peal: 'nova', bellguard: 'link', encore: 'heal',
+  harvest: 'nova', bonewall: 'raise', wither: 'link', soulbolt: 'proj', siphon: 'link', crossing: 'nova',
+  strings: 'link', switch: 'link', dance: 'link', razorwire: 'doll', standin: 'doll', command: 'link',
+  reflect: 'link', glasswall: 'raise', ricochet: 'proj', retort: 'proj', reversal: 'link', showstopper: 'nova',
   helpup: 'heal',
   basic_astromancer: 'proj', basic_gravecaller: 'proj', basic_bellringer: 'melee', basic_marionettist: 'proj', basic_mirrormime: 'proj',
 };
@@ -117,7 +117,7 @@ const centerOf = (tiles: readonly Pos[]): Pos => tiles[Math.floor(tiles.length /
 type Land = Extract<BattleEvent, { type: 'land' }>;
 
 const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vector3 | null) => Promise<void>>> = {
-  meteor: async (e, c, sigil) => {
+  fallingstar: async (e, c, sigil) => {
     const at = c.terrain.at(e.x, e.z, 0.3, false), k = e.power;
     const from = (sigil ?? at.clone().add(new THREE.Vector3(0, 2, 0))).clone().add(new THREE.Vector3(1.6, 6, -1.6));
     await c.fx.projectile(from, at, 0xff6a2b, 0.75 * k + 0.25, 0.5, 0);
@@ -142,14 +142,6 @@ const LAND_FX: Readonly<Record<CallSkill, (e: Land, c: PlayCtx, sigil: THREE.Vec
 
     c.stage.shake(0.3);
     await gather;
-  },
-  gravitywell: async (e, c) => {
-    const at = c.terrain.at(e.x, e.z, 0.1, false);
-
-    for (let i = 0; i < 3; i++) { void c.fx.implode(at, i % 2 ? 0x9a8cff : 0x7a6aff, 2.8, 0.55); await c.tweens.wait(0.12); }
-
-    void c.fx.burst(at.clone().add(new THREE.Vector3(0, 0.5, 0)), 0x7a6aff, 2.6, 0.5);
-    await c.tweens.wait(0.35);
   },
   recall: async (e, c) => {
     const at = c.terrain.at(e.x, e.z, 0.1, false);
@@ -423,9 +415,8 @@ export const PLAY: Handlers = {
     const v = c.views.get(e.id);
 
     if (!v) return;
-    const held = v.shown.st.has('encased') && !v.shown.st.has('stun');
     v.shown.st.delete('stun');
-    c.overlay.float(held ? '🧊 held fast' : '💫 loses the turn', held ? '#b8e8ff' : '#ffd36b', above(v, 2.2));
+    c.overlay.float('💫 loses the turn', '#ffd36b', above(v, 2.2));
     await c.tweens.wait(0.5);
   },
   dark: (e, c) => {
@@ -484,15 +475,6 @@ export const PLAY: Handlers = {
 
     await c.tweens.wait(0.2);
   },
-  encased: (e, c) => {
-    const v = c.views.get(e.id);
-
-    if (!v) return;
-    v.shown.st.add('encased');
-    void c.fx.burst(above(v, v.height * 0.5), 0xbfeaff, 2.4, 0.45);
-    c.fx.sparkles(above(v, 0.2), 0xcff4ff, 8);
-    c.overlay.float('🧊 Encased', '#b8e8ff', above(v, 2.1));
-  },
   soul: (e, c) => c.marks.dropSoul(e),
   gather: (e, c) => c.marks.gather(e, c.views.get(e.id)),
   reflect: async (e, c) => {
@@ -546,22 +528,12 @@ export const PLAY: Handlers = {
     c.overlay.float('🪆 the Doll reforms', '#d9a066', above(v, 1.8));
     await c.tweens.run(0.4, p => { v.group.scale.setScalar(0.05 + 0.95 * easeInOut(p)); });
   },
-  shatter: async (e, c) => {
-    for (const t of e.tiles) {
-      c.terrain.setFx(t.x, t.z, 'glass', false);
-      void c.fx.burst(c.terrain.at(t.x, t.z, 0.5, false), GLASS, 2, 0.4);
-      c.fx.sparkles(c.terrain.at(t.x, t.z, 0.3, false), 0xffffff, 8);
-    }
-
-    c.stage.shake(0.2);
-    await c.tweens.wait(0.25);
-  },
   spend: (e, c) => {
     const v = c.views.get(e.id);
 
     if (!v) return;
     c.fx.sparkles(above(v, 1), 0x9fe0b8, 8);
-    c.overlay.float('−1 Soul', '#9fe0b8', above(v, 2.2));
+    c.overlay.float(`−${e.n} Soul${e.n === 1 ? '' : 's'}`, '#9fe0b8', above(v, 2.2));
   },
   over: () => {},
 };

@@ -1,15 +1,15 @@
 import {
-  actionsOf, canDeploy, canUse, castTargets, cheb, cloneState, current, dollOf, getUnit, idx, inb, isAlive, isDoll, isDowned, lineTiles, los, reachable, soulCap,
-  soulsInReach, standing, terrAt,
+  actionsOf, canDeploy, canUse, castTargets, cheb, cloneState, current, dollOf, getUnit, idx, inb, isAlive, isDoll, isDowned, lineTiles, los, puppetHits, puppetWalks,
+  reachable, soulCap, soulsInReach, standing, terrAt, ultIn,
 } from './board';
 import type { Target } from './board';
-import { landCall, performCast, performMove } from './combat';
+import { landCall, performCast, performMove, puppetAct } from './combat';
 import { doomed, threatened, toll } from './hazards';
 import { endActivation } from './turns';
-import { DIR8, MAPS, N, SKILLS } from './tables';
+import { CLASSES, DIR8, MAPS, N, SKILLS, SKILL_N } from './tables';
 import { callTiles } from './combat';
 import type { Rng } from './rng';
-import type { BattleState, Call, CallSkill, ClassId, ClassSkillId, Command, MemberBuild, Pos, SkillId, StatusKey, Team, Unit, UnitId } from './types';
+import type { BattleState, Call, CallSkill, ClassId, Command, MemberBuild, Pos, Puppet, SkillId, StatusKey, Team, Unit, UnitId } from './types';
 
 function depthOf(team: Team, z: number): number { return team === 0 ? z : N - 1 - z; }
 
@@ -56,7 +56,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
 const ROLE_BAND: Record<ClassId, readonly [number, number]> = { bellringer: [1, 2], marionettist: [2, 3], mirrormime: [2, 3], gravecaller: [2, 3], astromancer: [3, 5] };
 
 /** What standing in a pending Call's area is likely to cost, in evalDelta's HP-like units. */
-const CALL_DANGER: Record<CallSkill, number> = { meteor: 22, thunderhead: 16, gravitywell: 6, recall: 0 };
+const CALL_DANGER: Record<CallSkill, number> = { fallingstar: 30, thunderhead: 16, recall: 0 };
 
 /** Favor urgency on the Sun Altar: 0 at the start, rising as either party nears the goal. */
 function altarUrgency(s: BattleState): number {
@@ -146,21 +146,21 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
     if (inb(nx, nz) && terrAt(s, nx, nz) === 'o' && en.some(e => e.cls !== 'astromancer' && cheb(e.x, e.z, x, z) <= 4)) { sc -= 2.5; break; }
   }
 
-  // Holding a Soul with Last Rites ready, stay where the Downed can be reached next turn.
-  const rites = u.skills.includes('lastrites') && u.souls > 0 && (u.cd.lastrites ?? 0) <= 1;
+  // Holding a Soul with The Crossing about ready, stay in a straight line with the Downed.
+  const ferry = CLASSES[u.cls].ult === 'crossing' && u.souls > 0 && ultIn(u) <= 1, reach = SKILL_N.crossing.length + (u.mods.crossingLen || 0);
 
   for (const a of s.units) {
     if (a.team !== u.team || !isAlive(a) || a.id === u.id || isDoll(a)) continue;
     const d = cheb(a.x, a.z, x, z);
 
-    if (isDowned(a)) sc += d <= 1 ? 6 : rites && d <= 3 + (u.mods.riteRange || 0) ? 4 : -d * 0.8;
+    if (isDowned(a)) sc += d <= 1 ? 6 : ferry && (a.x === x || a.z === z) && d <= reach ? 4 : -d * 0.8;
     else if (d > 5) sc -= 0.4;
   }
 
   return sc;
 }
 
-const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['wither', 8], ['mock', 7]];
+const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['wither', 8], ['mock', 7]];
 
 const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'expose', 'wither', 'hush', 'mock'];
 
@@ -171,17 +171,16 @@ const ALLY_GAIN: readonly [StatusKey, number][] = [['guard', 6], ['haste', 3]];
 /** A Doll on the board, in evalDelta's HP-like units: what breaking one gains and losing one's own costs. */
 const DOLL_VALUE = 20;
 
-/** Where a Doll stands, for its own party: next to enemies its Tangle or Splinter can catch, guarding a wounded ally, with enemies on the wire to its Marionettist. */
+/** Where a Doll stands, for its own party: in the enemy's way, guarding a wounded ally, with enemies on the wire to its Marionettist. */
 function dollScore(s: BattleState, d: Unit): number {
   const owner = getUnit(s, d.owner);
 
   if (!owner || !standing(owner) || !standing(d)) return 0;
-  const has = (id: ClassSkillId) => owner.skills.includes(id) && (owner.cd[id] ?? 0) <= 1;
   const en = foes(s, d.team);
   const near = en.filter(e => cheb(e.x, e.z, d.x, d.z) <= 1).length;
-  let v = near * (has('tangle') || has('splinter') ? 3 : 1.2);
+  let v = near * 1.2;
 
-  if (has('razorwire') && cheb(d.x, d.z, owner.x, owner.z) <= 6) {
+  if (owner.skills.includes('razorwire') && (owner.cd.razorwire ?? 0) <= 1 && cheb(d.x, d.z, owner.x, owner.z) <= 6) {
     const line = lineTiles(owner.x, owner.z, d.x, d.z);
     v += 3 * en.filter(e => line.some(p => p.x === e.x && p.z === e.z)).length;
   }
@@ -316,7 +315,6 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
     } else {
       if (isAlive(b) && !isAlive(a)) v -= 120; else if (standing(b) && isDowned(a)) v -= 90; else if (isDowned(b) && standing(a)) v += 85;
 
-      if (a.st.encased && !b.st.encased) v += a.hp / a.maxHp < 0.35 ? 12 : -8;
       // A full hand gathers nothing more, so spending from it costs little.
       v += (a.souls - b.souls) * (a.souls < b.souls && b.souls >= soulCap(s0, b) ? 1 : SOUL_VALUE);
 
@@ -403,14 +401,51 @@ function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
   const foe: Team = u.team === 0 ? 1 : 0;
 
   switch (id) {
-    case 'meteor': return near(foe, 1) || terrAt(s, t.x, t.z) === 'B';
-    case 'gravitywell': case 'bonewall': case 'glasswall': return near(foe, 2);
+    case 'fallingstar': return near(foe, 2) || terrAt(s, t.x, t.z) === 'B';
+    case 'bonewall': case 'glasswall': return near(foe, 2);
     case 'strings': return near(foe, 1) || near(u.team, 1);
     default: return near(foe, 1);
   }
 }
 
-interface Plan { move: Pos | null; cast: { skill: SkillId; x: number; z: number } | null; score: number }
+interface Plan { move: Pos | null; cast: { skill: SkillId; x: number; z: number; puppet?: Puppet } | null; score: number }
+
+/**
+ * Command Performance's best orders for each enemy it could take, scored once on `s`: where the Marionettist stands doesn't change what the puppet can do.
+ * Empty unless the ultimate is ready.
+ */
+function puppetOrders(s: BattleState, u: Unit, opts: AiOpts): Map<UnitId, Puppet> {
+  const out = new Map<UnitId, Puppet>();
+
+  if (CLASSES[u.cls].ult !== 'command' || ultIn(u) > 0) return out;
+
+  for (const o of foes(s, u.team)) {
+    let best: Puppet | null = null, bv = -1e9;
+
+    for (const path of puppetWalks(s, o).values()) {
+      const to = path[path.length - 1];
+
+      if (!to) continue;
+
+      for (const hit of [null, ...puppetHits(s, o, to.x, to.z)]) {
+        const order: Puppet = { to, hit: hit && { x: hit.x, z: hit.z } }, c = cloneState(s), puppet = getUnit(c, o.id);
+
+        if (!puppet) continue;
+        puppetAct(c, puppet, order, []);
+        const v = evalDelta(s, c, u.team, opts, false);
+
+        if (v > bv) { bv = v; best = order; }
+      }
+    }
+
+    if (best) out.set(o.id, best);
+  }
+
+  return out;
+}
+
+/** What the AI adds to casting its ultimate: its timer only starts once it's spent, so one held back is worth less every turn. */
+const ULT_EAGER = 8;
 
 function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
   const u = current(s);
@@ -420,6 +455,7 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
 
   if (!u.moved) reachable(s, u).forEach(p => { const e = p[p.length - 1]; if (e) positions.push({ x: e.x, z: e.z, moved: true }); });
   let best: Plan | null = null;
+  const orders = puppetOrders(s, u, opts);
 
   for (const p of positions) {
     let sm = s;
@@ -440,9 +476,12 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
 
         // Final Hour's self-Toll ends the turn on the spot; the AI doesn't plan around it.
         if (id === 'toll' && t.id === cu.id) return;
+        const puppet = t.id === undefined ? undefined : orders.get(t.id);
+
+        if (id === 'command' && !puppet) return;
         const c = cloneState(sm);
 
-        if (!performCast(c, id, t.x, t.z)) return;
+        if (!performCast(c, id, t.x, t.z, puppet)) return;
         const cc = getUnit(c, cu.id);
         let v = evalDelta(sm, c, u.team, opts);
 
@@ -451,7 +490,9 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
         // A free skill must earn its place, except Strings: walking the Doll costs nothing but the turn's attention.
         if (sk.free && id !== 'strings') v -= 3;
 
-        if (v > bcs) { bcs = v; bc = { skill: id, x: t.x, z: t.z }; }
+        if (sk.ult) v += ULT_EAGER;
+
+        if (v > bcs) { bcs = v; bc = puppet ? { skill: id, x: t.x, z: t.z, puppet } : { skill: id, x: t.x, z: t.z }; }
       });
     }
 
@@ -497,10 +538,10 @@ export function aiTurn(state: BattleState, rng: Rng, opts: AiOpts = {}): Command
     if (plan.move && performMove(s, plan.move.x, plan.move.z)) cmds.push({ kind: 'move', unit: u.id, to: plan.move });
 
     if (!plan.cast || over() || !isAlive(u)) break;
-    const { skill, x, z } = plan.cast;
+    const { skill, x, z, puppet } = plan.cast;
 
-    if (!performCast(s, skill, x, z)) break;
-    cmds.push({ kind: 'cast', unit: u.id, skill, at: { x, z } });
+    if (!performCast(s, skill, x, z, puppet)) break;
+    cmds.push(puppet ? { kind: 'cast', unit: u.id, skill, at: { x, z }, puppet } : { kind: 'cast', unit: u.id, skill, at: { x, z } });
   }
 
   if (current(s) === u && !over() && isAlive(u) && !u.moved) {

@@ -9,7 +9,7 @@ const pathed = (m: ReturnType<typeof newMember>, tree: NodeId[]) => ({ ...m, tre
 const s = createBattle({
   map: 'storm', starter: 0,
   teams: [[newMember('gravecaller', 'Aldric'), newMember('astromancer', 'Seren'), newMember('astromancer', 'Kip')],
-    [pathed(newMember('gravecaller', 'Morvath'), ['g_bolt', 'g_reach', 'g_burst', 'g_reap']),
+    [pathed(newMember('gravecaller', 'Morvath'), ['g_bolt', 'g_reach', 'g_siphon', 'g_reap']),
       pathed(newMember('astromancer', 'Ysolde'), ['a_recall', 'a_hp', 'a_cleanse', 'a_benev']),
       pathed(newMember('bellringer', 'Grix'), ['b_hp', 'b_clapper', 'b_guard', 'b_thee'])]],
   deploy: [[{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 2, z: 0 }], [{ x: 0, z: 11 }, { x: 1, z: 11 }, { x: 2, z: 11 }]],
@@ -44,7 +44,6 @@ suite('describe', () => {
   });
   test('statuses use their display names', () => {
     expect(line({ type: 'status', id: id(4), key: 'root' })).toEqual({ tone: 't1', text: 'Morvath is Rooted.' });
-    expect(line({ type: 'encased', id: id(4) })).toEqual({ tone: 't1', text: 'Morvath is Encased.' });
   });
   test('the end of the battle names the winner and why', () => {
     expect(line({ type: 'over', winner: 0, reason: 'wipe' })).toEqual({ tone: 'sys', text: 'Blue party wins. The other party has nobody left standing.' });
@@ -60,14 +59,17 @@ suite('describe', () => {
     expect(line({ type: 'over', winner: 0, reason: 'altar' })).toEqual({ tone: 'sys', text: 'Blue party wins. The Sun Altar grants them victory.' });
   });
   test('a Call says when it lands, then lands or fizzles', () => {
-    expect(line({ type: 'call', id: id(2), team: 0, skill: 'meteor', tiles: [] })).toEqual({ tone: 't0', text: "Meteor is called: it lands at the start of Seren's next turn." });
-    expect(line({ type: 'land', id: id(2), skill: 'meteor', x: 5, z: 5, tiles: [], power: 1 })).toEqual({ tone: 't0', text: "Seren's Meteor lands!" });
-    expect(line({ type: 'land', id: id(5), skill: 'gravitywell', x: 5, z: 5, tiles: [], power: 0.5 })).toEqual({ tone: 't1', text: "Ysolde's Gravity Well lands at half power!" });
-    expect(line({ type: 'land', id: id(5), skill: 'gravitywell', x: 5, z: 5, tiles: [], power: 0.625 })).toEqual({ tone: 't1', text: "Ysolde's Gravity Well lands at 63% power!" });
+    expect(line({ type: 'call', id: id(2), team: 0, skill: 'fallingstar', tiles: [] })).toEqual({ tone: 't0', text: "Falling Star is called: it lands at the start of Seren's next turn." });
+    expect(line({ type: 'land', id: id(2), skill: 'fallingstar', x: 5, z: 5, tiles: [], power: 1 })).toEqual({ tone: 't0', text: "Seren's Falling Star lands!" });
+    expect(line({ type: 'land', id: id(5), skill: 'thunderhead', x: 5, z: 5, tiles: [], power: 0.5 })).toEqual({ tone: 't1', text: "Ysolde's Thunderhead lands at half power!" });
+    expect(line({ type: 'land', id: id(5), skill: 'thunderhead', x: 5, z: 5, tiles: [], power: 0.625 })).toEqual({ tone: 't1', text: "Ysolde's Thunderhead lands at 63% power!" });
     expect(line({ type: 'fizzle', id: id(2) })).toEqual({ tone: 't0', text: "Seren's Call fizzles." });
   });
-  test('a Gravecaller gathers a Soul or several', () => {
+  test('a Gravecaller gathers a Soul or several, and spends one or several', () => {
     expect(line({ type: 'gather', id: id(1), from: [{ x: 0, z: 0 }] })).toEqual({ tone: 't0', text: 'Aldric gathers a Soul.' });
+    expect(line({ type: 'gather', id: id(1), from: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toEqual({ tone: 't0', text: 'Aldric gathers 2 Souls.' });
+    expect(line({ type: 'spend', id: id(1), n: 1 })).toEqual({ tone: 't0', text: 'Aldric spends a Soul.' });
+    expect(line({ type: 'spend', id: id(1), n: 3 })).toEqual({ tone: 't0', text: 'Aldric spends 3 Souls.' });
     expect(line({ type: 'gather', id: id(4), from: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toEqual({ tone: 't1', text: 'Morvath gathers 2 Souls.' });
   });
   test('a queue change reads the new order and marks extra turns', () => {
@@ -78,10 +80,8 @@ suite('describe', () => {
     expect(line({ type: 'reflect', id: id(4), to: id(1), amount: 7 })).toEqual({ tone: 't1', text: "Morvath's Mirror turns 7 back on Aldric." });
     expect(line({ type: 'reflect', id: id(4), to: id(1), amount: 0 })).toEqual({ tone: 't1', text: "Morvath's Mirror turns the debuff back on Aldric." });
   });
-  test('a broken Doll names the round it reforms, and shattered glass counts its tiles', () => {
+  test('a broken Doll names the round it reforms', () => {
     expect(line({ type: 'break', id: id(2), reform: 5 })).toEqual({ tone: 't0', text: 'Seren breaks. It reforms in round 5.' });
-    expect(line({ type: 'shatter', tiles: [{ x: 1, z: 1 }] })).toEqual({ tone: 'sys', text: 'The glass shatters: 1 tile.' });
-    expect(line({ type: 'shatter', tiles: [{ x: 1, z: 1 }, { x: 2, z: 1 }] })).toEqual({ tone: 'sys', text: 'The glass shatters: 2 tiles.' });
   });
   test('pushes say how far; walks and slides that go nowhere stay quiet', () => {
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath is pushed back 2 tiles.' });
@@ -136,9 +136,9 @@ suite('callLines', () => {
 
   const seren = (st: BattleState) => st.units.find(u => u.id === 2)!;
 
-  test('a Meteor warns of friendly fire and names the enemies in its area', () => {
+  test('a Falling Star warns of friendly fire and names the enemies in its area', () => {
     const st = at({ 1: [5, 5], 4: [6, 6], 5: [9, 9] });
-    expect(callLines(st, seren(st), 'meteor', 5, 5).map(l => l.text)).toEqual([
+    expect(callLines(st, seren(st), 'fallingstar', 5, 5).map(l => l.text)).toEqual([
       "Lands at the start of Seren's next turn.",
       '⚠ Aldric: ally in the area, friendly fire',
       'Morvath: in the area now',

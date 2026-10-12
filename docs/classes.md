@@ -84,7 +84,7 @@ The Gravecaller's loop in one skill: hard hits and Downs drop Souls, Harvest gat
 |---|---|---|---|
 | **Lich** | Tank | +15 HP. Hold +1 Soul. Start your turn with a 3 shield per Soul you hold. | **Undying**: while Downed you still take turns (move 1, then one skill but not your basic). Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal. |
 | **Reaper** | Damage | Soul Bolt +4. Harvest range +2. Siphon +6. | **Reap**: enemies at 20% HP or less that you hit are Downed at once (REAP), and every Down you cause hands you a Soul directly. |
-| **Psychopomp** | Support | The Crossing's line +2 tiles. +40 HP. Allies you stand up get a 30 shield. | **Ferryman**: Downed allies within 3 of you don't bleed, and anyone in your party who stands an ally up (Help Up or The Crossing) brings it back at 60% HP. Help Up is still paid from the helper's own HP. |
+| **Psychopomp** | Support | The Crossing's line +2 tiles. +40 HP. Allies you stand up get a 30 shield. | **Ferryman**: Downed allies within 3 of you don't bleed, and anyone in your party who stands an ally up (Help Up or The Crossing) brings it back at 70% HP. Help Up is still paid from the helper's own HP. |
 
 ### On each map
 

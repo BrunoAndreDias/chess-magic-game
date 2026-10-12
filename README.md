@@ -1,6 +1,6 @@
 # Party Tactics
 
-A turn-based 3v3 party tactics game. Each character is one player's build: a class, 3 of its 7 skills and a passive tree.
+A turn-based 3v3 party tactics game. Each character is one player's build: a class, 2 of its 4 skills, the class's ultimate and a passive tree.
 
 There are five classes, and each owns one mechanic through an innate skill every build has: the Astromancer casts Calls that land at the start of its next turn (Snap), the Gravecaller gathers the Souls that hard hits and Downs drop and spends them on Rites (Harvest), the Bellringer moves turns in the round's queue (Toll), the Marionettist works a Doll, a second body on the board it walks, swaps with and fights through (Strings), and the Mirrormime turns hits back on whoever threw them (Reflect) and raises glass that bounces enemy shots. The passive tree has 3 paths of 4 nodes, one each for tank, damage and support, and 6 points: enough for one keystone and a dip into a second path. A character's role is its keystone path's, and a party covering all three roles gets Role Coverage. `docs/classes.md` is the full rules spec.
 

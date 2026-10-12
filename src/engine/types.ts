@@ -12,52 +12,57 @@ export type ClassId = 'astromancer' | 'gravecaller' | 'bellringer' | 'marionetti
 
 export type Role = 'tank' | 'damage' | 'support';
 
+/** A class's pool: a build picks SKILL_PICKS of its four. */
 export type ClassSkillId =
-  | 'meteor' | 'thunderhead' | 'gravitywell' | 'frostbolt' | 'firebolt' | 'prison' | 'recall'
-  | 'lastrites' | 'bonewall' | 'wither' | 'soulbolt' | 'soulburst' | 'siphon' | 'equalize'
-  | 'knell' | 'hush' | 'peal' | 'encore' | 'overture' | 'hourglass' | 'bellguard'
-  | 'switch' | 'dance' | 'tangle' | 'razorwire' | 'splinter' | 'standin' | 'rebuild'
-  | 'glasswall' | 'ricochet' | 'retort' | 'mock' | 'mirrorball' | 'shatter' | 'reversal';
+  | 'thunderhead' | 'frostbolt' | 'firebolt' | 'recall'
+  | 'siphon' | 'wither' | 'soulbolt' | 'bonewall'
+  | 'knell' | 'bellguard' | 'hush' | 'peal'
+  | 'razorwire' | 'dance' | 'switch' | 'standin'
+  | 'ricochet' | 'glasswall' | 'retort' | 'reversal';
+
+/** Each class's ultimate: the same for every build, on the public timer ULT_TURNS sets. */
+export type UltId = 'fallingstar' | 'crossing' | 'encore' | 'command' | 'showstopper';
 
 /** Every build has its class's innate: the class mechanic, always on. */
 export type InnateSkillId = 'snap' | 'harvest' | 'toll' | 'strings' | 'reflect';
 
 export type BasicSkillId = `basic_${ClassId}`;
 
-export type SkillId = ClassSkillId | InnateSkillId | BasicSkillId | 'helpup';
+export type SkillId = ClassSkillId | InnateSkillId | UltId | BasicSkillId | 'helpup';
 
 /** Skills that mark an area now and land at the start of the caster's next activation. */
-export type CallSkill = 'meteor' | 'thunderhead' | 'gravitywell' | 'recall';
+export type CallSkill = 'thunderhead' | 'recall' | 'fallingstar';
 
-/** `any`: any other unit. `friend`: an ally, standing or Downed. */
-export type SkillTarget = 'enemy' | 'ally' | 'downed' | 'friend' | 'any' | 'tile' | 'self';
+/** `any`: any other unit. `friend`: an ally, standing or Downed. `foe`: a standing enemy character, never a Doll. `line`: one of the four tiles next to the caster, naming a direction. */
+export type SkillTarget = 'enemy' | 'ally' | 'downed' | 'friend' | 'any' | 'foe' | 'tile' | 'line' | 'self';
 
 export type NodeId =
-  | 'a_frost' | 'a_prison' | 'a_wet' | 'a_zero'
+  | 'a_frost' | 'a_reach' | 'a_wet' | 'a_zero'
   | 'a_fire' | 'a_range' | 'a_burn' | 'a_twin'
   | 'a_recall' | 'a_hp' | 'a_cleanse' | 'a_benev'
   | 'g_hp' | 'g_cap' | 'g_ward' | 'g_undying'
-  | 'g_bolt' | 'g_reach' | 'g_burst' | 'g_reap'
-  | 'g_rites' | 'g_hp2' | 'g_shield' | 'g_ferry'
+  | 'g_bolt' | 'g_reach' | 'g_siphon' | 'g_reap'
+  | 'g_line' | 'g_hp2' | 'g_shield' | 'g_ferry'
   | 'b_hp' | 'b_clapper' | 'b_guard' | 'b_thee'
   | 'b_knell' | 'b_last' | 'b_peal' | 'b_final'
   | 'b_reach' | 'b_encore' | 'b_hp2' | 'b_accel'
   | 'p_doll' | 'p_hp' | 'p_reform' | 'p_tangled'
-  | 'p_lash' | 'p_wire' | 'p_splinter' | 'p_ventriloquist'
-  | 'p_switch' | 'p_hp2' | 'p_standin' | 'p_understudy'
+  | 'p_lash' | 'p_wire' | 'p_waltz' | 'p_ventriloquist'
+  | 'p_switch' | 'p_hp2' | 'p_wide' | 'p_understudy'
   | 'm_hp' | 'm_reach' | 'm_shield' | 'm_quick'
-  | 'm_rico' | 'm_retort' | 'm_shatter' | 'm_hall'
-  | 'm_reversal' | 'm_hp2' | 'm_ball' | 'm_smoke';
+  | 'm_rico' | 'm_retort' | 'm_edge' | 'm_hall'
+  | 'm_reversal' | 'm_hp2' | 'm_spot' | 'm_smoke';
 
 /** Summed numeric effects of a character's passive-tree picks. */
 export type Mods = Partial<Record<
   | 'hp'
-  | 'fireDmg' | 'callRange' | 'burnDmg' | 'twinStars' | 'frostDmg' | 'prisonCd' | 'callWet' | 'absZero'
+  | 'ultCd'
+  | 'fireDmg' | 'callRange' | 'burnDmg' | 'twinStars' | 'frostDmg' | 'frostRange' | 'callWet' | 'absZero'
   | 'recallRange' | 'recallCleanse' | 'benevolent' | 'basicDmg'
-  | 'soulCap' | 'soulShield' | 'undying' | 'soulBoltDmg' | 'harvestRange' | 'burstDmg' | 'reap' | 'riteRange' | 'riteShield' | 'ferryman'
-  | 'guardShield' | 'tollHush' | 'knellDmg' | 'lastDmg' | 'pealDmg' | 'finalHour' | 'tollRange' | 'encoreCd' | 'accel'
-  | 'dollHp' | 'dollReform' | 'tangled' | 'wireDmg' | 'splinterDmg' | 'ventriloquist' | 'switchRange' | 'standinCd' | 'understudy'
-  | 'reflectRange' | 'mirrorShield' | 'quicksilver' | 'ricochetDmg' | 'retortDmg' | 'shatterDmg' | 'hallMirrors' | 'reversalRange' | 'ballCd' | 'smokeMirrors' | 'reflectCd',
+  | 'soulCap' | 'soulShield' | 'undying' | 'soulBoltDmg' | 'harvestRange' | 'siphonDmg' | 'reap' | 'crossingLen' | 'riteShield' | 'ferryman'
+  | 'guardShield' | 'tollHush' | 'knellDmg' | 'lastDmg' | 'pealDmg' | 'finalHour' | 'tollRange' | 'accel'
+  | 'dollHp' | 'dollReform' | 'tangled' | 'wireDmg' | 'danceSteps' | 'ventriloquist' | 'switchRange' | 'standinReach' | 'understudy'
+  | 'reflectRange' | 'mirrorShield' | 'quicksilver' | 'ricochetDmg' | 'retortDmg' | 'glassDmg' | 'hallMirrors' | 'reversalRange' | 'smokeMirrors' | 'reflectCd',
   number>>;
 
 /** A pair of classes in a party; `a === b` means that class twice. */
@@ -82,18 +87,16 @@ export interface Statuses {
   wet?: Timed;
   expose?: Timed;
   burn?: Timed & { dmg: number };
-  /** A Glacial Prison: skips its turns, takes no damage, can't be moved, and is left Wet. */
-  encased?: Timed;
   /** Can't be healed or shielded; a hit that leaves it at 20% HP or less Downs it (REAP). */
   wither?: Timed;
   /** Can move and use its basic attack, nothing else. */
   hush?: Timed;
-  /** Bell Guard until the Bellringer's next turn: enemies that hit it are Hushed. */
+  /** Bell Guard until the next turn of the Bellringer that rang it (`by`): enemies that hit it are Hushed. */
   guard?: Timed;
   /** +2 move on its next turn (Accelerando). */
   haste?: Timed;
-  /** Reflect until its next turn: half the next enemy hit on it goes back to the attacker. `spent` once that hit came, kept only while it still turns back debuffs (Smoke and Mirrors). */
-  mirror?: Timed & { spent?: true };
+  /** Reflect until its next turn: half the next enemy hit on it goes back to the attacker. `all` turns back every hit, not just the first (Showstopper). `spent` once that hit came, kept only while it still turns back debuffs (Smoke and Mirrors). */
+  mirror?: Timed & { spent?: true; all?: true };
   /** Its skills that target a unit can only target the Mirrormime that Mocked it. */
   mock?: Timed;
   /** Stand-In until the Marionettist's next turn: hits on allies next to its Doll go to the Doll. */
@@ -214,11 +217,14 @@ export interface BattleSetup {
   deploy?: [readonly Pos[] | null, readonly Pos[] | null];
 }
 
-/** Every change to a battle goes through one of these. `unit` names the acting unit so a stale or replayed command is rejected. */
+/** Command Performance's orders for the enemy it takes: the tile it walks to (its own to stay), then the unit its basic attack hits, or null for none. */
+export interface Puppet { to: Pos; hit: Pos | null }
+
+/** Every change to a battle goes through one of these. `unit` names the acting unit so a stale or replayed command is rejected. `puppet` carries Command Performance's orders and is read by no other skill. */
 export type Command =
   | { kind: 'begin' }
   | { kind: 'move'; unit: UnitId; to: Pos }
-  | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos }
+  | { kind: 'cast'; unit: UnitId; skill: SkillId; at: Pos; puppet?: Puppet }
   | { kind: 'endTurn'; unit: UnitId };
 
 export type DamageKind = 'phys' | 'fire' | 'frost' | 'shock' | 'burn' | 'dark' | 'slam' | 'storm' | 'drain' | 'mirror';
@@ -227,7 +233,7 @@ export type TerrainChange = 'ice' | 'smoke' | 'bone' | 'glass';
 
 export type BattleEvent =
   | { type: 'round'; round: number; starter: Team; queue: Turn[] }
-  /** A Toll, Overture or Encore changed this round's queue. */
+  /** A Toll or an Encore changed this round's queue. */
   | { type: 'queue'; queue: Turn[] }
   | { type: 'activate'; id: UnitId; team: Team; qi: number }
   | { type: 'move'; id: UnitId; path: Pos[]; slide?: true }
@@ -257,13 +263,12 @@ export type BattleEvent =
   | { type: 'call'; id: UnitId; team: Team; skill: CallSkill; tiles: Pos[] }
   | { type: 'land'; id: UnitId; skill: CallSkill; x: number; z: number; tiles: Pos[]; power: number }
   | { type: 'fizzle'; id: UnitId }
-  | { type: 'encased'; id: UnitId }
   /** A Soul drops on a tile. */
   | { type: 'soul'; x: number; z: number }
   /** A Gravecaller takes the Souls from these tiles into its hand. */
   | { type: 'gather'; id: UnitId; from: Pos[] }
-  /** A Gravecaller spends a held Soul: a Rite, or an Undying turn instead of bleeding. */
-  | { type: 'spend'; id: UnitId }
+  /** A Gravecaller spends `n` held Souls: what a Rite costs, or one for an Undying turn instead of bleeding. */
+  | { type: 'spend'; id: UnitId; n: number }
   /** A hit (amount > 0) or a debuff (amount 0) on `id` turns back on `to`. */
   | { type: 'reflect'; id: UnitId; to: UnitId; amount: number }
   /** A shot aimed through glass at (x, z) bounces back on the caster `id`. */
@@ -273,8 +278,6 @@ export type BattleEvent =
   /** A Doll at 0 HP breaks; it reforms at the start of its owner's turn in round `reform`. */
   | { type: 'break'; id: UnitId; reform: number }
   | { type: 'reform'; id: UnitId; x: number; z: number }
-  /** Glass shatters off these tiles. */
-  | { type: 'shatter'; tiles: Pos[] }
   | { type: 'roundEnd'; round: number; burnt: number[] }
   | { type: 'over'; winner: Team | 'draw'; reason: OverReason };
 

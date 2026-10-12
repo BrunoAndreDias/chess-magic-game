@@ -74,6 +74,17 @@ export const end = (id: number): Command => ({ kind: 'endTurn', unit: uid(id) })
 export const cast = (id: number, skill: SkillId, x: number, z: number): Command =>
   ({ kind: 'cast', unit: uid(id), skill, at: { x, z } });
 
+/** Command Performance on the enemy at (x, z): it walks to `to`, then its basic hits the unit at `hit` (none when null). */
+export const command = (id: number, x: number, z: number, to: [number, number], hit: [number, number] | null): Command =>
+  ({ kind: 'cast', unit: uid(id), skill: 'command', at: { x, z }, puppet: { to: { x: to[0], z: to[1] }, hit: hit && { x: hit[0], z: hit[1] } } });
+
+/** Makes `id`'s ultimate ready now, as on its 4th turn. */
+export function ready(s: BattleState, id: number): BattleState {
+  unit(s, id).cd = {};
+
+  return s;
+}
+
 export const move = (id: number, x: number, z: number): Command => ({ kind: 'move', unit: uid(id), to: { x, z } });
 
 export function unit(s: BattleState, id: number) {

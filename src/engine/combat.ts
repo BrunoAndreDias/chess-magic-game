@@ -1,7 +1,7 @@
 import {
-  BAD_KEYS, actedCount, actedThisRound, canUse, castOrigin, castTargets, cdOf, cheb, current, dancePath, dollMoves, dollOf, getUnit, glassOnLine, idx, inb, isAlive,
-  isDoll, isDowned, isSolid, lastToAct, lineTiles, nearestFree, nextTurn, onHigh, reachable, shards, sign, soulAt, soulCap, soulsInReach, square, standing, standingDoll,
-  terrAt, unitAt, unitsIn, wallTiles,
+  BAD_KEYS, actedCount, actedThisRound, canUse, castOrigin, castTargets, cdOf, cheb, crossingLine, current, dancePath, dollMoves, getUnit, glassOnLine, idx, inb,
+  isAlive, isDoll, isDowned, isSolid, lastToAct, lineTiles, nearestFree, nextTurn, onHigh, puppetHits, puppetWalks, reachable, sign, soulAt, soulCap, soulsInReach,
+  square, standing, standingDoll, starPulled, terrAt, unitAt, unitsIn, wallTiles,
 } from './board';
 import {
   BLEED, BURN, CLASSES, DARK_ROUND, DIR8, DOLL, EXPOSE, HIGH_GROUND, NODE_N, PAIR_N, REAP_AT, REFLECT, SKILLS, SKILL_N as K, SOUL_HIT, SOUL_ROUNDS, STATUS, WET_SHOCK,
@@ -9,20 +9,21 @@ import {
 } from './tables';
 import type { SkillDef } from './tables';
 import type {
-  BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, SkillId, Soul, Statuses, StatusKey,
-  TileFx, Unit, UnitId,
+  BasicSkillId, BattleEvent, BattleState, Call, CallSkill, ClassSkillId, ComboName, DamageKind, InnateSkillId, Pos, Puppet, SkillId, Soul, Statuses, StatusKey,
+  TileFx, UltId, Unit, UnitId,
 } from './types';
 
 type CastEvent = Extract<BattleEvent, { type: 'cast' }>;
 
-type SkillKey = Exclude<ClassSkillId | InnateSkillId, CallSkill> | 'basic' | 'helpup';
+type SkillKey = Exclude<ClassSkillId | InnateSkillId | UltId, CallSkill> | 'basic' | 'helpup';
 
 type Fx = Exclude<keyof TileFx, 'spent' | 'glassBy'>;
 
 /** Whoever is acting: a caster, or a Call landing (`power` 0.5 for Snap). */
 interface Ctx { s: BattleState; u: Unit; ev: BattleEvent[]; power: number }
 
-interface CastCtx extends Ctx { skill: SkillDef; tx: number; tz: number; target: Unit | null; cast: CastEvent }
+/** `spent`: the Souls a Rite spent. `puppet`: Command Performance's orders, checked legal before the cast. */
+interface CastCtx extends Ctx { skill: SkillDef; tx: number; tz: number; target: Unit | null; cast: CastEvent; spent: number; puppet: Puppet | null }
 
 interface LandCtx extends Ctx { call: Call; x: number; z: number; tiles: Pos[]; victims: Unit[] }
 
@@ -73,11 +74,11 @@ function srcMult(s: BattleState, u: Unit, tgt: Unit, kind: DamageKind): number {
 }
 
 /**
- * Raw damage to one unit (no attacker scaling): Encased immunity, shields, downing, finishing.
+ * Raw damage to one unit (no attacker scaling): shields, downing, finishing.
  * A hit of SOUL_HIT or more drops a Soul; a unit's hit that leaves a Withered enemy (or a Reaper's target) at REAP_AT of max HP or less Downs it (REAP).
  */
 export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], kind: DamageKind, src: Unit | null): number {
-  if (!isAlive(o) || amt <= 0 || o.st.encased) return 0;
+  if (!isAlive(o) || amt <= 0) return 0;
 
   if (isDowned(o)) {
     o.life = { kind: 'dead' };
@@ -126,13 +127,13 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
 
   o.took += d;
 
-  if (o.st.guard && src && src.team !== o.team && standing(src)) hush(s, src, o.id, ev);
+  if (o.st.guard && src && src.team !== o.team && standing(src)) hush(s, src, o.st.guard.by ?? o.id, ev);
 
   if (o.hp <= 0) { down(s, o, ev, src); return d; }
 
   if (d >= SOUL_HIT) dropSoul(s, o.x, o.z, ev);
 
-  if (src && src.team !== o.team && !o.st.encased && o.hp <= o.maxHp * REAP_AT && (o.st.wither || src.mods.reap)) {
+  if (src && src.team !== o.team && o.hp <= o.maxHp * REAP_AT && (o.st.wither || src.mods.reap)) {
     emitCombo(s, ev, 'REAP', src, o.id, o.st.wither?.by ?? null);
     down(s, o, ev, src);
   }
@@ -141,7 +142,7 @@ export function damage(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], 
 }
 
 // ---------- reflection ----------
-/** What a hit of `amt` on `o` turns back on its attacker: a Mirrored unit's share (the whole hit with Hall of Mirrors), or a Commedia Doll's. Spends the Mirror. */
+/** What a hit of `amt` on `o` turns back on its attacker: a Mirrored unit's share (the whole hit with Hall of Mirrors), or a Commedia Doll's. Spends the Mirror unless it turns back every hit. */
 function mirrored(s: BattleState, o: Unit, amt: number): number {
   if (isDoll(o)) return s.party[o.team].has('commedia') ? Math.floor(amt * PAIR_N.commedia.share) : 0;
   const m = o.st.mirror;
@@ -149,7 +150,7 @@ function mirrored(s: BattleState, o: Unit, amt: number): number {
   if (!m || m.spent) return 0;
   const by = getUnit(s, m.by);
 
-  if (!by?.mods.quicksilver) { if (by?.mods.smokeMirrors) m.spent = true; else delete o.st.mirror; }
+  if (!m.all && !by?.mods.quicksilver) { if (by?.mods.smokeMirrors) m.spent = true; else delete o.st.mirror; }
 
   return by?.mods.hallMirrors ? amt : Math.floor(amt * REFLECT);
 }
@@ -171,16 +172,16 @@ function turnBack(s: BattleState, o: Unit, src: Unit, back: number, ev: BattleEv
 function dollOwner(s: BattleState, d: Unit): Unit | null { return getUnit(s, d.owner); }
 
 /**
- * The part of an enemy hit on `o` its party's Doll takes instead: all of it under a Stand-In, a quarter with Understudy, when `o` stands next to the Doll.
+ * The part of an enemy hit on `o` its party's Doll takes instead: all of it under a Stand-In (next to the Doll, or within 2 with Wide Arms), a quarter with Understudy next to it.
  * Returns the damage the Doll took for it.
  */
 function standInFor(s: BattleState, o: Unit, amt: number, ev: BattleEvent[], kind: DamageKind, src: Unit | null): number {
   for (const d of s.units) {
-    if (d.team !== o.team || !isDoll(d) || !standing(d) || cheb(d.x, d.z, o.x, o.z) > 1) continue;
-    const owner = dollOwner(s, d);
+    if (d.team !== o.team || !isDoll(d) || !standing(d)) continue;
+    const owner = dollOwner(s, d), far = cheb(d.x, d.z, o.x, o.z);
 
     if (!owner || !standing(owner)) continue;
-    const share = owner.st.standin ? 1 : owner.mods.understudy ? NODE_N.p_understudy.share : 0;
+    const share = owner.st.standin && far <= 1 + (owner.mods.standinReach || 0) ? 1 : owner.mods.understudy && far <= 1 ? NODE_N.p_understudy.share : 0;
     const moved = Math.min(amt, Math.round(amt * share));
 
     if (moved <= 0) continue;
@@ -293,13 +294,6 @@ export function addStatus<K extends StatusKey>(s: BattleState, o: Unit, key: K, 
   ev.push({ type: 'status', id: o.id, key });
 }
 
-/** Encased: skips its turns, takes no damage, can't be moved. */
-function encase(o: Unit, t: number, by: UnitId, ev: BattleEvent[]): void {
-  if (!isAlive(o) || isDoll(o)) return;
-  o.st.encased = { t, by };
-  ev.push({ type: 'encased', id: o.id });
-}
-
 /** A Root that still holds on the unit's next turn, even when it lands during its own. */
 function root(s: BattleState, o: Unit, by: UnitId | null, ev: BattleEvent[]): void {
   addStatus(s, o, 'root', { t: current(s) === o ? 2 : 1, by }, ev);
@@ -310,10 +304,10 @@ function hush(s: BattleState, o: Unit, by: UnitId, ev: BattleEvent[]): void {
   addStatus(s, o, 'hush', { t: current(s) === o ? 2 : 1, by }, ev);
 }
 
-/** Mirrored until its next turn; Backing Glass adds a shield, and Hall of Mirrors flashes on the enemies around it. */
-function mirror(c: Ctx, o: Unit): void {
+/** Mirrored until its next turn, against every hit with `all`; Backing Glass adds a shield, and Hall of Mirrors flashes on the enemies around it. */
+function mirror(c: Ctx, o: Unit, all = false): void {
   const s = c.s, u = c.u;
-  addStatus(s, o, 'mirror', { t: 1, by: u.id }, c.ev);
+  addStatus(s, o, 'mirror', all ? { t: 1, by: u.id, all } : { t: 1, by: u.id }, c.ev);
 
   if (u.mods.mirrorShield) shield(o, u.mods.mirrorShield, c.ev);
 
@@ -341,13 +335,21 @@ function shield(o: Unit, amt: number, ev: BattleEvent[]): void {
   ev.push({ type: 'shield', id: o.id, amount: amt });
 }
 
-/** Stands a Downed ally up at `frac` of its max HP, more while its party has a Ferryman, paid from the caster's own HP (never its last); a Psychopomp's touch adds a shield. */
-function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit): void {
+/**
+ * Stands a Downed ally up at `frac` of its max HP, more while its party has a Ferryman; a Psychopomp's touch adds a shield.
+ * A `paid` revive (Help Up) comes out of the caster's own HP, never its last.
+ */
+function revive(s: BattleState, o: Unit, frac: number, ev: BattleEvent[], src: Unit, paid: boolean): void {
   if (s.units.some(f => f.team === src.team && isAlive(f) && f.mods.ferryman)) frac = Math.max(frac, NODE_N.g_ferry.hp);
   o.life = { kind: 'up' };
-  const give = Math.min(Math.max(1, Math.round(o.maxHp * frac)), src.hp - 1);
-  src.hp -= give;
-  ev.push({ type: 'damage', id: src.id, amount: give, absorbed: 0, kind: 'drain' });
+  let give = Math.max(1, Math.round(o.maxHp * frac));
+
+  if (paid) {
+    give = Math.min(give, src.hp - 1);
+    src.hp -= give;
+    ev.push({ type: 'damage', id: src.id, amount: give, absorbed: 0, kind: 'drain' });
+  }
+
   o.hp = give;
   s.stats.revives[o.team]++;
   ev.push({ type: 'revive', id: o.id, by: src.id });
@@ -396,7 +398,7 @@ function gather(s: BattleState, u: Unit, souls: readonly Soul[], ev: BattleEvent
 function pull(c: Ctx, o: Unit, px: number, pz: number, dist: number): void {
   const s = c.s;
 
-  if (!standing(o) || o.st.encased || dist <= 0) return;
+  if (!standing(o) || dist <= 0) return;
   const path: Pos[] = [{ x: o.x, z: o.z }];
   const slide = () => { if (path.length > 1) c.ev.push({ type: 'move', id: o.id, path, slide: true }); };
 
@@ -490,7 +492,7 @@ function teleport(c: Ctx, o: Unit, at: Pos): void {
 
 const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   basic(c) { hit(c, tgt(c), CLASSES[c.u.cls].basic.dmg + (c.u.mods.basicDmg || 0), 'phys'); },
-  helpup(c) { revive(c.s, tgt(c), K.helpup.hp, c.ev, c.u); },
+  helpup(c) { revive(c.s, tgt(c), K.helpup.hp, c.ev, c.u, true); },
 
   snap(c) {
     const call = c.s.calls.find(k => k.by === c.u.id);
@@ -528,13 +530,8 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
 
     if (standing(o)) addStatus(c.s, o, 'burn', burn(c), c.ev);
   },
-  prison(c) {
-    const o = tgt(c);
-    encase(o, o.team !== c.u.team && c.u.mods.absZero ? NODE_N.a_zero.turns : K.prison.turns, c.u.id, c.ev);
-  },
 
   harvest(c) { gather(c.s, c.u, soulsInReach(c.s, c.u), c.ev); },
-  lastrites(c) { revive(c.s, tgt(c), K.lastrites.hp, c.ev, c.u); },
   bonewall(c) {
     const tiles = wallTiles(c.s, c.u, c.tx, c.tz);
 
@@ -543,19 +540,21 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
   },
   wither(c) { addStatus(c.s, tgt(c), 'wither', { t: K.wither.turns, by: c.u.id }, c.ev); },
   soulbolt(c) { hit(c, tgt(c), K.soulbolt.dmg + K.soulbolt.perSoul * c.u.souls + (c.u.mods.soulBoltDmg || 0), 'phys'); },
-  soulburst(c) {
-    const s = c.s, u = c.u;
-    s.souls = s.souls.filter(o => o.x !== c.tx || o.z !== c.tz);
-
-    for (const o of unitsIn(s, square(c.tx, c.tz, K.soulburst.radius))) if (o.team !== u.team) hit(c, o, K.soulburst.dmg + (u.mods.burstDmg || 0), 'phys');
-  },
   siphon(c) {
-    const s = c.s, u = c.u, took = hit(c, tgt(c), K.siphon.dmg, 'drain');
+    const s = c.s, u = c.u, took = hit(c, tgt(c), K.siphon.dmg + (u.mods.siphonDmg || 0), 'drain');
     const hurt = (a: Unit) => a.hp / a.maxHp;
     const reach = (a: Unit) => cheb(a.x, a.z, u.x, u.z) <= K.siphon.reach;
     const mend = s.units.filter(a => a.team === u.team && standing(a) && !a.st.wither && reach(a)).sort((a, b) => hurt(a) - hurt(b))[0];
 
     if (mend && took > 0) heal(s, mend, took, c.ev, u);
+  },
+  crossing(c) {
+    const s = c.s, u = c.u;
+
+    for (const o of unitsIn(s, crossingLine(u, c.tx, c.tz))) {
+      if (o.team !== u.team) hit(c, o, K.crossing.perSoul * c.spent, 'phys');
+      else if (isDowned(o)) revive(s, o, K.crossing.hp, c.ev, u, false);
+    }
   },
   toll(c) {
     const s = c.s, u = c.u, o = tgt(c), ph = s.phase;
@@ -602,34 +601,10 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     ph.queue.push({ id: tgt(c).id, extra: true });
     c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
   },
-  overture(c) {
-    const s = c.s, u = c.u, ph = s.phase;
-
-    if (ph.kind !== 'act') return;
-    const later = ph.queue.slice(ph.qi + 1), ours = later.filter(t => getUnit(s, t.id)?.team === u.team);
-    ph.queue = [...ph.queue.slice(0, ph.qi + 1), ...ours, ...later.filter(t => !ours.includes(t))];
-    c.ev.push({ type: 'queue', queue: ph.queue.map(t => ({ ...t })) });
-  },
-  hourglass(c) {
-    const s = c.s, u = c.u, o = tgt(c);
-
-    if (o.team === u.team) {
-      for (const k of BAD_KEYS) delete o.st[k];
-      c.ev.push({ type: 'cleanse', id: o.id });
-
-      return;
-    }
-
-    const b = o.st.burn;
-    o.st = {};
-    o.shield = 0;
-    c.ev.push({ type: 'cleanse', id: o.id });
-
-    if (b) damage(s, o, b.dmg * b.t, c.ev, 'burn', u);
-  },
   bellguard(c) {
-    shield(c.u, K.bellguard.shield + (c.u.mods.guardShield || 0), c.ev);
-    addStatus(c.s, c.u, 'guard', { t: 1, by: c.u.id }, c.ev);
+    const o = tgt(c);
+    shield(o, K.bellguard.shield + (c.u.mods.guardShield || 0), c.ev);
+    addStatus(c.s, o, 'guard', { t: 1, by: c.u.id }, c.ev);
   },
 
   strings(c) {
@@ -662,18 +637,6 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
 
     if (o.team !== u.team && called && s.party[u.team].has('fatedstrings')) root(s, o, u.id, c.ev);
   },
-  tangle(c) {
-    const s = c.s, d = standingDoll(s, c.u);
-
-    if (!d) return;
-
-    for (const o of unitsIn(s, square(d.x, d.z, 1))) {
-      if (o.team === c.u.team || !standing(o)) continue;
-      hit(c, o, K.tangle.dmg, 'phys');
-
-      if (standing(o)) root(s, o, c.u.id, c.ev);
-    }
-  },
   razorwire(c) {
     const s = c.s, u = c.u, d = standingDoll(s, u);
 
@@ -681,38 +644,25 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
 
     for (const o of unitsIn(s, lineTiles(u.x, u.z, d.x, d.z))) if (o.team !== u.team) hit(c, o, K.razorwire.dmg + (u.mods.wireDmg || 0), 'phys');
   },
-  splinter(c) {
-    const s = c.s, u = c.u, d = standingDoll(s, u);
-
-    if (!d) return;
-
-    for (const o of unitsIn(s, square(d.x, d.z, 1))) if (o.team !== u.team) hit(c, o, K.splinter.dmg + (u.mods.splinterDmg || 0), 'phys');
-    breakDoll(s, d, c.ev);
-  },
   standin(c) { addStatus(c.s, c.u, 'standin', { t: 1, by: c.u.id }, c.ev); },
-  rebuild(c) {
-    const s = c.s, d = dollOf(s, c.u);
-
-    if (!d) return;
-
-    if (!standing(d)) { reformDoll(s, c.u, d, c.ev); return; }
-
-    heal(s, d, d.maxHp - d.hp, c.ev, c.u);
-    shield(d, K.rebuild.shield, c.ev);
-  },
+  command(c) { if (c.puppet) puppetAct(c.s, tgt(c), c.puppet, c.ev); },
 
   reflect(c) { mirror(c, tgt(c)); },
   glasswall(c) {
-    const s = c.s, tiles = wallTiles(s, c.u, c.tx, c.tz);
+    const s = c.s, u = c.u, tiles = wallTiles(s, u, c.tx, c.tz);
 
     for (const t of tiles) {
       setFx(s, t.x, t.z, 'glass', K.glasswall.turns);
       const f = s.fx[idx(t.x, t.z)];
 
-      if (f) f.glassBy = c.u.team;
+      if (f) f.glassBy = u.team;
     }
 
     c.ev.push({ type: 'terrain', tiles, kind: 'glass' });
+
+    if (!u.mods.glassDmg) return;
+
+    for (const o of s.units) if (o.team !== u.team && standing(o) && tiles.some(t => cheb(t.x, t.z, o.x, o.z) <= 1)) hit(c, o, u.mods.glassDmg, 'phys');
   },
   ricochet(c) {
     const s = c.s, u = c.u, o = tgt(c);
@@ -726,34 +676,6 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
     if (next) hit(c, next, K.ricochet.bounce + (u.mods.ricochetDmg || 0), 'phys');
   },
   retort(c) { hit(c, tgt(c), K.retort.dmg + (c.u.mods.retortDmg || 0) + Math.floor(c.u.took * K.retort.took), 'phys'); },
-  mock(c) {
-    const o = tgt(c);
-    addStatus(c.s, o, 'mock', { t: current(c.s) === o ? 2 : 1, by: c.u.id }, c.ev);
-  },
-  mirrorball(c) {
-    const s = c.s, u = c.u, near = s.units.filter(o => standing(o) && !isDoll(o) && cheb(o.x, o.z, u.x, u.z) <= K.mirrorball.radius);
-
-    for (const o of near) if (o.team === u.team) mirror(c, o);
-
-    for (const o of s.units) if (o.team !== u.team && standing(o) && cheb(o.x, o.z, u.x, u.z) <= K.mirrorball.radius) hit(c, o, K.mirrorball.dmg, 'phys');
-  },
-  shatter(c) {
-    const s = c.s, u = c.u, glass = shards(s, u.team);
-
-    for (const g of glass) {
-      const f = s.fx[idx(g.x, g.z)];
-
-      if (!f) continue;
-      delete f.glass; delete f.glassBy;
-
-      if (fxEmpty(f)) s.fx[idx(g.x, g.z)] = undefined;
-    }
-
-    c.ev.push({ type: 'shatter', tiles: glass });
-    const near = s.units.filter(o => o.team !== u.team && standing(o) && glass.some(g => cheb(g.x, g.z, o.x, o.z) <= 1));
-
-    for (const o of near) hit(c, o, K.shatter.dmg + (u.mods.shatterDmg || 0), 'phys');
-  },
   reversal(c) {
     const s = c.s, u = c.u, o = tgt(c), bad = BAD_KEYS.filter(k => o.st[k]), moved = bad.map(k => [k, o.st[k]] as const);
 
@@ -767,23 +689,11 @@ const RUN: Record<SkillKey, (c: CastCtx) => void> = {
 
     for (const [k, v] of moved) if (v) addStatus(s, foe, k, { ...v, by: u.id }, c.ev);
   },
-  equalize(c) {
-    const s = c.s, u = c.u, o = tgt(c), mid = (u.hp / u.maxHp + o.hp / o.maxHp) / 2;
+  showstopper(c) {
+    const s = c.s, u = c.u;
+    mirror(c, u, true);
 
-    if (o.team === u.team) {
-      const give = Math.min(K.equalize.most, Math.round((mid - o.hp / o.maxHp) * o.maxHp), u.hp - 1);
-
-      if (give <= 0) return;
-      u.hp -= give;
-      c.ev.push({ type: 'damage', id: u.id, amount: give, absorbed: 0, kind: 'drain' });
-      heal(s, o, give, c.ev, u);
-
-      return;
-    }
-
-    const took = damage(s, o, Math.min(K.equalize.most, Math.round((o.hp / o.maxHp - mid) * o.maxHp)), c.ev, 'drain', u);
-
-    if (took > 0) heal(s, u, took, c.ev, u);
+    for (const o of s.units) if (o.team !== u.team && standing(o) && !isDoll(o) && cheb(o.x, o.z, u.x, u.z) <= K.showstopper.radius) addStatus(s, o, 'mock', { t: 1, by: u.id }, c.ev);
   },
 };
 
@@ -804,7 +714,7 @@ function strike(c: LandCtx, o: Unit, base: number, kind: DamageKind, combo?: Com
 }
 
 const LAND: Record<CallSkill, (c: LandCtx) => void> = {
-  meteor(c) {
+  fallingstar(c) {
     for (const t of c.tiles) {
       const tt = terrAt(c.s, t.x, t.z);
 
@@ -815,7 +725,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     for (const o of c.victims) {
       const center = o.x === c.x && o.z === c.z;
 
-      if (strike(c, o, center ? K.meteor.center : K.meteor.edge, 'fire') && standing(o)) addStatus(c.s, o, 'burn', burn(c), c.ev);
+      if (strike(c, o, center ? K.fallingstar.center : K.fallingstar.edge, 'fire') && standing(o)) addStatus(c.s, o, 'burn', burn(c), c.ev);
     }
   },
   thunderhead(c) {
@@ -823,13 +733,6 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
       const wet = o.st.wet;
       strike(c, o, K.thunderhead.dmg, 'shock', wet && standing(o) ? { name: 'CONDUCT', mult: WET_SHOCK, setup: wet.by } : null);
     }
-  },
-  gravitywell(c) {
-    const dist = Math.max(1, Math.floor(K.gravitywell.pull * c.power));
-    const pulled = c.victims.slice();
-    pulled.sort((a, b) => cheb(a.x, a.z, c.x, c.z) - cheb(b.x, b.z, c.x, c.z));
-
-    for (const o of pulled) pull(c, o, c.x, c.z, dist);
   },
   recall(c) {
     const r = c.call.recall, o = r && getUnit(c.s, r.id);
@@ -844,7 +747,7 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
     if (!r || !o || !standing(o)) return;
     const there = unitAt(c.s, r.x, r.z);
 
-    if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z) && !o.st.encased) teleport(c, o, r);
+    if ((o.x !== r.x || o.z !== r.z) && !there && !isSolid(c.s, r.x, r.z)) teleport(c, o, r);
     const back = r.hp - o.hp;
 
     if (back > 0) {
@@ -860,6 +763,11 @@ const LAND: Record<CallSkill, (c: LandCtx) => void> = {
   },
 };
 
+/** What casting a Call does before it lands: Falling Star pulls the enemies around its area in. */
+const ON_CALL: Partial<Record<CallSkill, (c: CastCtx) => void>> = {
+  fallingstar(c) { for (const o of starPulled(c.s, c.u, c.tx, c.tz)) pull(c, o, c.tx, c.tz, K.fallingstar.pull); },
+};
+
 /** One landing of `call` centered on (x, z): the skill, then Absolute Zero and Sleet on everyone it hit. */
 function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power: number, ev: BattleEvent[]): void {
   const tiles = callTiles(call.skill, x, z);
@@ -870,7 +778,7 @@ function landAt(s: BattleState, u: Unit, call: Call, x: number, z: number, power
 
   c.victims = unitsIn(s, tiles);
   const hurt = c.victims.filter(o => !(o.team === u.team && u.mods.benevolent));
-  const held = new Set(hurt.filter(o => o.st.root || o.st.encased));
+  const held = new Set(hurt.filter(o => o.st.root));
   LAND[call.skill](c);
 
   for (const o of hurt) {
@@ -904,18 +812,54 @@ export function landCalls(s: BattleState, u: Unit, ev: BattleEvent[]): void {
   }
 }
 
+/** Command Performance's orders carried out on `o`: it walks, then its basic attack hits whoever the orders name. */
+export function puppetAct(s: BattleState, o: Unit, order: Puppet, ev: BattleEvent[]): void {
+  const path = puppetWalks(s, o).get(idx(order.to.x, order.to.z));
+
+  if (!path) return;
+
+  if (path.length > 1) {
+    o.x = order.to.x; o.z = order.to.z;
+    ev.push({ type: 'move', id: o.id, path });
+    arrive(s, o, ev);
+  }
+
+  const victim = order.hit && unitAt(s, order.hit.x, order.hit.z);
+
+  if (victim && standing(o)) basicAttack({ s, u: o, ev, power: 1 }, victim);
+}
+
+/** `u`'s basic attack on `o`: a shot through an enemy's Invisible Wall bounces off it and hits `u` instead. */
+function basicAttack(c: Ctx, o: Unit): void {
+  const s = c.s, u = c.u, id: BasicSkillId = `basic_${u.cls}`, glass = SKILLS[id].los && o.team !== u.team ? glassOnLine(s, u.x, u.z, o.x, o.z, u.team) : null;
+  c.ev.push({ type: 'cast', id: u.id, team: u.team, skill: id, tx: o.x, tz: o.z, fx: u.x, fz: u.z, target: o.id });
+
+  if (glass) c.ev.push({ type: 'bounce', id: u.id, x: glass.x, z: glass.z });
+  hit(c, glass ? u : o, CLASSES[u.cls].basic.dmg + (u.mods.basicDmg || 0), 'phys');
+}
+
 // ---------- commands ----------
 function isBasic(id: SkillId): id is BasicSkillId { return id.startsWith('basic_'); }
 
+/** Command Performance's orders are legal: `o` can walk to `to`, and its basic reaches `hit` from there. */
+function puppetOk(s: BattleState, o: Unit | null, p: Puppet | undefined): p is Puppet {
+  if (!o || !p || !puppetWalks(s, o).has(idx(p.to.x, p.to.z))) return false;
+  const at = p.hit;
+
+  return !at || puppetHits(s, o, p.to.x, p.to.z).some(t => t.x === at.x && t.z === at.z);
+}
+
 /** Casts as the current unit, mutating `s`. Null when the cast is illegal. */
-export function performCast(s: BattleState, id: SkillId, tx: number, tz: number): BattleEvent[] | null {
+export function performCast(s: BattleState, id: SkillId, tx: number, tz: number, puppet?: Puppet): BattleEvent[] | null {
   const u = current(s);
 
   if (!u || !canUse(s, u, id)) return null;
 
   if (!castTargets(s, u, id).some(t => t.x === tx && t.z === tz)) return null;
   const sk = SKILLS[id];
-  let target = sk.target === 'tile' || sk.target === 'self' ? null : unitAt(s, tx, tz);
+  let target = sk.target === 'tile' || sk.target === 'line' || sk.target === 'self' ? null : unitAt(s, tx, tz);
+
+  if (id === 'command' && !puppetOk(s, target, puppet)) return null;
   const from = target ? castOrigin(s, u, id, tx, tz) : { x: u.x, z: u.z };
   const cast: CastEvent = { type: 'cast', id: u.id, team: u.team, skill: id, tx, tz, fx: from.x, fz: from.z, target: target ? target.id : null };
   const ev: BattleEvent[] = [cast];
@@ -924,16 +868,19 @@ export function performCast(s: BattleState, id: SkillId, tx: number, tz: number)
   // A shot through an enemy's Invisible Wall bounces off it and hits whoever fired it.
   if (glass) { ev.push({ type: 'bounce', id: u.id, x: glass.x, z: glass.z }); target = u; }
 
-  if (sk.rite) { u.souls--; ev.push({ type: 'spend', id: u.id }); }
+  const spent = sk.rite ? (sk.spendsAll ? u.souls : 1) : 0;
+  u.souls -= spent;
+
+  if (spent) ev.push({ type: 'spend', id: u.id, n: spent });
 
   if (isAlive(u)) {
+    const c: CastCtx = { s, u, ev, power: 1, skill: sk, tx: target ? target.x : tx, tz: target ? target.z : tz, target, cast, spent, puppet: puppet ?? null };
+
     if (isCall(id)) {
       s.calls.push({ by: u.id, team: u.team, skill: id, x: tx, z: tz, recall: id === 'recall' && target ? { id: target.id, x: target.x, z: target.z, hp: target.hp } : null });
       ev.push({ type: 'call', id: u.id, team: u.team, skill: id, tiles: callTiles(id, tx, tz) });
-    } else {
-      const c: CastCtx = { s, u, ev, power: 1, skill: sk, tx: target ? target.x : tx, tz: target ? target.z : tz, target, cast };
-      RUN[isBasic(id) ? 'basic' : id](c);
-    }
+      ON_CALL[id]?.(c);
+    } else RUN[isBasic(id) ? 'basic' : id](c);
   }
 
   if (!sk.free) u.acted = true;

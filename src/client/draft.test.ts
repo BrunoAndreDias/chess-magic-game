@@ -3,13 +3,13 @@ import { NODE, SKILLS, POINTS, mulberry32, treeValid } from '../engine/index';
 import type { PickState } from '../engine/index';
 import { afterPicks, clock, defaultDraft, randomMember } from './draft';
 
-test('a random member keeps its class and has 3 of its skills, one keystone and the rest of its points in one other path', () => {
+test('a random member keeps its class and has 2 of its skills, one keystone and the rest of its points in one other path', () => {
   const base = defaultDraft({ allAi: true, map: 'span', starter: 0 }).teams[0][0]!, rnd = mulberry32(5);
 
   for (let i = 0; i < 40; i++) {
     const m = randomMember(base, rnd), nodes = m.tree.map(id => NODE[id]!);
     expect(m.cls).toBe('gravecaller');
-    expect(new Set(m.skills).size).toBe(3);
+    expect(new Set(m.skills).size).toBe(2);
     expect(m.skills.every(id => SKILLS[id].cls === m.cls)).toBe(true);
     expect(m.tree.length).toBe(POINTS);
     expect(treeValid(m.cls, m.tree)).toBe(true);
@@ -20,7 +20,7 @@ test('a random member keeps its class and has 3 of its skills, one keystone and 
 
 test('the picks put each team in lineup order; a member keeps its build only if its class stayed', () => {
   const d = defaultDraft({ allAi: false, map: 'span', starter: 0 });
-  d.teams[0][1] = { ...d.teams[0][1]!, skills: ['prison', 'recall', 'meteor'], tree: ['a_frost'] };
+  d.teams[0][1] = { ...d.teams[0][1]!, skills: ['recall', 'firebolt'], tree: ['a_frost'] };
 
   const p: PickState = {
     starter: 1, hover: [[null, null, null], [null, null, null]],
@@ -35,7 +35,7 @@ test('the picks put each team in lineup order; a member keeps its build only if 
     [['Seren', 'astromancer', true], ['Aldric', 'bellringer', true], ['Kip', 'bellringer', true]],
     [['Grix', 'gravecaller', false], ['Morvath', 'astromancer', false], ['Ysolde', 'astromancer', false]],
   ]);
-  expect([out.starter, out.teams[0][0]!.skills, out.teams[0][0]!.tree]).toEqual([1, ['prison', 'recall', 'meteor'], ['a_frost']]);
+  expect([out.starter, out.teams[0][0]!.skills, out.teams[0][0]!.tree]).toEqual([1, ['recall', 'firebolt'], ['a_frost']]);
   const changed = out.teams[0][1]!;
   expect([changed.skills.every(id => SKILLS[id].cls === 'bellringer'), treeValid('bellringer', changed.tree)]).toEqual([true, true]);
 });

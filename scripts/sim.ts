@@ -1,4 +1,4 @@
-import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
+import { CLASS_ORDER, CLASSES, MAP_ORDER, SKILLS, SKILL_PICKS, TREES, aiDeploy, aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../src/engine/index';
 import type { AiOpts, BattleEvent, BattleState, ClassId, Command, MapId, MemberBuild, NodeId, Rng, Role, Team } from '../src/engine/index';
 
 // Plays AI-vs-AI battles with random builds and prints win shares, combos and mechanic use.
@@ -42,14 +42,14 @@ function shuffled<T>(r: Rng, xs: readonly T[]): T[] {
   return out;
 }
 
-/** A random class, 3 random skills, a keystone (in a path of `role` when given) and 2 points in another path. */
+/** A random class, SKILL_PICKS random skills, a keystone (in a path of `role` when given) and 2 points in another path. */
 function member(r: Rng, i: number, role?: Role): MemberBuild {
   const cls: ClassId = pick(r, CLASS_ORDER), tree = TREES[cls];
   const key = role ? tree.findIndex(b => b.role === role) : Math.floor(r() * 3);
   const other = pick(r, [0, 1, 2].filter(b => b !== key));
   const nodes: NodeId[] = [...(tree[key]?.nodes ?? []).map(n => n.id), ...(tree[other]?.nodes ?? []).slice(0, 2).map(n => n.id)];
 
-  return { name: `${cls}${i}`, cls, skills: shuffled(r, CLASSES[cls].skills).slice(0, 3), tree: nodes };
+  return { name: `${cls}${i}`, cls, skills: shuffled(r, CLASSES[cls].skills).slice(0, SKILL_PICKS), tree: nodes };
 }
 
 function party(r: Rng, roles?: readonly Role[]): MemberBuild[] {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { statusKeys } from '../../engine/index';
 import type { Life, StatusKey, Team, Unit, UnitId } from '../../engine/index';
-import { GOLD, TEAM_HEX, basic, decal, glow, keep, mesh } from './art';
+import { GOLD, TEAM_HEX, basic, decal, glow, mesh } from './art';
 import { h } from '../dom';
 import type { Rig } from './acts';
 import { buildDoll, buildModel } from './models';
@@ -22,8 +22,6 @@ export interface UnitView {
   blood: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   aura: THREE.Sprite;
   disc: THREE.Mesh;
-  /** Glacial Prison's block. */
-  ice: THREE.Mesh;
   rig: Rig;
   label: HTMLElement;
   /** The label's status icons, name, and HP and shield bars. */
@@ -40,17 +38,12 @@ export interface UnitView {
 /** The unit each of its scene objects belongs to, for picking. */
 export const UNIT_OF = new WeakMap<THREE.Object3D, UnitId>();
 
-const iceMat = keep(new THREE.MeshStandardMaterial({ color: 0xbfeaff, emissive: 0x3a9ad0, emissiveIntensity: 0.45, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.55, flatShading: true }));
-
 export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   const group = new THREE.Group(), { body, main, height, weapon, rig } = u.owner === undefined ? buildModel(u.cls, u.team) : buildDoll(u.team);
   // The Marionettist's hand puppet is its Doll, which stands on the board as its own unit while the battle runs.
   const held = u.owner === undefined ? body.getObjectByName('doll') : undefined;
 
   if (held) held.visible = false;
-  const ice = mesh(new THREE.BoxGeometry(0.86, height + 0.25, 0.86), iceMat, 0, (height + 0.25) / 2, 0);
-  ice.visible = false;
-  body.add(ice);
   group.add(body);
 
   const disc = decal(new THREE.CircleGeometry(0.44, 28), basic(TEAM_HEX[u.team], 0.35), 0.02);
@@ -71,7 +64,7 @@ export function buildUnit(u: Unit, labels: HTMLElement): UnitView {
   labels.appendChild(label);
 
   return {
-    id: u.id, team: u.team, group, body, weapon, height, main, disc, ice, rig,
+    id: u.id, team: u.team, group, body, weapon, height, main, disc, rig,
     ring, bubble, blood, aura, label, parts, shown: shownOf(u), pose: 0, arriving: false, bob: Math.random() * 6,
   };
 }
@@ -100,7 +93,6 @@ export function animateUnit(v: UnitView, time: number): void {
   const s = v.shown, up = s.life.kind === 'up';
 
   if (v.pose === 0 && !v.arriving) v.body.position.y = Math.sin(time * 2 + v.bob) * 0.025;
-  v.ice.visible = s.st.has('encased');
   v.rig.tick(time);
   v.bubble.visible = up && s.shield > 0;
 

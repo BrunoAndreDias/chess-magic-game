@@ -32,13 +32,13 @@ export function canDrop(cls: ClassId, picks: readonly NodeId[], id: NodeId): boo
 type ModKey = keyof Mods;
 
 const MOD_KEYS = [
-  'hp',
-  'fireDmg', 'callRange', 'burnDmg', 'twinStars', 'frostDmg', 'prisonCd', 'callWet', 'absZero',
+  'hp', 'ultCd',
+  'fireDmg', 'callRange', 'burnDmg', 'twinStars', 'frostDmg', 'frostRange', 'callWet', 'absZero',
   'recallRange', 'recallCleanse', 'benevolent', 'basicDmg',
-  'soulCap', 'soulShield', 'undying', 'soulBoltDmg', 'harvestRange', 'burstDmg', 'reap', 'riteRange', 'riteShield', 'ferryman',
-  'guardShield', 'tollHush', 'knellDmg', 'lastDmg', 'pealDmg', 'finalHour', 'tollRange', 'encoreCd', 'accel',
-  'dollHp', 'dollReform', 'tangled', 'wireDmg', 'splinterDmg', 'ventriloquist', 'switchRange', 'standinCd', 'understudy',
-  'reflectRange', 'mirrorShield', 'quicksilver', 'ricochetDmg', 'retortDmg', 'shatterDmg', 'hallMirrors', 'reversalRange', 'ballCd', 'smokeMirrors', 'reflectCd',
+  'soulCap', 'soulShield', 'undying', 'soulBoltDmg', 'harvestRange', 'siphonDmg', 'reap', 'crossingLen', 'riteShield', 'ferryman',
+  'guardShield', 'tollHush', 'knellDmg', 'lastDmg', 'pealDmg', 'finalHour', 'tollRange', 'accel',
+  'dollHp', 'dollReform', 'tangled', 'wireDmg', 'danceSteps', 'ventriloquist', 'switchRange', 'standinReach', 'understudy',
+  'reflectRange', 'mirrorShield', 'quicksilver', 'ricochetDmg', 'retortDmg', 'glassDmg', 'hallMirrors', 'reversalRange', 'smokeMirrors', 'reflectCd',
 ] satisfies ModKey[];
 
 type Assert<T extends true> = T;

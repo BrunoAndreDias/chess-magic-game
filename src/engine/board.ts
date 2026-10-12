@@ -251,7 +251,7 @@ function walkPaths(s: BattleState, u: Unit, range: number): Map<number, number> 
 
 /** Tile index → path (start first) for every tile the unit can end its move on. Insertion order breaks AI ties. */
 export function reachable(s: BattleState, u: Unit | null): Map<number, Pos[]> {
-  if (!u || !(standing(u) || undying(u)) || u.moved || u.st.encased) return new Map();
+  if (!u || !(standing(u) || undying(u)) || u.moved) return new Map();
 
   return walks(s, u, moveOf(u));
 }
@@ -283,29 +283,28 @@ function walks(s: BattleState, u: Unit, range: number): Map<number, Pos[]> {
 }
 
 // ---------- targeting ----------
+/** Basic, innate, the picked skills, the ultimate, Help Up: the order of the action bar. */
 export function actionsOf(u: Unit): SkillId[] {
-  const basic: BasicSkillId = `basic_${u.cls}`;
+  const basic: BasicSkillId = `basic_${u.cls}`, C = CLASSES[u.cls];
 
-  return [basic, CLASSES[u.cls].innate, ...u.skills, 'helpup'];
+  return [basic, C.innate, ...u.skills, C.ult, 'helpup'];
 }
 
+/** The cooldown `id` goes on once cast. */
 export function cdOf(s: BattleState, u: Unit, id: SkillId): number {
   let c = SKILLS[id].cd;
 
+  if (SKILLS[id].ult) c -= u.mods.ultCd || 0;
+
   if (id === 'reflect') c -= (u.mods.reflectCd || 0) + (s.party[u.team].has('infinitymirror') ? PAIR_N.infinitymirror.cd : 0);
-
-  if (id === 'standin') c -= u.mods.standinCd || 0;
-
-  if (id === 'mirrorball') c -= u.mods.ballCd || 0;
 
   if (id === 'toll' && s.party[u.team].has('pealofbells')) c -= PAIR_N.pealofbells.cd;
 
-  if (id === 'prison') c -= u.mods.prisonCd || 0;
-
-  if (id === 'encore') c -= u.mods.encoreCd || 0;
-
   return c;
 }
+
+/** The own turns until `u`'s ultimate is ready: 0 when it is, and during the turn it's cast in. */
+export function ultIn(u: Unit): number { return u.cd[CLASSES[u.cls].ult] ?? 0; }
 
 function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number): number {
   let r = SKILLS[id].range || 0;
@@ -314,7 +313,7 @@ function skillRange(s: BattleState, u: Unit, id: SkillId, px: number, pz: number
 
   if (id === 'recall') r += u.mods.recallRange || 0;
 
-  if (id === 'lastrites') r += u.mods.riteRange || 0;
+  if (id === 'frostbolt') r += u.mods.frostRange || 0;
 
   if (id === 'reflect') r += (u.mods.reflectRange || 0) + (s.party[u.team].has('infinitymirror') ? PAIR_N.infinitymirror.range : 0);
 
@@ -340,7 +339,7 @@ export function callsOf(s: BattleState, u: Unit): number {
 }
 
 export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
-  if (!actionsOf(u).includes(id) || u.st.encased) return false;
+  if (!actionsOf(u).includes(id)) return false;
 
   if ((u.cd[id] || 0) > 0) return false;
   const sk = SKILLS[id];
@@ -353,17 +352,11 @@ export function canUse(s: BattleState, u: Unit, id: SkillId): boolean {
 
   if (sk.target === 'downed' && u.hp < 2) return false;
 
-  if (id === 'overture') return s.units.some(a => a.team === u.team && nextTurn(s, a.id) >= 0);
-
   if (sk.rite && u.souls < 1) return false;
 
-  if (id === 'strings' || id === 'switch' || id === 'tangle' || id === 'splinter' || id === 'standin') return !!standingDoll(s, u);
+  if (id === 'strings' || id === 'switch' || id === 'standin') return !!standingDoll(s, u);
 
   if (id === 'razorwire') { const d = standingDoll(s, u); return !!d && cheb(d.x, d.z, u.x, u.z) <= SKILL_N.razorwire.reach; }
-
-  if (id === 'rebuild') { const d = dollOf(s, u); return !!d && (!standing(d) || d.hp < d.maxHp); }
-
-  if (id === 'shatter') return s.fx.some(f => !!f?.glass && f.glassBy === u.team);
 
   if (id === 'harvest') return u.souls < soulCap(s, u) && soulsInReach(s, u).length > 0;
 
@@ -410,6 +403,9 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
     case 'enemy':
       if (o.team === u.team || concealed(s, u, o, px, pz)) return false;
       break;
+    case 'foe':
+      if (o.team === u.team || !standing(o) || concealed(s, u, o, px, pz)) return false;
+      break;
     case 'ally': if (o.team !== u.team || !standing(o) || (sk.noSelf && o === u)) return false; break;
     case 'downed': if (o.team !== u.team || !isDowned(o)) return false; break;
     case 'friend': if (o.team !== u.team || o === u) return false; break;
@@ -422,8 +418,6 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
       break;
     default: return false;
   }
-
-  if (id === 'equalize' && !evens(u, o)) return false;
 
   if (id === 'toll' && (actedThisRound(s, o.id) || nextTurn(s, o.id) < 0 || tolledThisRound(s, o.id))) return false;
 
@@ -440,7 +434,7 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
 export function castTargets(s: BattleState, u: Unit, id: SkillId, px = u.x, pz = u.z): Target[] {
   const out = targetsFrom(s, u, id, px, pz), d = u.mods.ventriloquist ? standingDoll(s, u) : null, sk = SKILLS[id];
 
-  if (!d || sk.target === 'self' || sk.innate || (sk.target === 'tile' && !sk.basic)) return out;
+  if (!d || sk.target === 'self' || sk.target === 'line' || sk.innate || (sk.target === 'tile' && !sk.basic)) return out;
 
   for (const t of targetsFrom(s, u, id, d.x, d.z)) if (!out.some(o => o.x === t.x && o.z === t.z)) out.push(t);
 
@@ -461,11 +455,11 @@ function targetsFrom(s: BattleState, u: Unit, id: SkillId, px: number, pz: numbe
 
   if (sk.target === 'self') return [{ x: px, z: pz }];
 
+  if (sk.target === 'line') return DIR4.map(([dx, dz]) => ({ x: px + dx, z: pz + dz })).filter(p => inb(p.x, p.z));
+
   if (id === 'strings') return [...dollMoves(s, u, px, pz).keys()].map(k => ({ x: k % N, z: (k / N) | 0 }));
 
   const r = skillRange(s, u, id, px, pz);
-
-  if (id === 'soulburst') return s.souls.filter(o => cheb(o.x, o.z, px, pz) <= r).map(o => ({ x: o.x, z: o.z }));
 
   if (sk.target !== 'tile') {
     for (const o of s.units) if (isAlive(o) && unitOk(s, u, id, o, px, pz, r)) out.push({ x: o === u ? px : o.x, z: o === u ? pz : o.z, id: o.id });
@@ -502,11 +496,35 @@ export function unitsIn(s: BattleState, tiles: readonly Pos[]): Unit[] {
   return out;
 }
 
-/** Equalize does something: an enemy healthier than `u`, or an ally hurt worse. */
-export function evens(u: Unit, o: Unit): boolean {
-  const mine = u.hp / u.maxHp, theirs = o.hp / o.maxHp;
+/** The Crossing's line: straight out from `u` through (tx, tz), one of the four tiles next to it, for the line's length; the board's edge cuts it short. */
+export function crossingLine(u: Unit, tx: number, tz: number): Pos[] {
+  const dx = sign(tx - u.x), dz = sign(tz - u.z), out: Pos[] = [];
 
-  return o.team === u.team ? theirs < mine : theirs > mine;
+  for (let k = 1; k <= SKILL_N.crossing.length + (u.mods.crossingLen || 0); k++) if (inb(u.x + dx * k, u.z + dz * k)) out.push({ x: u.x + dx * k, z: u.z + dz * k });
+
+  return out;
+}
+
+/** Falling Star's pull: the enemies within 1 of the 3×3 area centred on (tx, tz), outside it. */
+export function starPulled(s: BattleState, u: Unit, tx: number, tz: number): Unit[] {
+  const ring = SKILL_N.fallingstar.radius + 1;
+
+  return unitsIn(s, square(tx, tz, ring).filter(p => cheb(p.x, p.z, tx, tz) === ring)).filter(o => o.team !== u.team && standing(o));
+}
+
+/** Where Command Performance can walk `o`, its own tile first: it walks the way it would itself, ignoring a Root. Tile index → path. */
+export function puppetWalks(s: BattleState, o: Unit): Map<number, Pos[]> {
+  return new Map([[idx(o.x, o.z), [{ x: o.x, z: o.z }]], ...walks(s, o, SKILL_N.command.walk)]);
+}
+
+/** The units `o`'s basic attack reaches from (px, pz) under Command Performance: any other standing unit, its own allies included. */
+export function puppetHits(s: BattleState, o: Unit, px: number, pz: number): Target[] {
+  const id: BasicSkillId = `basic_${o.cls}`, r = skillRange(s, o, id, px, pz), ranged = !!SKILLS[id].los;
+  const out: Target[] = [];
+
+  for (const v of s.units) if (v !== o && standing(v) && cheb(px, pz, v.x, v.z) <= r && (!ranged || los(s, px, pz, v.x, v.z))) out.push({ x: v.x, z: v.z, id: v.id });
+
+  return out;
 }
 
 /** A Bone Wall's or Invisible Wall's tiles: three across the line from `u` to (tx, tz), centred there, skipping solid tiles and units. */
@@ -531,13 +549,11 @@ export function aoeTiles(s: BattleState, u: Unit, id: SkillId, tx: number, tz: n
 
   if (id === 'razorwire') return d ? lineTiles(u.x, u.z, d.x, d.z) : [];
 
-  if ((id === 'tangle' || id === 'splinter') && d) return square(d.x, d.z, 1).filter(p => p.x !== d.x || p.z !== d.z);
-
   if (id === 'switch' && d) return [{ x: tx, z: tz }, { x: d.x, z: d.z }];
 
   if (id === 'dance') { const o = unitAt(s, tx, tz); return o ? dancePath(s, u, o) : [{ x: tx, z: tz }]; }
 
-  if (id === 'shatter') return shards(s, u.team).flatMap(g => square(g.x, g.z, 1));
+  if (sk.target === 'line') return crossingLine(u, tx, tz);
 
   if (sk.aoe && sk.target === 'self') return square(u.x, u.z, sk.aoe);
 
@@ -553,7 +569,7 @@ export function dancePath(s: BattleState, u: Unit, o: Unit): Pos[] {
   if (!d) return path;
   let x = o.x, z = o.z;
 
-  for (let k = 0; k < SKILL_N.dance.steps && cheb(x, z, d.x, d.z) > 1; k++) {
+  for (let k = 0; k < SKILL_N.dance.steps + (u.mods.danceSteps || 0) && cheb(x, z, d.x, d.z) > 1; k++) {
     const nx = x + sign(d.x - x), nz = z + sign(d.z - z);
 
     if (!inb(nx, nz) || isSolid(s, nx, nz) || unitAt(s, nx, nz)) break;
@@ -562,14 +578,6 @@ export function dancePath(s: BattleState, u: Unit, o: Unit): Pos[] {
   }
 
   return path;
-}
-
-/** `team`'s glass tiles. */
-export function shards(s: BattleState, team: Team): Pos[] {
-  const out: Pos[] = [];
-  s.fx.forEach((f, k) => { if (f?.glass && f.glassBy === team) out.push({ x: k % N, z: (k / N) | 0 }); });
-
-  return out;
 }
 
 // ---------- deployment ----------
@@ -604,8 +612,6 @@ function cloneStatuses(st: Statuses): Statuses {
   if (st.expose) o.expose = { ...st.expose };
 
   if (st.burn) o.burn = { ...st.burn };
-
-  if (st.encased) o.encased = { ...st.encased };
 
   if (st.wither) o.wither = { ...st.wither };
 

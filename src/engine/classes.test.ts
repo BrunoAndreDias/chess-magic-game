@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { apply } from './battle';
 import { idx, reachable } from './board';
-import { bare, begin, cast, end, move, run, stage, turns, unit } from './testkit';
-import type { BattleEvent } from './types';
+import { bare, begin, cast, end, move, ready, run, stage, turns, unit } from './testkit';
+import type { BattleEvent, NodeId } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
 
@@ -51,23 +51,40 @@ describe('souls', () => {
 });
 
 describe('rites', () => {
-  test('a Rite is refused with no held Soul; with one, Last Rites spends it and stands the ally up at 40%', () => {
-    const scene = (souls: number) => {
-      const s0 = stage({ a: [bare('gravecaller'), bare('bellringer')], b: [bare('bellringer')], place: { 1: [3, 1], 2: [5, 1], 3: [9, 9] }, life: { 2: { kind: 'downed', bleed: 2 } } });
-      unit(s0, 1).souls = souls;
+  /** A Gravecaller at (3, 1) holding `souls`, a Downed ally at (5, 1), and enemies at (6, 1) and (9, 1): 3 and 6 tiles east. */
+  const ferry = (souls: number, tree: NodeId[] = []) => {
+    const s0 = stage({
+      a: [bare('gravecaller', undefined, tree), bare('bellringer')], b: [bare('bellringer'), bare('bellringer')],
+      place: { 1: [3, 1], 2: [5, 1], 3: [6, 1], 4: [9, 1] }, life: { 2: { kind: 'downed', bleed: 2 } },
+    });
 
-      return run(s0, begin).state;
-    };
+    unit(s0, 1).souls = souls;
 
-    expect(apply(scene(0), cast(1, 'lastrites', 5, 1))).toEqual({ ok: false, error: 'lastrites is not usable now' });
-    const r = run(scene(1), cast(1, 'lastrites', 5, 1));
-    expect(r.events.slice(1)).toEqual([{ type: 'spend', id: 1 }, { type: 'damage', id: 1, amount: 62, absorbed: 0, kind: 'drain' }, { type: 'revive', id: 2, by: 1 }]);
-    expect([unit(r.state, 1).souls, unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life]).toEqual([0, 98, 62, { kind: 'up' }]);
+    return run(ready(s0, 1), begin).state;
+  };
+
+  test('The Crossing is refused with no held Soul; with two it spends both, hits the enemy on its line for 20 and stands the Downed ally up at 40%, unpaid', () => {
+    expect(apply(ferry(0), cast(1, 'crossing', 4, 1))).toEqual({ ok: false, error: 'crossing is not usable now' });
+    const r = run(ferry(2), cast(1, 'crossing', 4, 1));
+    expect(r.events.slice(1)).toEqual([
+      { type: 'spend', id: 1, n: 2 },
+      { type: 'revive', id: 2, by: 1 },
+      { type: 'damage', id: 3, amount: 20, absorbed: 0, kind: 'phys' },
+      { type: 'soul', x: 6, z: 1 },
+    ]);
+    expect([unit(r.state, 1).souls, unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life, unit(r.state, 4).hp]).toEqual([0, 160, 62, { kind: 'up' }, 155]);
   });
 
-  test('Bone Wall raises 3 tiles across the caster\'s line, skipping the tile with a unit, and nobody walks through it', () => {
-    const s0 = stage({ a: [bare('gravecaller', ['bonewall', 'soulbolt', 'siphon'])], b: [bare('bellringer')], place: { 1: [5, 1], 2: [6, 6] } });
-    unit(s0, 1).souls = 1;
+  test('Far Shore stretches The Crossing\'s line to 7 tiles', () => {
+    const r = run(ferry(1, ['g_line']), cast(1, 'crossing', 4, 1));
+    expect(r.events.filter(e => e.type === 'damage')).toEqual([
+      { type: 'damage', id: 3, amount: 10, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 4, amount: 10, absorbed: 0, kind: 'phys' },
+    ]);
+  });
+
+  test('Bone Wall needs no Soul: it raises 3 tiles across the caster\'s line, skipping the tile with a unit, and nobody walks through it', () => {
+    const s0 = stage({ a: [bare('gravecaller', ['bonewall', 'soulbolt'])], b: [bare('bellringer')], place: { 1: [5, 1], 2: [6, 6] } });
     const live = run(s0, begin).state;
     unit(live, 2).x = 6; unit(live, 2).z = 3;
     const r = run(live, cast(1, 'bonewall', 5, 3));
@@ -127,7 +144,7 @@ describe('undying', () => {
 
   test('a Downed Undying Gravecaller spends a Soul instead of bleeding, and still takes its turn: move 1, no basic', () => {
     const r = downedLich(2);
-    expect(r.events.slice(1)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'spend', id: 1 }]);
+    expect(r.events.slice(1)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'spend', id: 1, n: 1 }]);
     expect([unit(r.state, 1).souls, unit(r.state, 1).life]).toEqual([1, { kind: 'downed', bleed: 2 }]);
     expect(apply(r.state, move(1, 5, 3))).toEqual({ ok: false, error: '(5, 3) is not reachable' });
     expect(apply(r.state, move(1, 5, 2)).ok).toBe(true);
@@ -142,8 +159,8 @@ describe('undying', () => {
 
 describe('psychopomp', () => {
   test('Ferryman: a Downed ally within 3 doesn\'t bleed, and Help Up brings it back at 70%', () => {
-    const ferry = bare('gravecaller', undefined, ['g_rites', 'g_hp2', 'g_shield', 'g_ferry']);
-    const s0 = stage({ a: [bare('bellringer'), bare('bellringer'), ferry], b: [bare('bellringer')], place: { 1: [5, 1], 2: [6, 1], 3: [3, 1], 4: [9, 9] }, life: { 1: { kind: 'downed', bleed: 2 } } });
+    const ferryman = bare('gravecaller', undefined, ['g_line', 'g_hp2', 'g_shield', 'g_ferry']);
+    const s0 = stage({ a: [bare('bellringer'), bare('bellringer'), ferryman], b: [bare('bellringer')], place: { 1: [5, 1], 2: [6, 1], 3: [3, 1], 4: [9, 9] }, life: { 1: { kind: 'downed', bleed: 2 } } });
     const r = run(s0, begin);
     expect(r.events.slice(1, 3)).toEqual([{ type: 'activate', id: 1, team: 0, qi: 0 }, { type: 'activate', id: 4, team: 1, qi: 1 }]);
     const up = run(r.state, end(4), cast(2, 'helpup', 5, 1));
@@ -188,8 +205,8 @@ describe('toll', () => {
 
 describe('bellringer skills', () => {
   test('Encore gives an ally that already acted an extra turn at the end of the round, and its cooldowns don\'t tick on it', () => {
-    const s0 = stage({ a: [bare('bellringer'), bare('bellringer', ['encore', 'hush', 'peal'])], b: [bare('bellringer')], place: { 1: [3, 1], 2: [4, 1], 3: [9, 9] } });
-    const r = run(s0, begin, cast(1, 'peal', 3, 1), end(1), end(3), cast(2, 'encore', 3, 1));
+    const s0 = stage({ a: [bare('bellringer', ['peal', 'hush']), bare('bellringer')], b: [bare('bellringer')], place: { 1: [3, 1], 2: [4, 1], 3: [9, 9] } });
+    const r = run(ready(s0, 2), begin, cast(1, 'peal', 3, 1), end(1), end(3), cast(2, 'encore', 3, 1));
     expect(r.events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 3, 2, '+', 1) });
     const extra = run(r.state, end(2));
     expect(extra.events.at(-1)).toEqual({ type: 'activate', id: 1, team: 0, qi: 3 });
@@ -217,11 +234,22 @@ describe('bellringer skills', () => {
     expect(after(run(live, cast(1, 'knell', 6, 4)).events, 'damage')).toEqual([{ type: 'damage', id: 3, amount: 12, absorbed: 0, kind: 'phys' }]);
   });
 
-  test('an enemy that hits a Bell Guard is Hushed', () => {
-    const s0 = stage({ a: [bare('bellringer', ['bellguard', 'hush', 'peal'])], b: [bare('bellringer')], place: { 1: [5, 1], 2: [5, 2] } });
-    const r = run(s0, begin, cast(1, 'bellguard', 5, 1), end(1), cast(2, 'basic_bellringer', 5, 1));
-    expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 1, amount: 0, absorbed: 15, kind: 'phys' }, { type: 'status', id: 2, key: 'hush' }]);
-    expect(unit(r.state, 2).st.hush).toEqual({ t: 2, by: 1 });
+  test('Swift Encore brings Encore back a turn sooner', () => {
+    const encore = (tree: NodeId[]) => {
+      const s0 = stage({ a: [bare('bellringer'), bare('bellringer', undefined, tree)], b: [bare('bellringer')], place: { 1: [3, 1], 2: [4, 1], 3: [9, 9] } });
+
+      return unit(run(ready(s0, 2), begin, end(1), end(3), cast(2, 'encore', 3, 1)).state, 2).cd.encore;
+    };
+
+    expect([encore([]), encore(['b_reach', 'b_encore'])]).toEqual([5, 4]);
+  });
+
+  test('Bell Guard shields an ally next to the Bellringer: an enemy that hits it is Hushed, until the Bellringer\'s next turn', () => {
+    const s0 = stage({ a: [bare('bellringer', ['bellguard', 'hush']), bare('bellringer')], b: [bare('bellringer')], place: { 1: [5, 1], 2: [6, 1], 3: [6, 2] } });
+    const r = run(s0, begin, cast(1, 'bellguard', 6, 1), end(1), cast(3, 'basic_bellringer', 6, 1));
+    expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 0, absorbed: 15, kind: 'phys' }, { type: 'status', id: 3, key: 'hush' }]);
+    expect([unit(r.state, 3).st.hush, unit(r.state, 2).st.guard]).toEqual([{ t: 2, by: 1 }, { t: 1, by: 1 }]);
+    expect(unit(run(r.state, end(3), end(2)).state, 2).st.guard).toBe(undefined);
   });
 });
 

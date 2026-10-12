@@ -415,13 +415,9 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
   function blocked(s: BattleState, u: Unit, id: SkillId): string | null {
     if (u.st.hush && !SKILLS[id].basic) return 'Hushed';
 
-    if (['strings', 'switch', 'tangle', 'splinter', 'standin', 'razorwire'].includes(id) && !standingDoll(s, u)) return 'Doll broken';
+    if (['strings', 'switch', 'standin', 'razorwire'].includes(id) && !standingDoll(s, u)) return 'Doll broken';
 
     if (id === 'razorwire' && !canUse(s, u, id)) return 'Doll too far';
-
-    if (id === 'rebuild' && !canUse(s, u, id)) return 'Doll unhurt';
-
-    if (id === 'shatter' && !canUse(s, u, id)) return 'No glass up';
 
     if (SKILLS[id].rite && u.souls < 1) return 'Needs a Soul';
 

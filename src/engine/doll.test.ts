@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { apply } from './battle';
 import { castTargets, idx, reachable } from './board';
-import { bare, begin, cast, end, move, run, stage, turns, unit } from './testkit';
+import { bare, begin, cast, command, end, move, ready, run, stage, turns, uid, unit } from './testkit';
 import type { BattleEvent, NodeId } from './types';
 
 const after = (events: BattleEvent[], type: BattleEvent['type']) => events.slice(events.findIndex(e => e.type === type));
 
-const vent = ['p_lash', 'p_wire', 'p_splinter', 'p_ventriloquist'] as const;
+const vent = ['p_lash', 'p_wire', 'p_waltz', 'p_ventriloquist'] as const;
 
 describe('the doll', () => {
   test('a Marionettist starts with a 50 HP Doll on the free tile next to it, numbered after the characters and left out of the queue', () => {
@@ -57,7 +57,7 @@ describe('the doll', () => {
   });
 
   test('Switch trades places between the Marionettist and its Doll, or an ally and the Doll', () => {
-    const s0 = stage({ a: [bare('marionettist'), bare('bellringer')], b: [bare('bellringer')], place: { 1: [5, 1], 2: [3, 1], 3: [9, 9], 4: [5, 4] } });
+    const s0 = stage({ a: [bare('marionettist', ['switch', 'razorwire']), bare('bellringer')], b: [bare('bellringer')], place: { 1: [5, 1], 2: [3, 1], 3: [9, 9], 4: [5, 4] } });
     const live = run(s0, begin).state;
     const self = run(live, cast(1, 'switch', 5, 1)).state;
     expect([[unit(self, 1).x, unit(self, 1).z], [unit(self, 4).x, unit(self, 4).z]]).toEqual([[5, 4], [5, 1]]);
@@ -67,10 +67,10 @@ describe('the doll', () => {
 });
 
 describe('marionettist skills', () => {
-  test('Stand-In: an enemy hit on an ally next to the Doll goes to the Doll; an ally away from it takes its own', () => {
-    const scene = (allyAt: [number, number]) => {
+  test('Stand-In: an enemy hit on an ally next to the Doll goes to the Doll; an ally 2 away takes its own, unless Wide Arms reaches it', () => {
+    const scene = (allyAt: [number, number], tree: NodeId[] = []) => {
       const s0 = stage({
-        a: [bare('marionettist', ['standin', 'tangle', 'razorwire']), bare('bellringer')], b: [bare('bellringer')],
+        a: [bare('marionettist', ['standin', 'razorwire'], tree), bare('bellringer')], b: [bare('bellringer')],
         place: { 1: [0, 0], 2: allyAt, 3: [5, 4], 4: [4, 4] },
       });
 
@@ -86,6 +86,10 @@ describe('marionettist skills', () => {
     expect([unit(guarded.state, 2).hp, unit(guarded.state, 4).hp]).toEqual([155, 55]);
     const open = scene([6, 4]);
     expect(after(open.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 15, absorbed: 0, kind: 'phys' }]);
+    expect(after(scene([6, 4], ['p_switch', 'p_hp2', 'p_wide']).events, 'standin').slice(0, 2)).toEqual([
+      { type: 'standin', from: 2, to: 4 },
+      { type: 'damage', id: 4, amount: 15, absorbed: 0, kind: 'phys' },
+    ]);
   });
 
   test('Razor Wire cuts the enemy on the line between the Marionettist and its Doll, not the one beside it', () => {
@@ -94,30 +98,43 @@ describe('marionettist skills', () => {
     expect(after(r.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 24, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 5, z: 3 }]);
   });
 
-  test('Dance walks an enemy 2 steps toward the Doll and stops next to it', () => {
-    const scene = (doll: [number, number]) => {
-      const s0 = stage({ a: [bare('marionettist', ['dance', 'tangle', 'razorwire'])], b: [bare('bellringer')], place: { 1: [3, 1], 2: [6, 4], 3: doll } });
+  test('Dance walks an enemy 2 steps toward the Doll and stops next to it; Waltz takes it a step more', () => {
+    const scene = (doll: [number, number], tree: NodeId[] = []) => {
+      const s0 = stage({ a: [bare('marionettist', ['dance', 'razorwire'], tree)], b: [bare('bellringer')], place: { 1: [3, 1], 2: [6, 4], 3: doll } });
 
       return run(s0, begin, cast(1, 'dance', 6, 4));
     };
 
     expect(scene([6, 0]).events.at(-1)).toEqual({ type: 'move', id: 2, path: [{ x: 6, z: 4 }, { x: 6, z: 3 }, { x: 6, z: 2 }] });
     expect(scene([6, 2]).events.at(-1)).toEqual({ type: 'move', id: 2, path: [{ x: 6, z: 4 }, { x: 6, z: 3 }] });
+    expect(scene([6, 0], ['p_lash', 'p_wire', 'p_waltz']).events.at(-1)).toEqual({ type: 'move', id: 2, path: [{ x: 6, z: 4 }, { x: 6, z: 3 }, { x: 6, z: 2 }, { x: 6, z: 1 }] });
   });
 
-  test('Tangle roots and nicks every enemy next to the Doll; Splinter breaks the Doll on them', () => {
-    const s0 = stage({
-      a: [bare('marionettist', ['tangle', 'splinter', 'razorwire'])], b: [bare('bellringer'), bare('bellringer')],
-      place: { 1: [5, 1], 2: [6, 5], 3: [9, 9], 4: [5, 5] },
-    });
+  /** A Marionettist at (8, 1), its Doll (4) at (8, 0), a Rooted enemy (2) 3 tiles off at (8, 4), and that enemy's ally (3) at (8, 8). */
+  const puppetry = () => {
+    const s0 = stage({ a: [bare('marionettist')], b: [bare('bellringer'), bare('bellringer')], place: { 1: [8, 1], 2: [8, 4], 3: [8, 8], 4: [8, 0] } });
+    unit(s0, 2).st.root = { t: 1, by: uid(1) };
 
-    const live = run(s0, begin).state;
-    expect(after(run(live, cast(1, 'tangle', 5, 1)).events, 'damage')).toEqual([
-      { type: 'damage', id: 2, amount: 10, absorbed: 0, kind: 'phys' },
-      { type: 'status', id: 2, key: 'root' },
+    return run(ready(s0, 1), begin).state;
+  };
+
+  test('Command Performance walks an enemy 3 tiles though it is Rooted, then its basic hits its own ally; it keeps its own turn', () => {
+    const r = run(puppetry(), command(1, 8, 4, [8, 7], [8, 8]));
+    expect(r.events.slice(1)).toEqual([
+      { type: 'move', id: 2, path: [{ x: 8, z: 4 }, { x: 8, z: 5 }, { x: 8, z: 6 }, { x: 8, z: 7 }] },
+      { type: 'cast', id: 2, team: 1, skill: 'basic_bellringer', tx: 8, tz: 8, fx: 8, fz: 7, target: 3 },
+      { type: 'damage', id: 3, amount: 15, absorbed: 0, kind: 'phys' },
     ]);
-    const split = run(live, cast(1, 'splinter', 5, 1));
-    expect(after(split.events, 'damage')).toEqual([{ type: 'damage', id: 2, amount: 26, absorbed: 0, kind: 'phys' }, { type: 'soul', x: 6, z: 5 }, { type: 'break', id: 4, reform: 3 }]);
+    expect(run(r.state, end(1)).events.find(e => e.type === 'activate')).toEqual({ type: 'activate', id: 2, team: 1, qi: 1 });
+  });
+
+  test('Command Performance refuses a walk past 3 tiles and a hit out of the basic\'s reach, and never takes a Doll', () => {
+    const live = puppetry();
+    expect(apply(live, command(1, 8, 4, [7, 7], null))).toEqual({ ok: false, error: 'cast rejected by the rules' });
+    expect(apply(live, command(1, 8, 4, [8, 6], [8, 8]))).toEqual({ ok: false, error: 'cast rejected by the rules' });
+    expect(apply(live, command(1, 8, 4, [8, 6], null)).ok).toBe(true);
+    const dolls = run(stage({ a: [bare('marionettist')], b: [bare('marionettist')], place: { 1: [5, 1], 2: [5, 3], 3: [4, 0], 4: [5, 4] } }), begin).state;
+    expect(castTargets(ready(dolls, 1), unit(dolls, 1), 'command')).toEqual([{ x: 5, z: 3, id: 2 }]);
   });
 
   test('Tangled Strings: an enemy that hits the Doll is Rooted, and the Doll takes half', () => {

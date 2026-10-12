@@ -11,7 +11,7 @@ export { treeValid, canTake, canDrop, modsOf, partyBonuses, pathOf, roleOf, newM
 export {
   current, statusKeys, reachable, castTargets, aoeTiles, canUse, cdOf, moveOf, actionsOf, terrAt, isSolid, los, concealed, standing, unitAt, getUnit,
   canDeploy, validDeploy, inDeploy, idx, inb, cheb, callsOf, soulCap, soulAt, soulsInReach, actedThisRound, undying,
-  isDoll, dollOf, standingDoll, dollMoves, dancePath, lineTiles, shards, glassOnLine,
+  isDoll, dollOf, standingDoll, dollMoves, dancePath, lineTiles, glassOnLine, ultIn, crossingLine, starPulled, puppetWalks, puppetHits,
 } from './board';
 
 export type { Target } from './board';

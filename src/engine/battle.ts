@@ -3,9 +3,9 @@ import { canUse, castTargets, cloneState, current, idx, nearestFree, reachable, 
 import { partyBonuses, modsOf } from './builds';
 import { performCast, performMove } from './combat';
 import type { Rng } from './rng';
-import { CLASSES, COVERAGE, DOLL, N, PAIR_N, SKILL_PICKS, mapTerrain } from './tables';
+import { CLASSES, COVERAGE, DOLL, N, PAIR_N, SKILL_PICKS, ULT_TURNS, mapTerrain } from './tables';
 import { endActivation, resumeQueue, startRound } from './turns';
-import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, SkillId, Team, TileFx, UnitId } from './types';
+import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, Puppet, SkillId, Team, TileFx, UnitId } from './types';
 
 const TEAMS: readonly Team[] = [0, 1];
 
@@ -43,7 +43,7 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
       const hp = C.hp + (mods.hp || 0) + (s.party[team].has('coverage') ? COVERAGE.hp : 0);
       s.units.push({
         id: unitId(nextId++), team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, SKILL_PICKS), tree: m.tree.slice(), mods,
-        x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false,
+        x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: { [C.ult]: ULT_TURNS.ready }, moved: false, acted: false,
         souls: 0, took: 0,
       });
     });
@@ -102,7 +102,7 @@ export function apply(state: BattleState, cmd: Command): ApplyResult {
     case 'begin': startRound(s, events); break;
     case 'move': events = performMove(s, cmd.to.x, cmd.to.z); break;
     case 'cast': {
-      events = performCast(s, cmd.skill, cmd.at.x, cmd.at.z);
+      events = performCast(s, cmd.skill, cmd.at.x, cmd.at.z, cmd.puppet);
 
       if (events && s.phase.kind === 'act' && current(s)?.id !== cmd.unit) events.push(...resumeQueue(s));
       break;
@@ -119,8 +119,8 @@ export function apply(state: BattleState, cmd: Command): ApplyResult {
 }
 
 /** The events a cast by the current unit would produce, without the cast itself. Null when illegal. */
-export function predict(state: BattleState, skill: SkillId, tx: number, tz: number): BattleEvent[] | null {
-  const ev = performCast(cloneState(state), skill, tx, tz);
+export function predict(state: BattleState, skill: SkillId, tx: number, tz: number, puppet?: Puppet): BattleEvent[] | null {
+  const ev = performCast(cloneState(state), skill, tx, tz, puppet);
 
   return ev ? ev.filter(e => e.type !== 'cast') : null;
 }

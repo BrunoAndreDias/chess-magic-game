@@ -63,13 +63,15 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
     landCalls(s, u, ev);
 
     if (over(s)) return;
-    delete u.st.guard; delete u.st.mirror; delete u.st.standin;
+    delete u.st.mirror; delete u.st.standin;
+
+    for (const o of s.units) if (o.st.guard?.by === u.id) delete o.st.guard;
     const doll = dollOf(s, u);
 
     if (doll && standing(u) && !isAlive(doll) && doll.reform !== undefined && s.round >= doll.reform) reformDoll(s, u, doll, ev);
 
     if (u.life.kind === 'downed') {
-      if (u.mods.undying && u.souls > 0) { u.souls--; ev.push({ type: 'spend', id: u.id }); return; }
+      if (u.mods.undying && u.souls > 0) { u.souls--; ev.push({ type: 'spend', id: u.id, n: 1 }); return; }
 
       bleed(s, u, ev);
 
@@ -88,12 +90,10 @@ function beginActivation(s: BattleState, ev: BattleEvent[]): void {
       continue;
     }
 
-    if (u.st.stun || u.st.encased) {
+    if (u.st.stun) {
       ev.push({ type: 'skip', id: u.id });
       tickStatuses(s, u);
-
-      if (u.st.encased) thaw(s, u, ev);
-      else delete u.st.stun;
+      delete u.st.stun;
 
       if (advance(s, ev)) return;
       continue;
@@ -157,15 +157,6 @@ function tickStatuses(s: BattleState, u: Unit): void {
   const wet = u.st.wet;
 
   if (wet) { if (terrAt(s, u.x, u.z) === '~') wet.t = WET_TURNS; else if (--wet.t <= 0) delete u.st.wet; }
-}
-
-/** Encased counts skipped turns, not ended ones, so an Encase that lands during the unit's own turn still costs it the next. */
-function thaw(s: BattleState, u: Unit, ev: BattleEvent[]): void {
-  const enc = u.st.encased;
-
-  if (!enc || --enc.t > 0) return;
-  delete u.st.encased;
-  addStatus(s, u, 'wet', { t: WET_TURNS, by: enc.by }, ev);
 }
 
 /** Starts whoever's turn the queue now points at: after a Final Hour Toll moved the caster's own turn to the end. */
