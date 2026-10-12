@@ -8,7 +8,7 @@ There are five classes, and each owns one mechanic through an innate skill every
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173  (?map=span|storm|altar, ?seed=7, ?ai makes all six slots AI, ?quick skips to scouting)
+npm run dev      # http://localhost:5173  (?map=span|storm|altar, ?seed=7, ?ai makes all six slots AI, ?quick skips to scouting, ?perf shows frame rate, frame work and draw calls)
 ```
 
 A game goes map → picks → scout → battle → result. The battlefield is drawn first, at random from the seed unless `?map=` names one, and the map screen shows what its rule does, when and where. On the picks screen a coin draws the starter, who opens and closes every round for the whole battle. The parties then draft the turn order in the order they will act, and each lock commits a character to a turn and a class. Skills and passives stay editable until scouting: once all six turns are locked, every player has 45 seconds to finish their build before scouting starts. The result screen offers Rematch (same map and parties), Change parties (same map) and New battlefield (a different map at random).
@@ -24,6 +24,8 @@ npm run sim -- 200       # 200 AI battles with random builds: wins, rounds, comb
 npm run sim -- 300 --blind  # one side ignores the map rule: the aware side's win rate per map
 npm run sim -- 300 --dumb   # three damage keystones against a party covering tank, damage and support
 MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium and counts Calls, Encases, Strings, Dolls, Mirrors and glass (ALL_AI=1 spectates)
+npm run perf             # frame cost of an AI battle per map and the hitches from map to battle, from a production build on this machine's GPU; fails when draw calls, triangles or shaders grow past perf/baseline.json
+npm run perf -- --save   # make this run the baseline; git log -p perf/baseline.json is the history
 ```
 
 ## Layout

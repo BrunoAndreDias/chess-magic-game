@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { N } from '../../engine/index';
 import type { Team } from '../../engine/index';
 
@@ -79,6 +80,21 @@ export function disposeTree(o: THREE.Object3D): void {
     for (const x of [c.material].flat()) if (!x.userData.shared) x.dispose();
   });
   o.removeFromParent();
+}
+
+/** One mesh drawn in one call from `parts`, which share a material and a parent and never move apart. Takes the first part's material and shadow flags. */
+export function merge(parts: readonly THREE.Mesh[]): THREE.Mesh {
+  const geos = parts.map(p => { p.updateMatrix(); return p.geometry.clone().applyMatrix4(p.matrix); });
+  const geo = mergeGeometries(geos);
+
+  for (const g of [...geos, ...parts.map(p => p.geometry)]) g.dispose();
+
+  if (!geo) throw new Error('merge: parts have mismatched attributes');
+  const first = parts[0]!, o = new THREE.Mesh(geo, first.material);
+  o.castShadow = first.castShadow;
+  o.receiveShadow = first.receiveShadow;
+
+  return o;
 }
 
 /** A flat five-pointed star facing +z. */

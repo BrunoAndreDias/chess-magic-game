@@ -27,6 +27,8 @@ export interface Board {
   focus(unit: UnitId | null, team: Team): void;
   setFollow(on: boolean): void;
   onInput(listener: (input: TileInput) => void): void;
+  /** Readies every class figure in the background so the first frame that draws one does not stall; call once figures are loaded. */
+  warm(): void;
   /** Viewport pixel position of a tile's centre, for the HUD's floating labels and the browser playtest. */
   screenOf(tile: Pos): { x: number; y: number };
   dispose(): void;

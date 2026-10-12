@@ -145,3 +145,28 @@ export function buildDoll(team: Team): Figure {
 
   return { body, main, height: DOLL_HEIGHT, weapon: puppet, rig: rig(body, []) };
 }
+
+/**
+ * Readies every class figure for `r` before one is shown: shaders compile off the main thread against `scene`'s lights
+ * and textures upload one a frame, so the first frame that draws a class does not stall on either. The stand-ins never
+ * join `scene`, and their materials are never disposed, so the programs they compiled stay cached.
+ */
+export async function warmFigures(r: THREE.WebGLRenderer, camera: THREE.Camera, scene: THREE.Scene): Promise<void> {
+  const figs = new THREE.Group(), textures = new Set<THREE.Texture>();
+
+  for (const cls of CLASS_ORDER) figs.add(buildModel(cls, 0).body);
+
+  figs.traverse(o => {
+    if (!(o instanceof THREE.Mesh)) return;
+
+    for (const m of [o.material].flat()) for (const v of Object.values(m)) if (v instanceof THREE.Texture) textures.add(v);
+  });
+  await r.compileAsync(figs, camera, scene);
+
+  for (const t of textures) {
+    await new Promise(next => requestAnimationFrame(next));
+
+    if (r.getContext().isContextLost()) return;
+    r.initTexture(t);
+  }
+}

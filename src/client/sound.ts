@@ -93,6 +93,9 @@ let ctx: AudioContext | null = null;
 
 let muted = readMuted(local);
 
+// Building the page's first AudioContext stalls it for about 75 ms, so build it on the first click rather than in the first lock-in's animation.
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', () => { if (!muted) ctx ??= new AudioContext(); }, { once: true, capture: true });
+
 export const isMuted = (): boolean => muted;
 
 export function setMuted(on: boolean): void {
