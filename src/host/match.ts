@@ -1,5 +1,7 @@
 import { aiTurn, apply, createBattle, current, getUnit, mulberry32 } from '../engine/index';
 import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, Rng, Team } from '../engine/index';
+import { resultOf } from './record';
+import type { GameRecord } from './record';
 
 export type Seat = { kind: 'player'; player: string } | { kind: 'ai' };
 
@@ -16,15 +18,27 @@ export class Match {
   #state: BattleState;
   readonly #rng: Rng;
   readonly #seats: Seats;
+  readonly #setup: BattleSetup;
+  readonly #seed: number;
+  readonly #commands: Command[] = [];
   readonly #listeners = new Set<MatchListener>();
 
   constructor(setup: BattleSetup, seats: Seats, seed: number) {
     this.#rng = mulberry32(seed);
     this.#seats = seats;
+    this.#setup = setup;
+    this.#seed = seed;
     this.#state = createBattle(setup, this.#rng);
   }
 
   get state(): BattleState { return this.#state; }
+
+  /** The finished battle as a replayable record, or null while it is still going. */
+  record(): GameRecord | null {
+    const result = resultOf(this.#state);
+
+    return result && { v: 1, seed: this.#seed, setup: this.#setup, seats: this.#seats, commands: structuredClone(this.#commands), result };
+  }
 
   subscribe(fn: MatchListener): () => void {
     this.#listeners.add(fn);
@@ -68,6 +82,7 @@ export class Match {
 
     if (!r.ok) return r;
     this.#state = r.state;
+    this.#commands.push(cmd);
 
     for (const fn of this.#listeners) fn(r.events, r.state);
 
