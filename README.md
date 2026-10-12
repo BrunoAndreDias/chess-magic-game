@@ -24,6 +24,7 @@ npm run sim -- 200       # 200 AI battles with random builds: wins, rounds, comb
 npm run sim -- 300 --blind  # one side ignores the map rule: the aware side's win rate per map
 npm run sim -- 300 --dumb   # three damage keystones against a party covering tank, damage and support
 MAP=storm node scripts/playtest.cjs  # plays a full battle through the real UI in headless Chromium and counts Calls, Strings, Dolls, Mirrors, glass and each ultimate fired (ALL_AI=1 spectates)
+npm run games            # win rates by map, end reasons, class win share and the player's win rate over the battles `npm run dev` recorded in games/games.jsonl (git-ignored; `-- <file>` reads another)
 npm run perf             # frame cost of an AI battle per map and the hitches from map to battle, from a production build on this machine's GPU; fails when draw calls, triangles or shaders grow past perf/baseline.json
 npm run perf -- --save   # make this run the baseline; git log -p perf/baseline.json is the history
 ```
@@ -34,4 +35,5 @@ npm run perf -- --save   # make this run the baseline; git log -p perf/baseline.
 - `src/host/match.ts` is the authority that holds the real game state. It decides which player may send each command and plays the AI seats. It has no DOM, so it can move to a server unchanged.
 - `src/client` is the browser game. `board/` draws the 3D scene from states and events, and `screens/` holds the menus and HUD. The client only sends commands to the Match.
 - `art/` builds the class figures in Blender: `art/figures/<class>.py` per class, `art/build.sh` writes `public/models/<class>.glb`, and `art/figures/common.py` documents the glb contract the client loads. `art/splash.sh` renders each built figure into `public/splash/<class>.webp`, the art the picks screen shows for a class. `art/grips.py` measures, over every frame of every clip in a built glb, how far each hand slips off what it holds and how low each held prop reaches, and fails a hand that slips or a prop that sinks into the floor. `art/orbits.py` fails a figure whose arms pass through what orbits it (an empty it marks `clear`, like the Astromancer's flock of shards).
+- `src/host/record.ts` turns a finished Match into a `GameRecord` (setup, seed, every committed command, the result) and `replay(record)` plays it back to the same final state. In dev the client posts each record to `scripts/records-plugin.ts`, which appends it to `games/games.jsonl` (`GAMES_FILE` overrides the path; the verify and playtest scripts point it at their evidence directory).
 - `docs/classes.md` is the rules spec and `docs/world.md` the lore (lands and orders).
