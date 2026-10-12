@@ -1,4 +1,5 @@
 // Plays one battle through the real UI in headless Chromium: map reveal → draft → scout → every Blue turn by clicks and hotkeys → result → Rematch.
+// The mechanics line counts each class mechanic and each ultimate fired, from the battle log.
 // Blue's moves are chosen by the engine AI (aiTurn) and performed through the HUD. Exits non-zero on any page error or if no result is reached.
 // ALL_AI=1 instead spectates an all-AI battle (?ai&quick) to the result screen, then draws a New battlefield.
 // Env: PLAYWRIGHT_CORE (module path), CHROME (browser binary), SHOTS (screenshot dir), MAP, SEED, PORT.
@@ -74,7 +75,7 @@ async function serve() {
   // A unit or a wall nearer the camera can cover a tile's centre, so try a few points inside the tile, as a player would.
   const OFFSETS = [[0, 0], [0, -12], [0, -24], [0, -36], [-10, -6], [10, -6], [0, 9]];
 
-  const clickFromHere = async (t, preview, before) => {
+  const clickFromHere = async (t, preview, done) => {
     const xy = await tileXY(t);
 
     for (const [dx, dy] of OFFSETS) {
@@ -90,7 +91,7 @@ async function serve() {
       await p.mouse.click(xy.x + dx, xy.y + dy);
       await wait(250);
 
-      if ((await snapshot()) !== before) return true;
+      if (await done()) return true;
     }
 
     return false;
@@ -105,16 +106,28 @@ async function serve() {
     await p.mouse.up({ button: 'right' });
   };
 
-  const clickTile = async (t, preview) => {
-    const before = await snapshot();
+  // `done` says the click took; by default, that the battle state moved.
+  const clickTile = async (t, preview, done) => {
+    const before = await snapshot(), took = done ?? (async () => (await snapshot()) !== before);
 
     for (let view = 0; view < 3; view++) {
       if (view) { stats.orbits++; await orbit(); }
 
-      if (await clickFromHere(t, preview, before)) return true;
+      if (await clickFromHere(t, preview, took)) return true;
     }
 
     return false;
+  };
+
+  const hintSays = text => async () => ((await p.textContent('#hintbar').catch(() => '')) ?? '').includes(text);
+
+  // Command Performance takes three clicks, as a player makes them: the enemy, the tile it walks to, then whom it hits (its new tile for nobody).
+  const castTile = async cmd => {
+    if (!cmd.puppet) return clickTile(cmd.at, true);
+
+    return (await clickTile(cmd.at, true, hintSays('walks:')))
+      && (await clickTile(cmd.puppet.to, false, hintSays('to attack nobody')))
+      && (await clickTile(cmd.puppet.hit ?? cmd.puppet.to, true));
   };
 
   // The board flashes each round-end rule event for well under a second, so a watcher shoots the moment its log line appears.
@@ -244,10 +257,11 @@ async function serve() {
     await p.click('#sc-ready');
   }
 
-  // How often each class mechanic showed up in the battle log, so a run proves the classes were actually played.
+  // How often each class mechanic and each ultimate showed up in the battle log, so a run proves the classes were actually played.
   const MECHANICS = {
-    calls: /is called: it lands/, lands: /lands( at half power)?!/, encased: /is Encased/,
+    calls: /is called: it lands/, lands: /lands( at half power)?!/,
     strings: /uses Strings/, dolls: /Doll (breaks|reforms)/, mirrors: /Mirror turns/, glass: /Invisible Wall goes up/,
+    fallingstar: /uses Falling Star/, crossing: /uses The Crossing/, encore: /uses Encore/, command: /Command Performance!/, showstopper: /uses Showstopper/,
   };
 
   const mechanics = () => p.evaluate(m => {
@@ -304,7 +318,7 @@ async function serve() {
 
         const at = cmd.kind === 'move' ? cmd.to : cmd.at;
 
-        if (await clickTile(at, cmd.kind === 'cast')) stats[cmd.kind === 'move' ? 'moves' : 'casts']++;
+        if (await (cmd.kind === 'move' ? clickTile(at, false) : castTile(cmd))) stats[cmd.kind === 'move' ? 'moves' : 'casts']++;
         else { stats.misses++; missed.push({ cmd, under: await under(at) }); await p.keyboard.press('Escape'); await p.keyboard.press(' '); }
       } else if (cmd.kind === 'endTurn') {
         // A unit with nothing left ends its turn by itself; only press Space if it is still waiting.
