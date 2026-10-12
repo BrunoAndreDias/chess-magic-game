@@ -225,6 +225,7 @@ export const PLAY: Handlers = {
     }
 
     c.stage.shake(0.4);
+    c.terrain.loosen(e.tiles);
     await c.tweens.run(0.6, p => { for (const t of views) t.group.position.y = -1.6 * p * p; });
     c.terrain.rebase(c.after, e.tiles);
   },
