@@ -114,7 +114,7 @@ export function mountBattle(ctx: Ctx, draft: Draft, match: Match): Mounted {
     renderHud();
   }
 
-  /** The initiative bar follows a batch as it plays: whose turn it is, and the order a Toll, Overture or Encore just made. */
+  /** The initiative bar follows a batch as it plays: whose turn it is, and the order a Toll or Encore just made. */
   function livePhase(e: Extract<BattleEvent, { type: 'queue' | 'activate' | 'round' }>): void {
     const ph = shown.phase;
 
