@@ -74,7 +74,7 @@ Bone Wall is no longer a Rite. With only Wither and The Crossing left as Rites, 
 
 ### Ultimate: The Crossing
 
-*Rite. Needs at least 1 held Soul and spends all you hold.* The ferry rows a straight line of 5 tiles out from you, in one of the four directions. Every enemy on the line takes **10 per Soul spent**. Every Downed ally on the line stands up at **40% HP**.
+*Rite. Needs at least 1 held Soul and spends all you hold.* The ferry rows a straight line of 5 tiles out from you, in one of the four directions. Every enemy on the line takes **12 per Soul spent**. Every Downed ally on the line stands up at **40% HP**.
 
 The Gravecaller's loop in one skill: hard hits and Downs drop Souls, Harvest gathers them, and The Crossing cashes them all in, as damage, as revives, or both. Its gate is the timer and the Souls together. Last Rites' revive lives here now, so every party still has Help Up and one Gravecaller has The Crossing.
 
@@ -84,7 +84,7 @@ The Gravecaller's loop in one skill: hard hits and Downs drop Souls, Harvest gat
 |---|---|---|---|
 | **Lich** | Tank | +15 HP. Hold +1 Soul. Start your turn with a 3 shield per Soul you hold. | **Undying**: while Downed you still take turns (move 1, then one skill but not your basic). Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal. |
 | **Reaper** | Damage | Soul Bolt +4. Harvest range +2. Siphon +6. | **Reap**: enemies at 20% HP or less that you hit are Downed at once (REAP), and every Down you cause hands you a Soul directly. |
-| **Psychopomp** | Support | The Crossing's line +2 tiles. +40 HP. Allies you stand up get a 30 shield. | **Ferryman**: Downed allies within 3 of you don't bleed, and anyone in your party who stands an ally up (Help Up or The Crossing) brings it back at 70% HP. Help Up is still paid from the helper's own HP. |
+| **Psychopomp** | Support | The Crossing's line +2 tiles. +50 HP. Allies you stand up get a 40 shield. | **Ferryman**: Downed allies within 3 of you don't bleed, and anyone in your party who stands an ally up (Help Up or The Crossing) brings it back at 70% HP. Help Up is still paid from the helper's own HP. |
 
 ### On each map
 
@@ -129,7 +129,7 @@ In a turn-based game an extra turn is the purest turn-order ultimate, and it's t
 
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
-| **Carillon** | Control | +10 HP. Clapper +4. Bell Guard +10 shield. | **Toll for Thee**: enemies you Toll are Hushed on their moved turn. |
+| **Carillon** | Control | +5 HP. Clapper +4. Bell Guard +10 shield. | **Toll for Thee**: enemies you Toll are Hushed on their moved turn. |
 | **Herald** | Damage | Knell +6. +20% damage when you're the last of your party to act this round. Peal +3. | **Final Hour**: Toll can target you. Your turn moves to the end of the round, and your last-in-round turn deals +50% damage. |
 | **Conductor** | Support | Toll range +2. Encore cooldown −1. +10 HP. | **Accelerando**: allies you Toll get +2 move and a 10 shield on that turn. |
 
@@ -175,7 +175,7 @@ It follows every Call rule: you hold one Call at a time, it hits allies too, and
 |---|---|---|---|
 | **Pyre** | Damage | Fire +30%. Call range +1. Burning +4 a turn. | **Twin Stars**: you can hold two Calls at once. |
 | **Rime** | Control | Frost +30%. Frostbolt range +2. Your Calls make everyone they hit Wet. | **Absolute Zero**: units Rooted when your Call lands are Stunned by it. |
-| **Orrery** | Support | Recall range +2. +25 HP. Recall also cleanses debuffs. | **Benevolent Heavens**: your Calls heal allies in their area for a quarter of what they'd deal, instead of hurting them. |
+| **Orrery** | Support | Recall range +2. +15 HP. Recall also cleanses debuffs. | **Benevolent Heavens**: your Calls heal allies in their area for a quarter of what they'd deal, instead of hurting them. |
 
 ### On each map
 
@@ -220,7 +220,7 @@ The puppeteer fantasy at full size. Nobody but the Marionettist walks another un
 |---|---|---|---|
 | **Heartwood** | Tank (control) | Doll +40 HP. +35 HP. The Doll reforms a round sooner and gets +10 HP. | **Tangled Strings**: enemies that hit your Doll are Rooted, and it takes half damage. |
 | **Ventriloquy** | Damage | Wire Lash +6. Razor Wire +8. Dance takes 1 more step. | **Ventriloquist**: you can cast your basic and your skills from your Doll's tile, as if you stood there, and Wire Lash gets +1 range. |
-| **Stagecraft** | Support | Switch range +2. +20 HP. Stand-In covers allies within 2 of your Doll. | **Understudy**: a quarter of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a 15 shield. |
+| **Stagecraft** | Support | Switch range +2. +10 HP. Stand-In covers allies within 2 of your Doll. | **Understudy**: a quarter of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a 10 shield. |
 
 ### On each map
 
@@ -264,7 +264,7 @@ Until your next turn, you are Mirrored against **every** enemy hit, not just the
 |---|---|---|---|
 | **Quicksilver** | Tank | +25 HP. Reflect range +2. Whoever you Mirror also gets a 10 shield. | **Quicksilver**: units you Mirror turn back half of every enemy hit until their next turn, not just the first. |
 | **Hall of Mirrors** | Damage | Ricochet +4. Retort +4. Enemies next to your glass when it rises take 8. | **Hall of Mirrors**: a hit your Mirror turns back comes back whole (the Mirrored unit still takes only half), and Reflect flashes: 8 to every enemy within 2 of whoever you Mirror. |
-| **Smoke and Mirrors** | Support | Reversal range +2. +20 HP. Showstopper cooldown −1. | **Smoke and Mirrors**: units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect's cooldown −1. |
+| **Smoke and Mirrors** | Support | Reversal range +2. +35 HP. Showstopper cooldown −1. | **Smoke and Mirrors**: units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect's cooldown −1. |
 
 ### On each map
 
@@ -312,7 +312,19 @@ Every pair of classes in a party, and every class taken twice, gives a bonus.
 
 ## Balance notes
 
-The notes below are from the 7-skill kits. The 4-skill pools and the ultimates need a fresh pass against the Verification gates.
+### The 4-skill pools and the ultimates
+
+The first sim of the new kits (7200 battles, seeds 0 to 7199, `npm run sim -- 900 --from=K`, eight shards) put every class within 47–52% but two keystone paths out: Psychopomp at 44% and Stagecraft at 58%. The ultimates fired in 99% of the battles where their character stood with them ready, except The Crossing (87%, it needs a held Soul) and Encore (69%): a Bellringer acting first in its party never had an ally that already acted, so Encore now takes any ally within 3 (the Encore section above). These changes, tuned on seeds 0 to 7199, hold every class within 49–51% and every keystone path within 45.5–54.2% on 7200 held-out battles (seeds 7200 to 14399):
+
+- **Gravecaller**: The Crossing 10 → 12 per Soul; Psychopomp's Pale Robes +40 → +50 HP and Safe Passage 30 → 40.
+- **Marionettist**: Stagecraft's Velvet Coat +20 → +10 HP and Understudy's Switch shield 15 → 10.
+- **Mirrormime**: Smoke and Mirrors' Greasepaint +20 → +35 HP.
+- **Astromancer**: Orrery's Starward +25 → +15 HP.
+- **Bellringer**: Carillon's Bronze Frame +10 → +5 HP.
+
+On the held-out battles the ultimates fire in 89% (The Crossing) to 99% of the battles where they're ready (Encore 93%), the class mechanics hold their gates (Calls 98%, Harvest 98%, Rites 94%, Toll 82%, Strings 100%, a Mirror turning a hit back 74%), and a battle runs 11.0 rounds. Three damage keystones against a role-covering party win 30% (`--dumb`, 2400 battles).
+
+### The 7-skill kits
 
 The Marionettist and Mirrormime came in with a 7200-battle sim of all five classes (`npm run sim -- 900 --from=K`, eight shards). The first pass put the Bellringer at 60% (Carillon 66%, Conductor 62%), the Mirrormime at 59%, the Astromancer at 44% and the Marionettist at 39%. These changes brought every class and every keystone path into 47–53% over 14400 battles (seeds 0 to 14399, so the second half is held out from the first tuning runs):
 

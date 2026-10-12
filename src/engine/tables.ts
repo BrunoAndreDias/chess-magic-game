@@ -252,7 +252,7 @@ export const NODE_N = {
   b_accel: { shield: 10 },
   p_tangled: { taken: 0.5 },
   p_ventriloquist: { range: 1 },
-  p_understudy: { share: 0.25, shield: 15 },
+  p_understudy: { share: 0.25, shield: 10 },
   m_hall: { flash: 8, radius: 2 },
 };
 
@@ -281,7 +281,7 @@ const TREE_TABLE = {
       node({ id: 'a_twin', name: 'Twin Stars', key: true, mods: { twinStars: 1 }, text: m => `You can hold ${1 + m.twinStars} Calls at once.` })] },
     { name: 'Orrery', role: 'support', color: '#ffe08a', nodes: [
       node({ id: 'a_recall', name: 'Long Orbit', mods: { recallRange: 2 }, text: m => `Recall range +${m.recallRange}.` }),
-      node({ id: 'a_hp', name: 'Starward', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'a_hp', name: 'Starward', mods: { hp: 15 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'a_cleanse', name: 'Clean Return', mods: { recallCleanse: 1 }, text: () => 'Recall also cleanses debuffs.' }),
       node({ id: 'a_benev', name: 'Benevolent Heavens', key: true, mods: { benevolent: 1 },
         text: () => `Your Calls heal allies in their area for ${part(NODE_N.a_benev.heal)} of what they’d deal, instead of hurting them.` })] }],
@@ -300,13 +300,13 @@ const TREE_TABLE = {
         text: () => `Enemies a hit of yours leaves at ${pct(REAP_AT)} HP or less are Downed at once (REAP), and every Down you cause hands you its Soul directly.` })] },
     { name: 'Psychopomp', role: 'support', color: '#fff3b0', nodes: [
       node({ id: 'g_line', name: 'Far Shore', mods: { crossingLen: 2 }, text: m => `The Crossing’s line +${m.crossingLen} tiles.` }),
-      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 40 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 30 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
+      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 50 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 40 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
       node({ id: 'g_ferry', name: 'Ferryman', key: true, mods: { ferryman: 1 },
         text: () => `Downed allies within ${NODE_N.g_ferry.range} of you don’t bleed, and anyone in your party who stands an ally up (Help Up or The Crossing) brings it back at ${pct(NODE_N.g_ferry.hp)} HP.` })] }],
   bellringer: [
     { name: 'Carillon', role: 'tank', color: '#e0b04a', nodes: [
-      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 10 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 5 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'b_clapper', name: 'Heavy Clapper', mods: { basicDmg: 4 }, text: m => `Clapper +${m.basicDmg} damage.` }),
       node({ id: 'b_guard', name: 'Thick Bell', mods: { guardShield: 10 }, text: m => `Bell Guard +${m.guardShield} shield.` }),
       node({ id: 'b_thee', name: 'Toll for Thee', key: true, mods: { tollHush: 1 },
@@ -338,7 +338,7 @@ const TREE_TABLE = {
         text: () => `You can cast your basic and your skills from your Doll’s tile, as if you stood there, and Wire Lash gets +${NODE_N.p_ventriloquist.range} range.` })] },
     { name: 'Stagecraft', role: 'support', color: '#ffd38a', nodes: [
       node({ id: 'p_switch', name: 'Long Strings', mods: { switchRange: 2 }, text: m => `Switch range +${m.switchRange}.` }),
-      node({ id: 'p_hp2', name: 'Velvet Coat', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'p_hp2', name: 'Velvet Coat', mods: { hp: 10 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'p_wide', name: 'Wide Arms', mods: { standinReach: 1 }, text: m => `Stand-In covers allies within ${1 + m.standinReach} of your Doll.` }),
       node({ id: 'p_understudy', name: 'Understudy', key: true, mods: { understudy: 1 },
         text: () => `${cap(part(NODE_N.p_understudy.share))} of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a ${NODE_N.p_understudy.shield} shield.` })] }],
@@ -357,7 +357,7 @@ const TREE_TABLE = {
         text: () => `A hit your Mirror turns back comes back whole, and your Reflect flashes: ${NODE_N.m_hall.flash} to every enemy within ${NODE_N.m_hall.radius} of whoever you Mirror.` })] },
     { name: 'Smoke and Mirrors', role: 'support', color: '#9fe8d8', nodes: [
       node({ id: 'm_reversal', name: 'Sleight', mods: { reversalRange: 2 }, text: m => `Reversal range +${m.reversalRange}.` }),
-      node({ id: 'm_hp2', name: 'Greasepaint', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'm_hp2', name: 'Greasepaint', mods: { hp: 35 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'm_spot', name: 'Spotlight', mods: { ultCd: 1 }, text: m => `Showstopper ${cd(m.ultCd)}.` }),
       node({ id: 'm_smoke', name: 'Smoke and Mirrors', key: true, mods: { smokeMirrors: 1, reflectCd: 1 },
         text: m => `Units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect’s ${cd(m.reflectCd)}.` })] }],
@@ -483,7 +483,7 @@ export const SKILL_N = {
   wither: { turns: 2 },
   soulbolt: { dmg: 14, perSoul: 6 },
   siphon: { dmg: 12, reach: 3 },
-  crossing: { length: 5, perSoul: 10, hp: 0.4 },
+  crossing: { length: 5, perSoul: 12, hp: 0.4 },
   toll: { range: 4 },
   knell: { dmg: 12, lateMult: 1.5 },
   peal: { radius: 2, dmg: 10, perActed: 3 },

@@ -63,13 +63,13 @@ describe('rites', () => {
     return run(ready(s0, 1), begin).state;
   };
 
-  test('The Crossing is refused with no held Soul; with two it spends both, hits the enemy on its line for 20 and stands the Downed ally up at 40%, unpaid', () => {
+  test('The Crossing is refused with no held Soul; with two it spends both, hits the enemy on its line for 24 and stands the Downed ally up at 40%, unpaid', () => {
     expect(apply(ferry(0), cast(1, 'crossing', 4, 1))).toEqual({ ok: false, error: 'crossing is not usable now' });
     const r = run(ferry(2), cast(1, 'crossing', 4, 1));
     expect(r.events.slice(1)).toEqual([
       { type: 'spend', id: 1, n: 2 },
       { type: 'revive', id: 2, by: 1 },
-      { type: 'damage', id: 3, amount: 20, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 3, amount: 24, absorbed: 0, kind: 'phys' },
       { type: 'soul', x: 6, z: 1 },
     ]);
     expect([unit(r.state, 1).souls, unit(r.state, 1).hp, unit(r.state, 2).hp, unit(r.state, 2).life, unit(r.state, 4).hp]).toEqual([0, 160, 62, { kind: 'up' }, 155]);
@@ -78,8 +78,8 @@ describe('rites', () => {
   test('Far Shore stretches The Crossing\'s line to 7 tiles', () => {
     const r = run(ferry(1, ['g_line']), cast(1, 'crossing', 4, 1));
     expect(r.events.filter(e => e.type === 'damage')).toEqual([
-      { type: 'damage', id: 3, amount: 10, absorbed: 0, kind: 'phys' },
-      { type: 'damage', id: 4, amount: 10, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 3, amount: 12, absorbed: 0, kind: 'phys' },
+      { type: 'damage', id: 4, amount: 12, absorbed: 0, kind: 'phys' },
     ]);
   });
 
