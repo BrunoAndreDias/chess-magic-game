@@ -42,7 +42,7 @@ const SCORCHED_COL = [0x2a2224, 0x261f20] as const;
 export const CHASM_Y = -1.4;
 
 const TONE: Readonly<Record<HighlightTone, { color: number; opacity: number }>> = {
-  move: { color: 0x5b8cff, opacity: 0.55 },
+  move: { color: 0x5b8cff, opacity: 0.7 },
   path: { color: 0xa9c3ff, opacity: 0.9 },
   target: { color: 0xff6b5b, opacity: 0.65 },
   aoe: { color: 0xffb04a, opacity: 0.9 },

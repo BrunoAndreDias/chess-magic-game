@@ -86,7 +86,7 @@ function stoneAtlas(moss: number, rnd: () => number): THREE.CanvasTexture {
       gr.addColorStop(0, 'rgba(70,60,50,0.55)');
       gr.addColorStop(1, 'rgba(70,60,50,0)');
       g.fillStyle = gr;
-      g.fillRect(ox, oy, S, S);
+      g.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.max(Math.abs(x1 - x0), y0 === y1 ? S : 0), Math.max(Math.abs(y1 - y0), x0 === x1 ? S : 0));
     }
 
     for (let i = 0; i < 9; i++) {
@@ -283,7 +283,7 @@ export function jitter(g: THREE.BufferGeometry, amp: number, seed: number): THRE
 
 /** A bevelled stone block centred on the origin. Its uvs land in one quadrant of the stone atlas at one of four turns. */
 export function block(w: number, h: number, d: number, rnd: () => number, bevel = 0.06, amp = 0.025): THREE.BufferGeometry {
-  const g = jitter(prep(new RoundedBoxGeometry(w, h, d, 2, Math.min(bevel, w / 2, h / 2, d / 2))), amp, Math.floor(rnd() * 1000));
+  const g = jitter(prep(new RoundedBoxGeometry(w, h, d, 1, Math.min(bevel, w / 2, h / 2, d / 2))), amp, Math.floor(rnd() * 1000));
   const uv = g.attributes.uv!, q = Math.floor(rnd() * 4), turn = Math.floor(rnd() * 4), ox = (q % 2) * 0.5, oy = Math.floor(q / 2) * 0.5;
 
   for (let i = 0; i < uv.count; i++) {
