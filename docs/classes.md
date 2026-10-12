@@ -1,6 +1,6 @@
 # Classes: Astromancer, Gravecaller, Bellringer, Marionettist, Mirrormime
 
-These five replace the Warden, Wizard, Ranger, Cleric and Rogue, and the Gravecaller and Bellringer replace the Delver. The Weaver was cut, and the Marionettist and Mirrormime came after it. Every party is some mix of the five. This file is the design and the rules spec the engine is checked against. Runes are designed here but come in a second pass, after the classes and paths play well.
+These five replace the Warden, Wizard, Ranger, Cleric and Rogue, and the Gravecaller and Bellringer replace the Delver. The Weaver was cut, and the Marionettist and Mirrormime came after it. Every party is some mix of the five. Each class now has a pool of 4 skills and one ultimate, cut down from 7 skills so the kits and the tree can be tuned together before the pools grow again. This file is the design and the rules spec the engine is checked against. Runes are designed here but come in a second pass, after the classes and paths play well.
 
 ## The idea
 
@@ -8,7 +8,23 @@ Today a class is a role. The Warden tanks, the Cleric heals, and a party without
 
 - **A class owns one part of the game.** Nobody else touches it. The Astromancer owns the elements, the Gravecaller owns life and death, the Bellringer owns the turn order, the Marionettist owns bodies and the Mirrormime owns reflection. That rule is always on, through an innate skill every build has.
 - **A path is a role.** Each class's passive tree has three paths, one leaning tank, one damage, one support or control. The keystone at the end of a path rewrites how the class mechanic works.
-- **A build is choices that combine.** Pick 3 of 7 skills and spend 6 points in a tree of 3 paths × 4 nodes. A node needs the one before it, so 6 points buys one keystone and a dip into a second path, never two keystones. Runes (second pass) add one of 2 modifiers to each chosen skill.
+- **A build is choices that combine.** Pick 2 of the class's 4 skills and spend 6 points in a tree of 3 paths × 4 nodes. A node needs the one before it, so 6 points buys one keystone and a dip into a second path, never two keystones. Runes (second pass) add one of 2 modifiers to each chosen skill.
+
+## The kit
+
+Every character carries the same five things.
+
+| Slot | What it is | Cooldown |
+|---|---|---|
+| Basic | The class's plain attack. | none |
+| Innate | The class mechanic. Free: it doesn't use your action. | its own |
+| Skill × 2 | Picked from the class's pool of 4. | 2 each |
+| Ultimate | The class's signature, the same for every build. It uses your action. | ready on your 4th turn, then 5 |
+
+- **A skill is almost always ready.** With both skills on cooldown 2, a character that alternates them has one ready every turn, and choosing which one to fire is still a decision.
+- **The ultimate comes from time to time.** Battles run about 11 rounds (8.8 on the Sun Altar, 12.9 on the Storm Court, 200 AI battles), so a character fires it about twice a battle. Its countdown is public: both parties see every ultimate's turns left, so a coming ultimate is something to plan around, like a threat in chess.
+- **A cooldown ticks at the start of each of the unit's own turns**, and not on an extra turn (Encore), as before.
+- **Start small, then grow.** The pools are 4 skills on purpose. New skills join a pool one at a time once the tree and the four play well. `docs/skill-backlog.md` holds the skills that left the pools and the ideas for the next ones.
 
 Any class can fill the hole in a party. A party of three damage keystones can still be built, and it should lose to a party that covers tank, damage and support.
 
@@ -42,28 +58,33 @@ No class counters another outright, but each has a lever on another. The Bellrin
 - Souls last **3 rounds** on the ground. Both parties see them.
 - **Harvest** (innate, free, cooldown 2). Gather every Soul within 3. A Gravecaller also gathers a Soul by ending a move on its tile.
 - You hold up to **3** Souls. Souls past the cap stay on the ground.
-- **Rites** cost 1 held Soul to cast, and can't be cast without one. Other skills are free. **Soul Burst** spends a Soul on the ground, not a held one.
+- **Rites** cost held Souls to cast, and can't be cast without one. Wither costs 1 and The Crossing spends all you hold. Other skills are free.
 - If the Gravecaller is Downed, its held Souls drop on its tile.
 
-### Skills (pick 3 of 7)
+### Skills (pick 2 of 4)
 
 | Skill | Kind | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|---|
-| **Last Rites** | Rite | 3 | A Downed ally within 3 stands up at 40% HP, paid from your own HP (never your last). | *Second Wind*: also a 20 shield | *Long Reach*: range 5 |
-| **Bone Wall** | Rite | 2 | A wall of 3 tiles across your line to an empty tile within 3, for 2 rounds. It blocks moves and sight. Tiles with units are skipped. | *Ossuary*: 4 tiles | *Spiked*: 8 to enemies who start a turn next to it |
-| **Wither** | Rite | 3 | An enemy within 3 is **Withered** for 2 turns: it can't be healed or shielded, and a hit that leaves it at 20% HP or less Downs it (**REAP**). | *Rot*: also Exposed | *Mark*: its Down drops 2 Souls |
-| **Soul Bolt** | Instant | 2 | Range 4, line of sight: 14, plus 6 for each Soul you hold. Spends none. | *Piercing*: hits the unit behind too | *Hungry*: on a Down, gather its Soul |
-| **Soul Burst** | Instant | 2 | A Soul on the ground within 4 bursts: 18 to every enemy within 1 of it. | *Chain*: bursts Souls next to it too | *Bind*: Roots instead of the last 6 |
 | **Siphon** | Instant | 2 | An enemy within 3 takes 12, and the most wounded ally within 3 of you (yourself included) heals as much. | *Deep Draw*: 16 | *Shared*: splits over all allies within 3 |
-| **Equalize** | Instant | 3 | A unit within 3. Your HP % and its HP % even out, moving at most 30 HP. On an enemy healthier than you, you take its HP. On an ally hurt worse than you, you give it yours. | *Toll*: up to 45 | *Fair Share*: also swaps statuses |
+| **Wither** | Rite | 2 | An enemy within 3 is **Withered** for 2 turns: it can't be healed or shielded, and a hit that leaves it at 20% HP or less Downs it (**REAP**). | *Rot*: also Exposed | *Mark*: its Down drops 2 Souls |
+| **Soul Bolt** | Instant | 2 | Range 4, line of sight: 14, plus 6 for each Soul you hold. Spends none. | *Piercing*: hits the unit behind too | *Hungry*: on a Down, gather its Soul |
+| **Bone Wall** | Instant | 2 | A wall of 3 tiles across your line to an empty tile within 3, for 2 rounds. It blocks moves and sight. Tiles with units are skipped. | *Ossuary*: 4 tiles | *Spiked*: 8 to enemies who start a turn next to it |
+
+Bone Wall is no longer a Rite. With only Wither and The Crossing left as Rites, a Soul-free wall gives the tank build a pick that doesn't compete with the ultimate for Souls.
+
+### Ultimate: The Crossing
+
+*Rite. Needs at least 1 held Soul and spends all you hold.* The ferry rows a straight line of 5 tiles out from you, in one of the four directions. Every enemy on the line takes **10 per Soul spent**. Every Downed ally on the line stands up at **40% HP**.
+
+The Gravecaller's loop in one skill: hard hits and Downs drop Souls, Harvest gathers them, and The Crossing cashes them all in, as damage, as revives, or both. Its gate is the timer and the Souls together. Last Rites' revive lives here now, so every party still has Help Up and one Gravecaller has The Crossing.
 
 ### Paths
 
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
 | **Lich** | Tank | +15 HP. Hold +1 Soul. Start your turn with a 3 shield per Soul you hold. | **Undying**: while Downed you still take turns (move 1, then one skill but not your basic). Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal. |
-| **Reaper** | Damage | Soul Bolt +4. Harvest range +2. Soul Burst +8. | **Reap**: enemies at 20% HP or less that you hit are Downed at once (REAP), and every Down you cause hands you a Soul directly. |
-| **Psychopomp** | Support | Last Rites range +3. +40 HP. Allies you stand up get a 30 shield. | **Ferryman**: Downed allies within 3 of you don't bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at 60% HP, still paid from their own HP. |
+| **Reaper** | Damage | Soul Bolt +4. Harvest range +2. Siphon +6. | **Reap**: enemies at 20% HP or less that you hit are Downed at once (REAP), and every Down you cause hands you a Soul directly. |
+| **Psychopomp** | Support | The Crossing's line +2 tiles. +40 HP. Allies you stand up get a 30 shield. | **Ferryman**: Downed allies within 3 of you don't bleed, and anyone in your party who stands an ally up (Help Up or The Crossing) brings it back at 60% HP. Help Up is still paid from the helper's own HP. |
 
 ### On each map
 
@@ -87,17 +108,20 @@ No class counters another outright, but each has a lever on another. The Bellrin
 - Pushing an enemy to the end isn't free. If its party starts the next round, it acts last now and first next, two turns in a row. That's the price of Toll.
 - **Late** means the target already acted this round. **Early** means it hasn't.
 
-### Skills (pick 3 of 7)
+### Skills (pick 2 of 4)
 
 | Skill | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|
 | **Knell** | 2 | Range 4, line of sight: 12. **Late**: ×1.5 and Rooted. | *Dirge*: Late also Exposed | *Long Toll*: range 6 |
-| **Hush** | 3 | An enemy within 3 is **Hushed** for its next turn: it can move and use its basic attack, nothing else. Free innates included. | *Silence*: 2 turns | *Echoing*: also the enemy nearest it |
+| **Bell Guard** | 2 | A 20 shield on you or an ally within 1, until your next turn. Enemies that hit the shielded unit while it holds are Hushed. | *Bronze*: 40 | *Ward*: range 3 |
+| **Hush** | 2 | An enemy within 3 is **Hushed** for its next turn: it can move and use its basic attack, nothing else. Free innates included. | *Silence*: 2 turns | *Echoing*: also the enemy nearest it |
 | **Peal** | 2 | Every enemy within 2 takes 10, plus 3 for each unit that already acted this round. | *Resound*: radius 3 | *Shatter Glass*: Wet enemies are Stunned |
-| **Encore** | 4 | An ally within 3 that **already acted** this round takes an extra turn at the end of the round. Cooldowns don't tick on that turn. | *Bow*: the ally gets a 15 shield | *Reprise*: works on yourself |
-| **Overture** | 4 | Free. Every ally that hasn't acted this round moves to right after you, in its current order. Doesn't count as a Toll. | *Fanfare*: they get +1 move | *Prelude*: also clears their Root |
-| **Hourglass** | 3 | A unit within 3. Its timed statuses run out now. On an enemy, its remaining Burn hits at once and its shield is gone. On an ally, only its debuffs go. | *Sand Trap*: then Rooted (enemy) | *Borrowed Time*: then a 20 shield (ally) |
-| **Bell Guard** | 3 | A 20 shield until your next turn. Enemies that hit you while it holds are Hushed. | *Bronze*: 40 | *Ward*: an ally within 1 instead |
+
+### Ultimate: Encore
+
+An ally within 3 that **already acted** this round takes an extra turn at the end of the round. Cooldowns don't tick on that turn.
+
+In a turn-based game an extra turn is the purest turn-order ultimate, and it's the Bellringer's clearest team play: an Encore on the Astromancer lands its Call early and lets it cast another. It moved up from a cooldown-4 skill, so it no longer competes with the two picks.
 
 ### Paths
 
@@ -111,7 +135,7 @@ No class counters another outright, but each has a lever on another. The Bellrin
 
 - **Sun Altar**: favor counts at round end, so the last turns decide it. Final Hour puts the Bellringer last, onto the altar with nobody left to push it off.
 - **Storm Court**: storms strike at round end. Encore gives an ally one last step out of the line.
-- **Shattered Span**: Overture sends the whole party across a bridge in one burst, before the enemy can answer.
+- **Shattered Span**: Toll an ally right after you and walk across a bridge together, before the enemy can answer.
 
 ---
 
@@ -122,37 +146,40 @@ No class counters another outright, but each has a lever on another. The Bellrin
 ### Calls
 
 - A **Called** skill marks its area now and **lands at the start of your next turn**, before you move, even if you're Stunned. Both parties see the area and the counter.
-- Turn order is drafted before the battle and holds for all of it, so a Call lands after the five other turns between yours, unless a Toll, Overture or Encore moves someone.
+- Turn order is drafted before the battle and holds for all of it, so a Call lands after the five other turns between yours, unless a Toll or an Encore moves someone.
 - A Call hits **every unit** in its area, allies included, unless the Orrery keystone says otherwise.
 - You hold **one** Call at a time. If you're Downed before it lands, it fizzles.
-- **Snap** (innate, free, cooldown 3) makes your oldest pending Call land right now at half power. A half-power Gravity Well pulls 1 tile.
+- **Snap** (innate, free, cooldown 3) makes your oldest pending Call land right now at half power.
 - Roots, Stuns and a Bellringer's Toll make a Call hard to escape. That's how the other classes feed the Astromancer.
 
-### Skills (pick 3 of 7)
+### Skills (pick 2 of 4)
 
 | Skill | Kind | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|---|
-| **Meteor** | Call | 3 | A 3×3 area within 6: 30 at the center, 15 around, and Burning. Ignites grass and bursts braziers. | *Crater*: a pit at the center for 2 rounds | *Shower*: three 1-tile stars of 18 |
 | **Thunderhead** | Call | 2 | A 3×3 area within 5: 20 shock. CONDUCT on Wet: ×1.5. | *Static*: no free skills next turn | *Long Storm*: lands again at half |
-| **Gravity Well** | Call | 3 | Within 5. Every unit within 2 of the center is pulled 2 toward it, nearest first. Into a wall or unit: SLAM. Into a chasm: ABYSS. | *Collapse*: 12 to everyone pulled | *Repulse*: pushes out instead |
 | **Frostbolt** | Instant | 2 | Range 4: 12 and Rooted. FREEZE on Wet: stunned instead. Freezes water within 1. | *Shatterpoint*: +50% on Rooted | *Ice Path*: ice under the target |
 | **Firebolt** | Instant | 2 | Range 4: 14 and Burning. COMBUST on a Burning target: 12 plus triple its remaining burn, at once. | *Kindle*: ignites the tile | *Flare*: reveals in grass |
-| **Glacial Prison** | Instant | 3 | Any other unit within 3 is **Encased** for 1 turn: it skips its turn and can't be damaged or moved. Then it's Wet. | *Cold Sleep*: an ally heals 20 | *Brittle*: +25% taken after |
-| **Recall** | Call | 3 | An ally within 4 (or yourself). When the Call lands, it snaps back to the tile it stood on when you cast, if that's free, and gets back the HP it lost since. | *Echo*: cleanse on return | *Anchor*: works on the Downed |
+| **Recall** | Call | 2 | An ally within 4 (or yourself). When the Call lands, it snaps back to the tile it stood on when you cast, if that's free, and gets back the HP it lost since. | *Echo*: cleanse on return | *Anchor*: works on the Downed |
+
+### Ultimate: Falling Star
+
+*Call.* A 3×3 area within 6. When you cast it, every enemy within 1 of the area, outside it, is pulled 1 tile toward its center, the way Gravity Well pulled (into a wall or unit: SLAM, into a chasm: ABYSS). At the start of your next turn it lands: **40** at the center, **20** around, and Burning. It ignites grass and bursts braziers. It counts as fire.
+
+It follows every Call rule: you hold one Call at a time, it hits allies too, and Snap lands it now at half power. Snap is free, so a pending Thunderhead can be Snapped and Falling Star cast on the same turn. "I aim where you'll be" at its biggest: everyone sees it coming, so the enemy has to scatter, and a Toll, a Root or a Dance from an ally makes it hard to leave. Meteor's damage and Gravity Well's pull both live here now.
 
 ### Paths
 
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
 | **Pyre** | Damage | Fire +30%. Call range +1. Burning +4 a turn. | **Twin Stars**: you can hold two Calls at once. |
-| **Rime** | Control | Frost +30%. Glacial Prison cooldown −1. Your Calls make everyone they hit Wet. | **Absolute Zero**: units Rooted or Encased when your Call lands are Stunned by it, and Glacial Prison holds an enemy 2 turns. |
+| **Rime** | Control | Frost +30%. Frostbolt range +2. Your Calls make everyone they hit Wet. | **Absolute Zero**: units Rooted when your Call lands are Stunned by it. |
 | **Orrery** | Support | Recall range +2. +25 HP. Recall also cleanses debuffs. | **Benevolent Heavens**: your Calls heal allies in their area for a quarter of what they'd deal, instead of hurting them. |
 
 ### On each map
 
-- **Storm Court**: Thunderhead on a Wet target doubles up with the storm. A Gravity Well timed against the cycle drags enemies into the line about to strike.
-- **Shattered Span**: Gravity Well near the edge is a pull into the abyss.
-- **Sun Altar**: a Meteor called on the altar makes the holders leave or eat it.
+- **Storm Court**: Thunderhead on a Wet target doubles up with the storm, and Frostbolt Roots an enemy in a line about to strike.
+- **Shattered Span**: a Falling Star cast with a chasm between its area and an enemy pulls that enemy into the abyss.
+- **Sun Altar**: a Falling Star called on the altar makes the holders leave or eat it.
 
 ---
 
@@ -163,30 +190,35 @@ No class counters another outright, but each has a lever on another. The Bellrin
 ### The Doll
 
 - The Marionettist starts the battle with its **Doll** on the free tile next to it. The Doll is a second body: it has its own tile and **50 HP**, it blocks moves like any unit, and any enemy can target it and hit it. Areas catch it too.
-- The Doll is not a character. It never takes a turn, takes no statuses, can't be healed by others, helped up or moved by others' skills, and it doesn't count for a wipe, the Sun Altar or the round limit. Pulls (Gravity Well) still move it, and a chasm still breaks it.
+- The Doll is not a character. It never takes a turn, takes no statuses, can't be healed by others, helped up or moved by others' skills, and it doesn't count for a wipe, the Sun Altar or the round limit. Pulls (Falling Star) still move it, and a chasm still breaks it.
 - At 0 HP the Doll **breaks**. It reforms at full HP on the free tile nearest the Marionettist at the start of the Marionettist's turn **2 rounds** later. It only reforms while the Marionettist stands.
 - **Strings** (innate, free, cooldown 1, so once a turn). The Doll walks up to **3** tiles, the way a unit walks, and must end within **4** of you.
 - The hits the Doll takes are hits your party didn't. Breaking it is worth a turn to the enemy only when it stands where it matters, so the Doll plays as a wall you can move, a bait, and the far end of your strings.
 
-### Skills (pick 3 of 7)
+### Skills (pick 2 of 4)
 
 | Skill | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|
-| **Switch** | 3 | Free. You, or an ally within 3, trade places with your Doll. | *Curtain*: the ally gets a 15 shield | *Long Strings*: range 5 |
-| **Dance** | 3 | Another unit within 4 takes up to 2 steps toward your Doll, stopping at anything in the way or next to the Doll. | *Waltz*: 3 steps | *Bow*: an enemy ends Exposed |
-| **Tangle** | 3 | Every enemy next to your Doll takes 10 and is Rooted. | *Knot*: radius 2 | *Snare*: Stunned instead, on a Rooted enemy |
 | **Razor Wire** | 2 | Every enemy on the line between you and your Doll (up to 6 apart) takes 24. | *Garrote*: Rooted too | *Taut*: +6 if the Doll is 4 or more away |
-| **Splinter** | 3 | Your Doll bursts: 26 to every enemy next to it. The Doll breaks. | *Shrapnel*: radius 2 | *Kindling*: the burst sets Burning |
-| **Stand-In** | 3 | Until your next turn, hits on allies next to your Doll go to the Doll instead. | *Bulwark*: the Doll gets a 20 shield | *Wide Arms*: within 2 |
-| **Rebuild** | 4 | A broken Doll reforms next to you now. A standing one mends to full and gets a 15 shield. | *Oak*: +20 Doll HP until it breaks | *Quick Glue*: cooldown 3 |
+| **Dance** | 2 | Another unit within 4 takes up to 2 steps toward your Doll, stopping at anything in the way or next to the Doll. | *Waltz*: 3 steps | *Bow*: an enemy ends Exposed |
+| **Switch** | 2 | Free. You, or an ally within 3, trade places with your Doll. | *Curtain*: the ally gets a 15 shield | *Long Strings*: range 5 |
+| **Stand-In** | 2 | Until your next turn, hits on allies next to your Doll go to the Doll instead. | *Bulwark*: the Doll gets a 20 shield | *Patched*: the Doll heals 5 for each hit it takes this way |
+
+Dance and Razor Wire are a combo inside the kit: Dance walks an enemy onto the wire's line, then the wire cuts it.
+
+### Ultimate: Command Performance
+
+An enemy character within 3 (not a Doll) is yours for a moment. You walk it up to **3** tiles, the way a unit walks (a Root doesn't hold it), then it uses its **basic attack** on any unit in that attack's range that you choose, its own allies included. It doesn't use or lose its own turn, and it can't be made to use a skill.
+
+The puppeteer fantasy at full size. Nobody but the Marionettist walks another unit, and this is the one time it walks a whole enemy, not just a step toward the Doll. Walk an enemy into a storm line, off the altar, next to your Doll for Razor Wire, or make it hit its own healer.
 
 ### Paths
 
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
 | **Heartwood** | Tank (control) | Doll +40 HP. +35 HP. The Doll reforms a round sooner and gets +10 HP. | **Tangled Strings**: enemies that hit your Doll are Rooted, and it takes half damage. |
-| **Ventriloquy** | Damage | Wire Lash +6. Razor Wire +8. Splinter +6. | **Ventriloquist**: you can cast your basic and your skills from your Doll's tile, as if you stood there, and Wire Lash gets +1 range. |
-| **Stagecraft** | Support | Switch range +2. +20 HP. Stand-In cooldown −1. | **Understudy**: a quarter of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a 15 shield. |
+| **Ventriloquy** | Damage | Wire Lash +6. Razor Wire +8. Dance takes 1 more step. | **Ventriloquist**: you can cast your basic and your skills from your Doll's tile, as if you stood there, and Wire Lash gets +1 range. |
+| **Stagecraft** | Support | Switch range +2. +20 HP. Stand-In covers allies within 2 of your Doll. | **Understudy**: a quarter of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a 15 shield. |
 
 ### On each map
 
@@ -207,31 +239,36 @@ No class counters another outright, but each has a lever on another. The Bellrin
 - **Glass.** The Mirrormime's Invisible Wall raises glass. Glass blocks moves like a wall but **not sight**. An enemy skill that needs line of sight, aimed at a unit through your glass, bounces off it and hits its own caster instead. Your party's shots pass through.
 - The enemy can always see a Mirror and the glass, and the target preview says what a hit would turn back. Reflection doesn't stop a hit; it makes the enemy pay for it, or pick another target.
 
-### Skills (pick 3 of 7)
+### Skills (pick 2 of 4)
 
 | Skill | Cooldown | What it does | Rune A (later) | Rune B (later) |
 |---|---|---|---|---|
-| **Invisible Wall** | 3 | Glass: a wall of 3 tiles across your line to an empty tile within 3, for 2 rounds. Tiles with units are skipped. | *Hall*: 5 tiles | *Lasting*: 3 rounds |
 | **Ricochet** | 2 | Range 4, line of sight: 12, then it bounces to the nearest other enemy within 2 for 8. | *Bank*: bounces twice | *Off the Glass*: +6 if it passes your glass |
+| **Invisible Wall** | 2 | Glass: a wall of 3 tiles across your line to an empty tile within 3, for 2 rounds. Tiles with units are skipped. | *Hall*: 5 tiles | *Lasting*: 3 rounds |
 | **Retort** | 2 | Range 3, line of sight: 10, plus half the HP you lost since your last turn. | *Last Word*: all of it | *Heckle*: also Mocked |
-| **Mock** | 3 | An enemy within 3 is **Mocked** for its next turn: of your party, its skills can target only you. | *Jeer*: also the enemy nearest it | *Pratfall*: Exposed too |
-| **Mirrorball** | 4 | Every ally within 2 (you too) is Mirrored, and every enemy within 2 takes 8. | *Disco*: radius 3 | *Glitter*: enemies Exposed |
-| **Shatter** | 2 | All your glass shatters: 16 to every enemy next to it, once each. | *Shards*: Burning glass | *Keep One*: one tile stays |
-| **Reversal** | 3 | An ally within 3 loses its debuffs, and the nearest enemy within 3 of it gets them, with the turns they had left. | *Turnabout*: also its shield | *Long Arm*: within 5 |
+| **Reversal** | 2 | An ally within 3 loses its debuffs, and the nearest enemy within 3 of it gets them, with the turns they had left. | *Turnabout*: also its shield | *Long Arm*: within 5 |
+
+Glass lasts 2 rounds and Invisible Wall comes back every other turn, so a Mirrormime that picks it keeps about one wall up all battle: the mime is never without its glass.
+
+### Ultimate: Showstopper
+
+Until your next turn, you are Mirrored against **every** enemy hit, not just the first: each one turns half back on its attacker. Every enemy within 3 is **Mocked** for its next turn: of your party, its skills can target only you.
+
+"Go on. Hit me. See who it hurts." The enemies near you choose between a turn without skills and paying for every one they throw. Mock and Mirrorball live here now. With the Hall of Mirrors keystone every hit comes back whole, so the Mocked enemies that still cast hurt themselves more than you.
 
 ### Paths
 
 | Path | Role | Nodes 1 to 3 | Keystone |
 |---|---|---|---|
 | **Quicksilver** | Tank | +25 HP. Reflect range +2. Whoever you Mirror also gets a 10 shield. | **Quicksilver**: units you Mirror turn back half of every enemy hit until their next turn, not just the first. |
-| **Hall of Mirrors** | Damage | Ricochet +4. Retort +4. Shatter +6. | **Hall of Mirrors**: a hit your Mirror turns back comes back whole (the Mirrored unit still takes only half), and Reflect flashes: 8 to every enemy within 2 of whoever you Mirror. |
-| **Smoke and Mirrors** | Support | Reversal range +2. +20 HP. Mirrorball cooldown −1. | **Smoke and Mirrors**: units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect's cooldown −1. |
+| **Hall of Mirrors** | Damage | Ricochet +4. Retort +4. Enemies next to your glass when it rises take 8. | **Hall of Mirrors**: a hit your Mirror turns back comes back whole (the Mirrored unit still takes only half), and Reflect flashes: 8 to every enemy within 2 of whoever you Mirror. |
+| **Smoke and Mirrors** | Support | Reversal range +2. +20 HP. Showstopper cooldown −1. | **Smoke and Mirrors**: units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect's cooldown −1. |
 
 ### On each map
 
-- **Storm Court**: glass across a strike line keeps the enemy in it. Mock pulls fire onto a Mirrored Mirrormime standing safe.
+- **Storm Court**: glass across a strike line keeps the enemy in it. Showstopper next to a strike line makes the enemies in it choose between a wasted turn and paying for every skill.
 - **Shattered Span**: glass closes a bridge without blocking your own shots across it.
-- **Sun Altar**: Mirrorball on the altar makes every holder costly to hit, and Mock turns the enemy away from the ally standing on it.
+- **Sun Altar**: Showstopper on the altar turns every enemy skill onto the one unit that sends half of it back.
 
 ---
 
@@ -268,10 +305,12 @@ Every pair of classes in a party, and every class taken twice, gives a bonus.
 1. Class win share within 45% to 55% over 7200 AI battles across all three maps.
 2. Every keystone path within 45% to 55% over 7200 held-out battles.
 3. Three damage keystones against a role-covering party wins under 35%.
-4. The AI Calls, Harvests, Tolls and works Strings in at least 80% of battles where it has them, Gravecallers cast a Rite in at least 60%, and a Mirror turns a hit back in at least 50%. If the AI can't use a mechanic, the balance numbers mean nothing.
-5. A full battle through the real UI: a Call's landing area, a Soul on the ground, a Toll reordering the queue, the Doll walking, swapping and breaking, a Mirror turning a hit back and a shot bouncing off glass each render and read correctly.
+4. The AI Calls, Harvests, Tolls and works Strings in at least 80% of battles where it has them, Gravecallers cast a Rite in at least 60%, and a Mirror turns a hit back in at least 50%. Every class fires its ultimate in at least 80% of battles where it stands on its 4th turn, and every pool skill is picked by some AI build. If the AI can't use a mechanic, the balance numbers mean nothing.
+5. A full battle through the real UI: a Call's landing area, a Soul on the ground, a Toll reordering the queue, the Doll walking, swapping and breaking, a Mirror turning a hit back, a shot bouncing off glass, each ultimate's countdown for both parties, and each ultimate firing each render and read correctly.
 
 ## Balance notes
+
+The notes below are from the 7-skill kits. The 4-skill pools and the ultimates need a fresh pass against the Verification gates.
 
 The Marionettist and Mirrormime came in with a 7200-battle sim of all five classes (`npm run sim -- 900 --from=K`, eight shards). The first pass put the Bellringer at 60% (Carillon 66%, Conductor 62%), the Mirrormime at 59%, the Astromancer at 44% and the Marionettist at 39%. These changes brought every class and every keystone path into 47–53% over 14400 battles (seeds 0 to 14399, so the second half is held out from the first tuning runs):
 
@@ -284,6 +323,8 @@ The Marionettist and Mirrormime came in with a 7200-battle sim of all five class
 Three damage keystones against a role-covering party win 30% (`--dumb`, 1200 battles).
 
 ## Bench: concepts not picked
+
+Skills that left the pools, and ideas for the next ones, are in `docs/skill-backlog.md`.
 
 - **Delver.** Mole-kin who fights from underground and leaves tunnels the party can walk. Built and balanced on `classes-v2`, cut because going underground is an escape (movement is the one part of the game no class owns now, and the next class may) and pits are terrain (the Astromancer's).
 - **Artificer.** Owns objects on the board: turrets, pylons and charges that act at the end of its turn, placeable during deploy. Cut because it brings back field-building.
