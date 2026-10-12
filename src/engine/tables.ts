@@ -541,7 +541,7 @@ const SKILL_TABLE = {
   peal: { name: 'Peal', icon: '📯', target: 'self', aoe: K.peal.radius, cd: 2, cls: 'bellringer', color: '#ffd36b',
     text: `Every enemy within ${K.peal.radius} takes ${K.peal.dmg}, plus ${K.peal.perActed} for each unit that already acted this round.` },
   encore: { name: 'Encore', icon: '🎭', target: 'ally', range: K.encore.range, cd: ULT_TURNS.cd, noSelf: true, ult: true, cls: 'bellringer', color: '#8fd1ff',
-    text: `Ultimate. An ally within ${K.encore.range} that already acted this round takes an extra turn at the end of the round. Cooldowns don’t tick on that turn.` },
+    text: `Ultimate. An ally within ${K.encore.range} takes an extra turn at the end of the round, on top of its own. Cooldowns don’t tick on that turn.` },
   bellguard: { name: 'Bell Guard', icon: '🛎️', target: 'ally', range: K.bellguard.range, cd: 2, cls: 'bellringer', color: '#e0b04a',
     text: `A ${K.bellguard.shield} shield on you or an ally within ${K.bellguard.range}. Until your next turn, enemies that hit it are Hushed.` },
 

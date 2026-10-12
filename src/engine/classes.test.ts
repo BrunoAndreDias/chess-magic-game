@@ -234,6 +234,11 @@ describe('bellringer skills', () => {
     expect(after(run(live, cast(1, 'knell', 6, 4)).events, 'damage')).toEqual([{ type: 'damage', id: 3, amount: 12, absorbed: 0, kind: 'phys' }]);
   });
 
+  test('Encore also takes an ally still to act this round: it acts in its own turn and again at the end', () => {
+    const s0 = stage({ a: [bare('bellringer'), bare('bellringer')], b: [bare('bellringer')], place: { 1: [3, 1], 2: [4, 1], 3: [9, 9] } });
+    expect(run(ready(s0, 1), begin, cast(1, 'encore', 4, 1)).events.at(-1)).toEqual({ type: 'queue', queue: turns(1, 3, 2, '+', 2) });
+  });
+
   test('Swift Encore brings Encore back a turn sooner', () => {
     const encore = (tree: NodeId[]) => {
       const s0 = stage({ a: [bare('bellringer'), bare('bellringer', undefined, tree)], b: [bare('bellringer')], place: { 1: [3, 1], 2: [4, 1], 3: [9, 9] } });

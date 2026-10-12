@@ -119,7 +119,9 @@ The Gravecaller's loop in one skill: hard hits and Downs drop Souls, Harvest gat
 
 ### Ultimate: Encore
 
-An ally within 3 that **already acted** this round takes an extra turn at the end of the round. Cooldowns don't tick on that turn.
+An ally within 3 takes an extra turn at the end of the round, on top of its own turn this round. Cooldowns don't tick on that turn.
+
+As a skill, Encore needed an ally that **already acted** this round. As the ultimate it doesn't: a Bellringer that acts first in its party had no ally that already acted, so it could never fire it (36% use in the sim against 89% for the other slots).
 
 In a turn-based game an extra turn is the purest turn-order ultimate, and it's the Bellringer's clearest team play: an Encore on the Astromancer lands its Call early and lets it cast another. It moved up from a cooldown-4 skill, so it no longer competes with the two picks.
 

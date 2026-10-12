@@ -421,8 +421,6 @@ function unitOk(s: BattleState, u: Unit, id: SkillId, o: Unit, px: number, pz: n
 
   if (id === 'toll' && (actedThisRound(s, o.id) || nextTurn(s, o.id) < 0 || tolledThisRound(s, o.id))) return false;
 
-  if (id === 'encore' && (!actedThisRound(s, o.id) || nextTurn(s, o.id) >= 0)) return false;
-
   if (d > r) return false;
 
   if (sk.los && !los(s, px, pz, ox, oz)) return false;
