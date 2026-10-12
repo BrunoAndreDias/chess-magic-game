@@ -87,8 +87,8 @@ suite('describe', () => {
   test('a broken Doll names the round it reforms', () => {
     expect(line({ type: 'break', id: id(2), reform: 5 })).toEqual({ tone: 't0', text: 'Seren breaks. It reforms in round 5.' });
   });
-  test('pushes say how far; walks and slides that go nowhere stay quiet', () => {
-    expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath is pushed back 2 tiles.' });
+  test('pushes and pulls say how far; walks and slides that go nowhere stay quiet', () => {
+    expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }], slide: true })).toEqual({ tone: 't1', text: 'Morvath slides 2 tiles.' });
     expect(line({ type: 'move', id: id(4), path: [{ x: 3, z: 3 }], slide: true })).toBe(null);
     expect(line({ type: 'move', id: id(1), path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] })).toBe(null);
   });

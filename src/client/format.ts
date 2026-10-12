@@ -48,7 +48,7 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'round': return { tone: 'sys', text: `Round ${e.round}: ${e.queue.map(t => name(s, t.id)).join(' → ')}` };
     case 'queue': return { tone: 'sys', text: `The order is now ${e.queue.map(t => `${name(s, t.id)}${t.extra ? ' (extra)' : ''}`).join(' → ')}.` };
     case 'activate': return null;
-    case 'move': return e.slide && e.path.length > 1 ? { tone: teamOf(s, e.id), text: `${name(s, e.id)} is pushed back ${e.path.length - 1} tile${e.path.length > 2 ? 's' : ''}.` } : null;
+    case 'move': return e.slide && e.path.length > 1 ? { tone: teamOf(s, e.id), text: `${name(s, e.id)} slides ${e.path.length - 1} tile${e.path.length > 2 ? 's' : ''}.` } : null;
     case 'teleport': return null;
     case 'fall': return { tone: 'sys', text: `${name(s, e.id)} falls into the chasm!` };
     case 'cast': {
