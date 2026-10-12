@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SKILLS, callTiles, getUnit } from '../../engine/index';
-import type { BattleState, Call, Pos, Team, Thread, UnitId } from '../../engine/index';
+import type { BattleState, Call, Pos, Team, UnitId } from '../../engine/index';
 import { TEAM_CSS, TEAM_HEX, basic, decal, disposeTree, glow, hex, keep, mesh, starGeometry } from './art';
 import type { Overlay } from './overlay';
 import type { Terrain } from './terrain';
@@ -8,7 +8,7 @@ import type { Tweens } from './tween';
 import type { UnitView } from './units';
 
 /**
- * The class mechanics drawn on the board: Souls on the ground, pending Calls and Threads.
+ * The class mechanics drawn on the board: Souls on the ground, pending Calls.
  * Each is keyed by what identifies it in the state, so `sync` can add and drop exactly the ones that changed.
  */
 
@@ -16,22 +16,9 @@ interface SoulView { group: THREE.Group; wisp: THREE.Object3D; ph: number }
 
 interface CallView { call: Call; group: THREE.Group; tiles: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[]; sigil: THREE.Group; label: HTMLElement; anchor: THREE.Vector3; t0: number }
 
-interface ThreadView {
-  thread: Thread; foe: boolean; color: THREE.Color;
-  core: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; halo: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
-  /** 0..1: how much of the line has been spun out from the Weaver. */
-  grow: number;
-  /** Endpoints the tube was last built for, so it is only rebuilt when a unit moved. */
-  key: string;
-}
-
 const soulKey = (p: Pos) => `${p.x},${p.z}`;
 
 const callKey = (c: Call) => `${c.by}:${c.skill}:${c.x},${c.z}`;
-
-const threadKey = (t: { by: UnitId; to: UnitId }) => `${t.by}>${t.to}`;
-
-const SILK = new THREE.Color(0xf4eefa);
 
 const SOUL = 0x9fe0b8;
 
@@ -84,14 +71,13 @@ const CSS = `
 .bd-call{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;font:700 12px -apple-system,system-ui,sans-serif;padding:2px 8px;border-radius:7px;background:rgba(10,8,16,.82);border:1px solid currentColor;text-shadow:0 1px 2px #000;will-change:transform}
 `;
 
-/** How many ground Souls, pending Calls and Threads are drawn. */
-export interface MarkCounts { souls: number; calls: number; threads: number }
+/** How many ground Souls and pending Calls are drawn. */
+export interface MarkCounts { souls: number; calls: number }
 
 export class Marks {
   readonly root = new THREE.Group();
   readonly #souls = new Map<string, SoulView>();
   readonly #calls = new Map<string, CallView>();
-  readonly #threads = new Map<string, ThreadView>();
   readonly #style: HTMLStyleElement;
   #time = 0;
 
@@ -110,16 +96,13 @@ export class Marks {
   }
 
   get counts(): MarkCounts {
-    return { souls: this.#souls.size, calls: this.#calls.size, threads: this.#threads.size };
+    return { souls: this.#souls.size, calls: this.#calls.size };
   }
 
   /** Make every mark match `s` at once. */
   sync(s: BattleState): void {
     syncMap(this.#souls, s.souls, soulKey, o => this.#buildSoul(o), v => disposeTree(v.group));
     syncMap(this.#calls, s.calls, callKey, c => this.#buildCall(c, s), v => this.#disposeCall(v));
-    syncMap(this.#threads, s.threads, threadKey, t => this.#buildThread(t, s, 1), v => { disposeTree(v.core); disposeTree(v.halo); });
-
-    for (const t of s.threads) { const v = this.#threads.get(threadKey(t)); if (v) v.thread = { ...t }; }
   }
 
   // ---------- souls ----------
@@ -231,76 +214,6 @@ export class Marks {
     return null;
   }
 
-  // ---------- threads ----------
-  #buildThread(t: Thread, s: BattleState, grow: number): ThreadView {
-    const w = getUnit(s, t.by), o = getUnit(s, t.to), foe = !!w && !!o && w.team !== o.team;
-    const color = foe && w ? new THREE.Color(TEAM_HEX[w.team]).lerp(SILK, 0.35) : SILK.clone();
-    const core = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 }));
-    const halo = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.root.add(core, halo);
-
-    return { thread: { ...t }, foe, color, core, halo, grow, key: '' };
-  }
-
-  /** A Thread is tied: it spins out from the Weaver to its target. */
-  async tie(t: Thread, s: BattleState): Promise<void> {
-    const k = threadKey(t);
-    const old = this.#threads.get(k);
-
-    if (old) { old.thread = { ...t }; return; }
-
-    const v = this.#buildThread(t, s, 0);
-    this.#threads.set(k, v);
-    await this.tweens.run(0.35, p => { v.grow = p; });
-  }
-
-  /** A Thread breaks: it whips slack and fades. */
-  async snap(t: { by: UnitId; to: UnitId }): Promise<void> {
-    const k = threadKey(t), v = this.#threads.get(k);
-
-    if (!v) return;
-    this.#threads.delete(k);
-    v.color.setHex(0xffffff);
-    await this.tweens.run(0.4, p => { v.core.material.opacity = 0.95 * (1 - p); v.halo.material.opacity = 0.5 * (1 - p); v.grow = 1 - p * 0.5; v.key = ''; });
-    disposeTree(v.core);
-    disposeTree(v.halo);
-  }
-
-  /** Where a Thread ends on a unit: chest height, or low on a Downed one. */
-  #anchor(id: UnitId): THREE.Vector3 | null {
-    const v = this.views.get(id);
-
-    if (!v || !v.group.visible) return null;
-    const y = v.pose > 0.5 ? 0.25 : v.height * 0.55 + 0.2;
-
-    return v.group.position.clone().add(new THREE.Vector3(0, y, 0));
-  }
-
-  #drawThread(v: ThreadView): void {
-    const a = this.#anchor(v.thread.by), b = this.#anchor(v.thread.to);
-    v.core.visible = v.halo.visible = !!a && !!b;
-
-    if (!a || !b) return;
-    // A held enemy at the end of its leash pulls the line straight and bright; slack sags.
-    const dx = Math.abs(Math.round(a.x) - Math.round(b.x)), dz = Math.abs(Math.round(a.z) - Math.round(b.z));
-    const taut = v.foe ? Math.min(1, Math.max(dx, dz) / Math.max(1, v.thread.len)) : 0.3;
-    const key = `${a.x.toFixed(2)},${a.y.toFixed(2)},${a.z.toFixed(2)}|${b.x.toFixed(2)},${b.y.toFixed(2)},${b.z.toFixed(2)}|${taut.toFixed(2)}|${v.grow.toFixed(2)}`;
-
-    if (key === v.key) return;
-    v.key = key;
-    const mid = a.clone().lerp(b, 0.5);
-    mid.y -= 0.45 * (1 - taut) * Math.min(1, a.distanceTo(b) / 2) + 0.02;
-    const full = new THREE.QuadraticBezierCurve3(a, mid, b);
-    const pts = full.getPoints(24).slice(0, Math.max(2, Math.round(25 * v.grow)));
-    const curve = new THREE.CatmullRomCurve3(pts);
-    v.core.geometry.dispose();
-    v.halo.geometry.dispose();
-    v.core.geometry = new THREE.TubeGeometry(curve, 24, v.foe && taut >= 1 ? 0.026 : 0.018, 5, false);
-    v.halo.geometry = new THREE.TubeGeometry(curve, 24, 0.06, 6, false);
-    v.core.material.color.copy(v.color).lerp(new THREE.Color(0xffffff), v.foe ? 0.4 * taut : 0);
-    v.halo.material.color.copy(v.color);
-  }
-
   update(dt: number): void {
     const t = (this.#time += dt);
 
@@ -325,11 +238,6 @@ export class Marks {
       while (placed.some(o => box.x < o.x + o.w && o.x < box.x + box.w && box.y < o.y + o.h && o.y < box.y + box.h)) box.y += h + 3;
       placed.push(box);
       v.label.style.transform = `translate(${box.x.toFixed(1)}px,${box.y.toFixed(1)}px)`;
-    }
-
-    for (const v of this.#threads.values()) {
-      this.#drawThread(v);
-      v.halo.material.opacity = 0.18 + 0.08 * Math.sin(t * 4);
     }
   }
 

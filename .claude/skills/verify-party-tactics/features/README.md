@@ -6,7 +6,7 @@ Each feature file is the recipe for proving one screen. The harness and the hand
 
 - `../scripts/doctor.sh <port>` exits 0 on the port you will drive.
 - The query carries `seed` and a valid `map`. Without `quick` the game opens on the map screen.
-- The default draft: Blue is Human (Aldric Gravecaller, Seren Astromancer, Kip Bellringer), Red is AI (Morvath Bellringer, Ysolde Weaver, Grix Gravecaller). Only Blue needs driving. `seed=7` makes Blue the starter.
+- The default draft: Blue is Human (Aldric Gravecaller, Seren Astromancer, Kip Bellringer), Red is AI (Morvath Bellringer, Ysolde Astromancer, Grix Gravecaller). Only Blue needs driving. `seed=7` makes Blue the starter. The class cards also offer the Marionettist and Mirrormime; a Marionettist's Doll is a unit in `state().units` with `owner` set, numbered after the six characters, never in the queue.
 - Wait on `untilPhase` / `until`; a fixed `wait` only for the 800 to 1200 ms camera settle after a screen mounts.
 
 ## Reporting

@@ -7,7 +7,7 @@ import os
 import bpy
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CLASSES = ['astromancer', 'weaver', 'gravecaller', 'bellringer']
+CLASSES = ['astromancer', 'gravecaller', 'bellringer', 'marionettist', 'mirrormime']
 TEAMS = (('blue', (0.105, 0.26, 1.0, 1)), ('red', (1.0, 0.147, 0.105, 1)))
 
 for o in list(bpy.data.objects):
@@ -19,7 +19,7 @@ for row, (team, rgb) in enumerate(TEAMS):
         new = set(bpy.data.objects) - before
         for o in new:
             if o.parent is None:
-                o.location = ((col - 1.5) * 1.8, row * 1.8, 0)
+                o.location = ((col - 2) * 1.8, row * 1.8, 0)
             for slot in getattr(o, 'material_slots', []):
                 m = slot.material
                 if m and m.name.split('.')[0] == 'team':
@@ -48,7 +48,7 @@ for area in (bpy.context.screen.areas if bpy.context.screen else []):
     space.overlay.show_floor = False
     r3d = space.region_3d
     r3d.view_location = (0, 0.9, 0.9)
-    r3d.view_distance = 9
+    r3d.view_distance = 11
     r3d.view_rotation = (0.82, 0.57, 0.0, 0.0)
 if bpy.context.screen:
     bpy.ops.screen.animation_play()

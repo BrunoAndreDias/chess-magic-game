@@ -44,19 +44,21 @@ Each land came out of one force loosed by the Unmooring. A character's mechanic 
 | Ashen Ferry | Death | Trade HP, curse, feed on Downs, bring allies back | Moves fast |
 | Sworn Heights | Vows | Guard allies, bend the turn order, set a condition and punish whoever breaks it | Leans on chance |
 
-The four classes already fit. Calls are Rift magic that lands later, Threads are Crown silk that moves things, Souls are the Ferry's trade in the dead, and Toll is the Heights keeping the hour.
+The five classes fit. Calls are Rift magic that lands later, Souls are the Ferry's trade in the dead, and Toll is the Heights keeping the hour. The Marionettist is the Heights' vow made flesh: a Doll that stands where it was told to, and strings that make a body keep its place. The Mirrormime is Rift magic paid back with interest: every blow it takes comes home to whoever threw it, and its glass shows the enemy a way through that isn't there. The Crown has no class yet: its slot is open for a new one.
 
 ## Orders and future characters
 
 | Land | Order today | Class | Other orders and characters it could hold |
 |---|---|---|---|
 | Gilded Rift | **The Last Almanac**, who write down the sky's future and then make it happen | Astromancer | Golem-smiths, alchemists, mirror-witches, rune-tattooed brawlers, beasts the Rift changed |
-| Tangled Crown | **The Hanging Loom**, spider-kin whose city is a loom strung between trees | Weaver | Beast-kin hunters, druids, venom-witches, tree-giants, river raiders |
+| Gilded Rift | **The Glass Carnival**, harlequins who perform in the Rift's halls of mirrors and send stray magic back to whoever cast it | Mirrormime | |
+| Tangled Crown | None yet; the Crown's order arrives with its class | (open) | Spider-kin, beast-kin hunters, druids, venom-witches, tree-giants, river raiders |
 | Ashen Ferry | **The Ferrymen**, bone priests who row souls across | Gravecaller | Plague doctors, mourners, ghosts, bone-carvers, drowned knights |
 | Sworn Heights | **The Unslept Hour**, monks sworn to ring every hour | Bellringer | The Bronze Vigil (shield-sworn guards), oath-knights, clockwrights, pilgrims, a mute duelist |
+| Sworn Heights | **The Kept Promise**, masked puppeteers who carve a doll for every vow sworn and make a body keep the vow its owner broke | Marionettist | |
 
 ## What this changes in the art
 
-- The Astromancer, Gravecaller and Bellringer already match their land.
-- The Weaver is dark purple with magenta runes today. Its robe moves to bark and moss in the painted pass, and it keeps the magenta glow. Purple is the Rift's colour now.
+- The Astromancer, Gravecaller and Bellringer already match their land. The Marionettist wears the Heights' ochre and brass with amber glow, and the Mirrormime the Rift's violet and gold with lilac glow.
+- The Crown's colours (bark, moss, orchid glow) wait for its class. Purple is the Rift's colour.
 - Each figure in `art/figures/<class>.py` takes its land's main, accent and glow colours from the table above.

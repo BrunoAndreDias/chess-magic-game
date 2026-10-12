@@ -25,17 +25,17 @@ test('the picks put each team in lineup order; a member keeps its build only if 
   const p: PickState = {
     starter: 1, hover: [[null, null, null], [null, null, null]],
     locks: [
-      { team: 1, member: 2, cls: 'gravecaller' }, { team: 0, member: 1, cls: 'astromancer' }, { team: 1, member: 0, cls: 'weaver' },
-      { team: 0, member: 0, cls: 'weaver' }, { team: 0, member: 2, cls: 'bellringer' }, { team: 1, member: 1, cls: 'weaver' },
+      { team: 1, member: 2, cls: 'gravecaller' }, { team: 0, member: 1, cls: 'astromancer' }, { team: 1, member: 0, cls: 'astromancer' },
+      { team: 0, member: 0, cls: 'bellringer' }, { team: 0, member: 2, cls: 'bellringer' }, { team: 1, member: 1, cls: 'astromancer' },
     ],
   };
 
   const out = afterPicks(d, p);
   expect(out.teams.map(t => t.map(m => [m.name, m.cls, m.human]))).toEqual([
-    [['Seren', 'astromancer', true], ['Aldric', 'weaver', true], ['Kip', 'bellringer', true]],
-    [['Grix', 'gravecaller', false], ['Morvath', 'weaver', false], ['Ysolde', 'weaver', false]],
+    [['Seren', 'astromancer', true], ['Aldric', 'bellringer', true], ['Kip', 'bellringer', true]],
+    [['Grix', 'gravecaller', false], ['Morvath', 'astromancer', false], ['Ysolde', 'astromancer', false]],
   ]);
   expect([out.starter, out.teams[0][0]!.skills, out.teams[0][0]!.tree]).toEqual([1, ['prison', 'recall', 'meteor'], ['a_frost']]);
   const changed = out.teams[0][1]!;
-  expect([changed.skills.every(id => SKILLS[id].cls === 'weaver'), treeValid('weaver', changed.tree)]).toEqual([true, true]);
+  expect([changed.skills.every(id => SKILLS[id].cls === 'bellringer'), treeValid('bellringer', changed.tree)]).toEqual([true, true]);
 });

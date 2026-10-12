@@ -1,4 +1,4 @@
-import { idx, isAlive, standing } from './board';
+import { idx, isAlive, isDoll, standing } from './board';
 import { checkWinner, damage, fall } from './combat';
 import { MAPS, N, TERRAIN, WET_SHOCK, mirrored } from './tables';
 import type { MapRule } from './tables';
@@ -91,7 +91,7 @@ const RULES = {
     end(s, r, ev) {
       const n = [0, 0];
 
-      for (const u of s.units) if (standing(u) && s.terr[idx(u.x, u.z)] === 'A') n[u.team] = (n[u.team] ?? 0) + 1;
+      for (const u of s.units) if (standing(u) && !isDoll(u) && s.terr[idx(u.x, u.z)] === 'A') n[u.team] = (n[u.team] ?? 0) + 1;
       const [a = 0, b = 0] = n, team = a > b ? 0 : b > a ? 1 : null;
 
       if (team !== null) s.favor[team]++;

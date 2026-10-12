@@ -1,9 +1,9 @@
 import { aiDeploy } from './ai';
-import { canUse, castTargets, cloneState, current, idx, reachable, validDeploy } from './board';
+import { canUse, castTargets, cloneState, current, idx, nearestFree, reachable, validDeploy } from './board';
 import { partyBonuses, modsOf } from './builds';
 import { performCast, performMove } from './combat';
 import type { Rng } from './rng';
-import { CLASSES, COVERAGE, N, SKILL_PICKS, mapTerrain } from './tables';
+import { CLASSES, COVERAGE, DOLL, N, PAIR_N, SKILL_PICKS, mapTerrain } from './tables';
 import { endActivation, resumeQueue, startRound } from './turns';
 import type { ApplyResult, BattleEvent, BattleSetup, BattleState, Command, SkillId, Team, TileFx, UnitId } from './types';
 
@@ -28,7 +28,6 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
     stats: { dmg: [0, 0], heal: [0, 0], downs: [0, 0], revives: [0, 0] },
     souls: [],
     calls: [],
-    threads: [],
     callRound: [0, 0],
   };
 
@@ -45,8 +44,21 @@ export function createBattle(setup: BattleSetup, rng: Rng): BattleState {
       s.units.push({
         id: unitId(nextId++), team, slot, name: m.name, cls: m.cls, skills: m.skills.slice(0, SKILL_PICKS), tree: m.tree.slice(), mods,
         x: p.x, z: p.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false,
-        spared: false, souls: 0,
+        souls: 0, took: 0,
       });
+    });
+  }
+
+  // Each Marionettist's Doll stands next to it, numbered after every character.
+  for (const o of s.units.slice()) {
+    if (CLASSES[o.cls].innate !== 'strings') continue;
+    const at = nearestFree(s, o.x, o.z), p = s.party[o.team];
+
+    if (!at) continue;
+    const hp = DOLL.hp + (o.mods.dollHp || 0) + (p.has('clockwork') ? PAIR_N.clockwork.hp : 0) + (p.has('troupe') ? PAIR_N.troupe.hp : 0);
+    s.units.push({
+      id: unitId(nextId++), team: o.team, slot: o.slot, name: `${o.name}'s Doll`, cls: o.cls, skills: [], tree: [], mods: {},
+      x: at.x, z: at.z, hp, maxHp: hp, shield: 0, life: { kind: 'up' }, st: {}, cd: {}, moved: false, acted: false, souls: 0, took: 0, owner: o.id,
     });
   }
 

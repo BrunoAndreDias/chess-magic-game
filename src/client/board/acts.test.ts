@@ -7,12 +7,12 @@ test('an act plays its own clip, a skill without one plays cast, a basic attack 
   const bellringer = new Set(['cast', 'attack', 'toll', 'hit']);
   expect((['toll', 'peal', 'basic_bellringer', 'hit', 'move'] satisfies Act[]).map(a => clipFor(bellringer, a))).toEqual(['toll', 'cast', 'attack', 'hit', null]);
   expect(clipFor(new Set(['cast']), 'basic_bellringer')).toBe('cast');
-  expect((['toll', 'basic_weaver', 'cast'] satisfies Act[]).map(a => clipFor(new Set(['orbitAction']), a))).toEqual([null, null, null]);
+  expect((['toll', 'basic_gravecaller', 'cast'] satisfies Act[]).map(a => clipFor(new Set(['orbitAction']), a))).toEqual([null, null, null]);
 });
 
 test('clips named after a motion or a skill are actions, every other clip is idle', () => {
-  const names = ['cast', 'toll', 'basic_weaver', 'rise', 'breathAction', 'bell_swingAction', 'idle_toll', 'constructor'];
-  expect(names.filter(isAct)).toEqual(['cast', 'toll', 'basic_weaver', 'rise']);
+  const names = ['cast', 'toll', 'basic_gravecaller', 'rise', 'breathAction', 'bell_swingAction', 'idle_toll', 'constructor'];
+  expect(names.filter(isAct)).toEqual(['cast', 'toll', 'basic_gravecaller', 'rise']);
 });
 
 test('a clip fades in and out over idle, unless it cuts in over another clip or holds its last frame', () => {

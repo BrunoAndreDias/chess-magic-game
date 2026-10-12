@@ -14,9 +14,10 @@ export interface Crest {
 
 export const CREST: Readonly<Record<ClassId, Crest>> = {
   astromancer: { land: 'Gilded Rift', order: 'The Last Almanac', quote: 'I don’t aim where you are. I aim where you’ll be.', owns: 'The elements', glow: '#c9a8ff', face: '34%' },
-  weaver: { land: 'Tangled Crown', order: 'The Hanging Loom', quote: 'Everyone on this field is already caught. Some of them just haven’t noticed.', owns: 'Movement', glow: '#ff5ad8', face: '42%' },
   gravecaller: { land: 'Ashen Ferry', order: 'The Ferrymen', quote: 'Everyone pays the ferry. I only choose when.', owns: 'Life and death', glow: '#5dffc0', face: '30%' },
   bellringer: { land: 'Sworn Heights', order: 'The Unslept Hour', quote: 'The hour is mine to call.', owns: 'The turn order', glow: '#ffb640', face: '28%' },
+  marionettist: { land: 'Sworn Heights', order: 'The Kept Promise', quote: 'Every body here has strings. Mine just show.', owns: 'Bodies', glow: '#ffb640', face: '28%' },
+  mirrormime: { land: 'Gilded Rift', order: 'The Glass Carnival', quote: 'Go on. Hit me. See who it hurts.', owns: 'Reflection', glow: '#c9a8ff', face: '30%' },
 };
 
 /** The class's splash render, built by art/splash.sh. */

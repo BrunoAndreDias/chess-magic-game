@@ -18,12 +18,13 @@ W, H = 1024, 1280
 # Land palette from docs/world.md. `team` is the colour the team material takes here, since a splash shows the class, not a side.
 # `head` is where the anchor (the eyes) lands, as a fraction of the frame from the top; `frame` is the idle frame posed;
 # `turn` swings the camera round the figure in degrees, positive towards its left side. `key`, `rim` and `halo` balance
-# each figure: a white-bodied weaver drowns in a rim a violet robe needs.
+# each figure: a pale body drowns in a rim a violet robe needs.
 LANDS = {
     'astromancer': dict(main='#5a30c4', accent='#e8b648', glow='#c9a8ff', team='#e8b648', sky='#120a2e', frame=1, head=0.26, turn=24, key=110, rim=1.0, halo=1.6),
-    'weaver': dict(main='#4b3524', accent='#5f6b2e', glow='#ff5ad8', team='#8a7a5a', sky='#140b10', frame=1, head=0.33, turn=10, key=130, rim=0.45, halo=0.75),
     'gravecaller': dict(main='#275f48', accent='#ddd0b0', glow='#5dffc0', team='#ddd0b0', sky='#06140f', frame=1, head=0.27, turn=-22, key=110, rim=1.0, halo=1.2),
     'bellringer': dict(main='#ad7a2c', accent='#f5cc52', glow='#ffb640', team='#b08a3a', sky='#1c1006', frame=1, head=0.27, turn=26, key=260, rim=0.8, halo=0.8),
+    'marionettist': dict(main='#ad7a2c', accent='#f5cc52', glow='#ffb640', team='#e2cf9c', sky='#1c1006', frame=1, head=0.27, turn=20, key=280, rim=0.6, halo=0.9),
+    'mirrormime': dict(main='#5a30c4', accent='#e8b648', glow='#c9a8ff', team='#e8b648', sky='#120a2e', frame=1, head=0.28, turn=18, key=220, rim=0.75, halo=1.4),
 }
 
 
@@ -136,7 +137,9 @@ def import_figure(cls, land):
                 sock.default_value = team
             if p.inputs['Emission Strength'].default_value > 0 and tuple(p.inputs['Emission Color'].default_value)[:3] != (0, 0, 0):
                 p.inputs['Emission Color'].default_value = team
-    return [o for o in bpy.data.objects if o.type == 'MESH']
+    # The importer draws an armature's bones with a metre-wide sphere; it is not part of the figure.
+    shapes = {pb.custom_shape for o in bpy.data.objects if o.pose for pb in o.pose.bones}
+    return [o for o in bpy.data.objects if o.type == 'MESH' and o not in shapes]
 
 
 def bounds(meshes):
@@ -151,7 +154,7 @@ def bounds(meshes):
 def place_camera(scn, anchor, top, corners, head, turn, lens):
     """Puts the camera low in front, looking slightly up, then solves distance and shift so the feet sit at 88% and
     `anchor` at `head` from the top of the frame, pulling back further when `top` (the hat, the staff) or a side of the
-    bounding box (`corners`, the spider's legs) would be cut."""
+    bounding box (`corners`, trailing limbs) would be cut."""
     cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam'))
     scn.collection.objects.link(cam)
     scn.camera = cam
@@ -396,7 +399,7 @@ def main():
     corners = [Vector((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
     cam = place_camera(scn, anchor, Vector((anchor.x, anchor.y, hi.z)), corners, land['head'], land['turn'], 40)
     chest = anchor.z * 0.72
-    # The UI crops by object-position; a hat or a spider's legs push the eyes below the `head` target, so say where they landed.
+    # The UI crops by object-position; a tall hat or trailing limbs push the eyes below the `head` target, so say where they landed.
     print(f'splash: eyes at {1 - world_to_camera_view(scn, cam, anchor).y:.0%} from the top')
     world(land)
     backdrop(land, cam, anchor)

@@ -19,6 +19,21 @@ interface Voice {
 
 /** Sustained bell partials are inharmonic: hum, prime, minor-third tierce, quint, nominal, and a short clang above. */
 const VOICES: Readonly<Record<ClassId, Voice>> = {
+  /** Wooden knocks climbing a minor third: a puppet theatre's xylophone, each tap with its marimba overtone. */
+  marionettist: { root: 392, parts: [
+    { step: 0, at: 0, dur: 0.45, gain: 0.26, wave: 'triangle' },
+    { ratio: 3.93, at: 0, dur: 0.1, gain: 0.08, wave: 'sine' },
+    { step: 7, at: 0.14, dur: 0.45, gain: 0.22, wave: 'triangle' },
+    { step: 3, at: 0.28, dur: 0.8, gain: 0.2, wave: 'triangle' },
+  ] },
+  /** Glass: two sines a hair apart beat against each other, over a dimmed octave below. */
+  mirrormime: { root: 1046.5, parts: [
+    { step: 0, at: 0, dur: 1.4, gain: 0.1, wave: 'sine' },
+    { ratio: 1.006, at: 0, dur: 1.4, gain: 0.1, wave: 'sine' },
+    { step: 7, at: 0.1, dur: 1.2, gain: 0.08, wave: 'sine' },
+    { step: 12, at: 0.2, dur: 1.6, gain: 0.07, wave: 'sine' },
+    { step: -12, at: 0, dur: 0.9, gain: 0.1, wave: 'triangle', lp: [3000, 600] },
+  ] },
   bellringer: { root: 220, parts: [
     { ratio: 0.5, at: 0, dur: 2.6, gain: 0.22, wave: 'sine' },
     { ratio: 1, at: 0, dur: 2.0, gain: 0.3, wave: 'sine' },
@@ -40,11 +55,6 @@ const VOICES: Readonly<Record<ClassId, Voice>> = {
     { step: 11, at: 0.21, dur: 1.1, gain: 0.11, wave: 'sine' },
     { step: 12, at: 0.28, dur: 1.4, gain: 0.12, wave: 'triangle' },
     { step: 24, at: 0.28, dur: 0.8, gain: 0.04, wave: 'sine' },
-  ] },
-  weaver: { root: 196, parts: [
-    { step: 0, at: 0, dur: 0.9, gain: 0.2, wave: 'sawtooth', lp: [4200, 260] },
-    { step: 7, at: 0.09, dur: 0.8, gain: 0.13, wave: 'sawtooth', lp: [3600, 240] },
-    { step: 12, at: 0.18, dur: 1.1, gain: 0.1, wave: 'triangle', lp: [3000, 300] },
   ] },
 };
 
@@ -82,6 +92,9 @@ const local = (): Prefs => window.localStorage;
 let ctx: AudioContext | null = null;
 
 let muted = readMuted(local);
+
+// Building the page's first AudioContext stalls it for about 75 ms, so build it on the first click rather than in the first lock-in's animation.
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', () => { if (!muted) ctx ??= new AudioContext(); }, { once: true, capture: true });
 
 export const isMuted = (): boolean => muted;
 

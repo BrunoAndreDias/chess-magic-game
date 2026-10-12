@@ -34,11 +34,11 @@ type ModKey = keyof Mods;
 const MOD_KEYS = [
   'hp',
   'fireDmg', 'callRange', 'burnDmg', 'twinStars', 'frostDmg', 'prisonCd', 'callWet', 'absZero',
-  'recallRange', 'recallCleanse', 'benevolent',
-  'leashDmg', 'threads', 'webOfFate', 'poisonDmg', 'basicDmg', 'biteHeal', 'feast',
-  'cocoonCd', 'threadRange', 'webTurns', 'fateWeaver',
+  'recallRange', 'recallCleanse', 'benevolent', 'basicDmg',
   'soulCap', 'soulShield', 'undying', 'soulBoltDmg', 'harvestRange', 'burstDmg', 'reap', 'riteRange', 'riteShield', 'ferryman',
-  'guardShield', 'tollHush', 'tollCd', 'knellDmg', 'lastDmg', 'pealDmg', 'finalHour', 'tollRange', 'encoreCd', 'accel',
+  'guardShield', 'tollHush', 'knellDmg', 'lastDmg', 'pealDmg', 'finalHour', 'tollRange', 'encoreCd', 'accel',
+  'dollHp', 'dollReform', 'tangled', 'wireDmg', 'splinterDmg', 'ventriloquist', 'switchRange', 'standinCd', 'understudy',
+  'reflectRange', 'mirrorShield', 'quicksilver', 'ricochetDmg', 'retortDmg', 'shatterDmg', 'hallMirrors', 'reversalRange', 'ballCd', 'smokeMirrors', 'reflectCd',
 ] satisfies ModKey[];
 
 type Assert<T extends true> = T;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CLASSES, N, SKILLS, STATUS, getUnit } from '../../engine/index';
+import { CLASSES, N, SKILLS, STATUS, dollOf, getUnit } from '../../engine/index';
 import type { BattleEvent, BattleState, CallSkill, DamageKind, Pos, SkillId, StatusKey, Team, TerrainChange, UnitId } from '../../engine/index';
 import { clipFor, weightAt } from './acts';
 import type { Act } from './acts';
@@ -42,39 +42,38 @@ function track(c: PlayCtx, v: UnitView, team: Team): void {
 }
 
 const DAMAGE_COLOR: Readonly<Record<DamageKind, string>> = {
-  phys: '#ff6b5b', fire: '#ff8a4a', burn: '#ff8a4a', poison: '#8fe36b', frost: '#9ad8ff', shock: '#d6b8ff',
-  dark: '#c8a0ff', slam: '#ffb08a', share: '#f0a0d0', storm: '#bfe0ff', drain: '#ff8a8a',
+  phys: '#ff6b5b', fire: '#ff8a4a', burn: '#ff8a4a', frost: '#9ad8ff', shock: '#d6b8ff',
+  dark: '#c8a0ff', slam: '#ffb08a', storm: '#bfe0ff', drain: '#ff8a8a', mirror: '#e0e8ff',
 };
 
 const STATUS_TEXT: Readonly<Record<StatusKey, string>> = {
-  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', poison: 'Poisoned', expose: 'Exposed!', encased: 'Encased', share: 'Shared Pain', wither: 'Withered!', hush: 'Hushed!', guard: 'Bell Guard', haste: 'Quickened',
+  stun: 'Stunned!', root: 'Rooted!', wet: 'Wet', burn: 'Burning!', expose: 'Exposed!', encased: 'Encased', wither: 'Withered!', hush: 'Hushed!', guard: 'Bell Guard', haste: 'Quickened',
+  mirror: 'Mirrored', mock: 'Mocked!', standin: 'Stand-In',
 };
 
-const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, web: 0xf4eefa, bone: 0xe8e2d0 };
+const TERRAIN_COLOR: Readonly<Record<TerrainChange, number>> = { ice: 0xcff4ff, smoke: 0x9aa0b0, bone: 0xe8e2d0, glass: 0xe8f6ff };
+
+const GLASS = 0xd8f0ff, WOOD = 0xd9a066, SILVER = 0xe0e8ff;
 
 const DUST = 0x9a7a5a;
 
-type CastKind = 'proj' | 'lob' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'none';
+type CastKind = 'proj' | 'call' | 'heal' | 'nova' | 'link' | 'raise' | 'melee' | 'doll';
 
-/** How a cast looks from the caster. What it does to the board (a Call's marker, a Thread) is its own event. */
+/** How a cast looks from the caster. What it does to the board (a Call's marker) is its own event. */
 const CAST_KIND: Readonly<Record<SkillId, CastKind>> = {
   snap: 'nova', meteor: 'call', thunderhead: 'call', gravitywell: 'call', frostbolt: 'proj', firebolt: 'proj', prison: 'link', recall: 'call',
-  tether: 'none', reel: 'nova', web: 'lob', cocoon: 'link', venombite: 'melee', puppet: 'link', sharedpain: 'nova', skitter: 'none',
   toll: 'link', knell: 'proj', hush: 'link', peal: 'nova', encore: 'heal', overture: 'nova', hourglass: 'link', bellguard: 'nova',
   harvest: 'nova', lastrites: 'heal', bonewall: 'raise', wither: 'link', soulbolt: 'proj', soulburst: 'raise', siphon: 'link', equalize: 'link',
+  strings: 'link', switch: 'link', dance: 'link', tangle: 'doll', razorwire: 'doll', splinter: 'doll', standin: 'doll', rebuild: 'heal',
+  reflect: 'link', glasswall: 'raise', ricochet: 'proj', retort: 'proj', mock: 'link', mirrorball: 'nova', shatter: 'nova', reversal: 'link',
   helpup: 'heal',
-  basic_astromancer: 'proj', basic_weaver: 'melee', basic_gravecaller: 'proj', basic_bellringer: 'melee',
+  basic_astromancer: 'proj', basic_gravecaller: 'proj', basic_bellringer: 'melee', basic_marionettist: 'proj', basic_mirrormime: 'proj',
 };
 
 interface Shot { e: Extract<BattleEvent, { type: 'cast' }>; c: PlayCtx; v: UnitView; from: THREE.Vector3; to: THREE.Vector3; color: number; basic: boolean }
 
 const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
   proj: s => s.c.fx.projectile(s.from, s.to, s.color, s.basic ? 0.2 : 0.32, 0.32, 0.5),
-  lob: async s => {
-    const ground = s.c.terrain.at(s.e.tx, s.e.tz, 0.3);
-    await s.c.fx.projectile(s.from, ground, s.color, 0.3, 0.42, 1.4);
-    void s.c.fx.ring(s.c.terrain.at(s.e.tx, s.e.tz, 0.08), s.color, 1.8, 0.5);
-  },
   call: async s => {
     await s.c.fx.projectile(s.from, s.from.clone().add(new THREE.Vector3(0, 3.2, 0)), s.color, 0.28, 0.3, 0);
     void s.c.fx.burst(s.from.clone().add(new THREE.Vector3(0, 3.2, 0)), s.color, 2.4, 0.4);
@@ -94,7 +93,16 @@ const CAST_FX: Readonly<Record<CastKind, (s: Shot) => Promise<void> | void>> = {
     await s.c.tweens.run(0.12, p => { s.v.group.position.copy(home).addScaledVector(dir, Math.sin(p * Math.PI)); });
     void s.c.fx.burst(s.to, s.color, 2, 0.3);
   },
-  none: () => {},
+  // The string runs from the Marionettist to its Doll, and the Doll does the work.
+  doll: async s => {
+    const caster = getUnit(s.c.before, s.v.id), d = caster && dollOf(s.c.before, caster), dv = d ? s.c.views.get(d.id) : undefined;
+
+    if (!dv || !dv.group.visible) { void s.c.fx.burst(above(s.v, 0.5), s.color, 2, 0.4); return; }
+
+    s.c.fx.bolt(s.from, above(dv, dv.height * 0.8), WOOD, 0.25);
+    void s.c.fx.ring(above(dv, 0.1), s.color, 2.4, 0.45);
+    await s.c.fx.burst(above(dv, 0.6), s.color, 2.2, 0.35);
+  },
 };
 
 function skillColor(id: SkillId): number {
@@ -312,13 +320,6 @@ export const PLAY: Handlers = {
     if (e.absorbed > 0) c.overlay.float(`(${e.absorbed} blocked)`, '#e0c477', above(v, 2.1));
     await c.tweens.wait(0.06);
   },
-  shared: (e, c) => {
-    const v = c.views.get(e.id), w = c.views.get(e.by);
-
-    if (!v || !w) return;
-    c.fx.bolt(above(v, 0.8), above(w, 0.8), 0xf0a0d0, 0.08);
-    c.overlay.float('💞 shared', '#f0a0d0', above(w, 2.2));
-  },
   heal: (e, c) => {
     const v = c.views.get(e.id);
 
@@ -423,7 +424,7 @@ export const PLAY: Handlers = {
     if (!v) return;
     const held = v.shown.st.has('encased') && !v.shown.st.has('stun');
     v.shown.st.delete('stun');
-    c.overlay.float(held ? `${v.shown.ice ? '🧊' : '🥚'} held fast` : '💫 loses the turn', held ? '#b8e8ff' : '#ffd36b', above(v, 2.2));
+    c.overlay.float(held ? '🧊 held fast' : '💫 loses the turn', held ? '#b8e8ff' : '#ffd36b', above(v, 2.2));
     await c.tweens.wait(0.5);
   },
   dark: (e, c) => {
@@ -445,9 +446,8 @@ export const PLAY: Handlers = {
   terrain: async (e, c) => {
     for (const t of e.tiles) {
       c.terrain.setFx(t.x, t.z, e.kind, true);
-      void c.fx.burst(c.terrain.at(t.x, t.z, 0.4, false), TERRAIN_COLOR[e.kind], e.kind === 'web' ? 1.1 : 1.6, 0.35);
-
-      if (e.kind !== 'web') c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), DUST, 4);
+      void c.fx.burst(c.terrain.at(t.x, t.z, 0.4, false), TERRAIN_COLOR[e.kind], 1.6, 0.35);
+      c.fx.sparkles(c.terrain.at(t.x, t.z, 0, false), DUST, 4);
     }
 
     await c.tweens.wait(0.2);
@@ -483,27 +483,78 @@ export const PLAY: Handlers = {
 
     await c.tweens.wait(0.2);
   },
-  thread: async (e, c) => {
-    const t = c.after.threads.find(x => x.by === e.by && x.to === e.to) ?? { by: e.by, to: e.to, len: 1 };
-    const v = c.views.get(e.to);
-
-    if (v) void c.fx.burst(above(v, 0.8), 0xf4eefa, 1.4, 0.35);
-    await c.marks.tie(t, c.after);
-  },
-  snap: (e, c) => c.marks.snap(e),
   encased: (e, c) => {
     const v = c.views.get(e.id);
 
     if (!v) return;
-    const ice = !!getUnit(c.after, e.id)?.st.encased?.ice;
     v.shown.st.add('encased');
-    v.shown.ice = ice;
-    void c.fx.burst(above(v, v.height * 0.5), ice ? 0xbfeaff : 0xf4eefa, 2.4, 0.45);
-    c.fx.sparkles(above(v, 0.2), ice ? 0xcff4ff : 0xffffff, 8);
-    c.overlay.float(ice ? '🧊 Encased' : '🥚 Cocooned', ice ? '#b8e8ff' : '#f3e6ff', above(v, 2.1));
+    void c.fx.burst(above(v, v.height * 0.5), 0xbfeaff, 2.4, 0.45);
+    c.fx.sparkles(above(v, 0.2), 0xcff4ff, 8);
+    c.overlay.float('🧊 Encased', '#b8e8ff', above(v, 2.1));
   },
   soul: (e, c) => c.marks.dropSoul(e),
   gather: (e, c) => c.marks.gather(e, c.views.get(e.id)),
+  reflect: async (e, c) => {
+    const v = c.views.get(e.id), w = c.views.get(e.to);
+
+    if (!v || !w) return;
+    c.fx.bolt(above(v, v.height * 0.6), above(w, w.height * 0.6), SILVER, 0.18);
+    void c.fx.burst(above(v, v.height * 0.6), SILVER, 1.8, 0.35);
+    c.overlay.float(e.amount > 0 ? '🪞 turned back' : '🪞 debuff turned back', '#e0e8ff', above(v, 2.4));
+    await c.tweens.wait(0.18);
+  },
+  bounce: async (e, c) => {
+    const at = c.terrain.at(e.x, e.z, 0.7, false), v = c.views.get(e.id);
+    void c.fx.burst(at, GLASS, 2.6, 0.4);
+    c.fx.sparkles(at, 0xffffff, 10);
+    c.overlay.float('🧱 bounces off the glass!', '#d8f0ff', at.clone().add(new THREE.Vector3(0, 1.2, 0)), true);
+
+    if (v) c.fx.bolt(at, above(v, v.height * 0.6), GLASS, 0.2);
+    await c.tweens.wait(0.3);
+  },
+  standin: async (e, c) => {
+    const v = c.views.get(e.from), d = c.views.get(e.to);
+
+    if (!v || !d) return;
+    c.fx.bolt(above(v, v.height * 0.6), above(d, d.height * 0.6), WOOD, 0.18);
+    c.overlay.float('🪆 the Doll takes it', '#d9a066', above(d, 2.2));
+    await c.tweens.wait(0.12);
+  },
+  break: async (e, c) => {
+    const v = c.views.get(e.id);
+
+    if (!v) return;
+    v.shown.life = { kind: 'dead' };
+    v.ring.visible = false;
+    void c.fx.burst(above(v, 0.5), WOOD, 2.6, 0.5);
+    c.fx.sparkles(above(v, 0.3), 0x8a5a2a, 12);
+    c.overlay.float('🪆 the Doll breaks', '#d9a066', above(v, 1.8), true);
+    await c.tweens.run(0.45, p => { v.group.scale.setScalar(1 - p * 0.99); });
+    v.group.visible = false;
+  },
+  reform: async (e, c) => {
+    const v = c.views.get(e.id), u = getUnit(c.after, e.id);
+
+    if (!v) return;
+    v.group.position.copy(c.terrain.at(e.x, e.z));
+    v.group.visible = true;
+    v.shown.life = { kind: 'up' };
+    v.shown.hp = u?.maxHp ?? v.shown.maxHp;
+    v.shown.shield = 0;
+    c.fx.sparkles(above(v, 0.3), WOOD, 12);
+    c.overlay.float('🪆 the Doll reforms', '#d9a066', above(v, 1.8));
+    await c.tweens.run(0.4, p => { v.group.scale.setScalar(0.05 + 0.95 * easeInOut(p)); });
+  },
+  shatter: async (e, c) => {
+    for (const t of e.tiles) {
+      c.terrain.setFx(t.x, t.z, 'glass', false);
+      void c.fx.burst(c.terrain.at(t.x, t.z, 0.5, false), GLASS, 2, 0.4);
+      c.fx.sparkles(c.terrain.at(t.x, t.z, 0.3, false), 0xffffff, 8);
+    }
+
+    c.stage.shake(0.2);
+    await c.tweens.wait(0.25);
+  },
   spend: (e, c) => {
     const v = c.views.get(e.id);
 

@@ -3,12 +3,13 @@ import { CLASSES, CLASS_ORDER, MAP_ORDER } from '../engine/index';
 import type { Team } from '../engine/index';
 import { BIOMES } from './biome';
 import { TEAM_HEX, basic, decal, mat, mesh } from './board/art';
-import type { Rig } from './board/acts';
+import { weightAt } from './board/acts';
+import type { Pose, Rig } from './board/acts';
 import { buildModel, loadFigures } from './board/models';
 import { byId } from './dom';
 import { installErrorOverlay } from './overlay';
 
-/** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`. After `art/build.sh`, reload to see new figures. */
+/** Every class model, both teams: close up on top, at battle distance on a biome's light below. `?biome=span|storm|altar`. `?act=cast` replays that action clip on every figure that has one, a beat apart, and `&at=0.4` holds it at that second. After `art/build.sh`, reload to see new figures. */
 installErrorOverlay();
 
 const params = new URLSearchParams(location.search);
@@ -38,7 +39,13 @@ function lit(s: THREE.Scene, b = B): void {
   s.add(sun);
 }
 
-const rigs: Rig[] = [];
+const rigs: Rig[] = [], act = params.get('act'), at = params.get('at'), REST = 0.6;
+
+/** Replays `act` from the top every time it ends, with a rest beat on idle between plays. */
+const replays: { rig: Rig; length: number; pose: Pose | null; from: number }[] = [];
+
+/** The middle of the row, so the classes stand centred however many there are. */
+const MID = (CLASS_ORDER.length - 1) / 2;
 
 function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x: number, z: number, turn: number): void {
   const root = new THREE.Group(), { body, rig } = buildModel(cls, team);
@@ -47,6 +54,9 @@ function place(s: THREE.Scene, cls: (typeof CLASS_ORDER)[number], team: Team, x:
   root.rotation.y = turn;
 
   rigs.push(rig);
+  const clip = act === null ? undefined : rig.acts.get(act);
+
+  if (clip) replays.push({ rig, length: clip.length, pose: null, from: 0 });
   s.add(root);
 }
 
@@ -69,7 +79,7 @@ floor.receiveShadow = true;
 close.add(floor);
 
 CLASS_ORDER.forEach((cls, i) => {
-  for (const team of [0, 1] as const) place(close, cls, team, (i - 1.5) * 2.6 + (team ? 0.55 : -0.55), 0, team ? -0.5 : 0.5);
+  for (const team of [0, 1] as const) place(close, cls, team, (i - MID) * 2.6 + (team ? 0.55 : -0.55), 0, team ? -0.5 : 0.5);
 });
 
 const far = new THREE.Scene();
@@ -89,8 +99,8 @@ for (let x = -4; x <= 3; x++) for (let z = -2; z <= 1; z++) {
 }
 
 CLASS_ORDER.forEach((cls, i) => {
-  place(far, cls, 0, (i - 1.5) * 2 + 0.5, -0.5, 0);
-  place(far, cls, 1, (i - 1.5) * 2 - 0.5, 1.5, Math.PI);
+  place(far, cls, 0, (i - MID) * 2 + 0.5, -0.5, 0);
+  place(far, cls, 1, (i - MID) * 2 - 0.5, 1.5, Math.PI);
 });
 
 const label = CLASS_ORDER.map(cls => {
@@ -108,6 +118,16 @@ function frame(t: number): void {
 
   if (renderer.getSize(new THREE.Vector2()).x !== w) renderer.setSize(w, h, false);
 
+  for (const r of replays) {
+    if (r.pose === null || t / 1000 - r.from > r.length + REST) {
+      r.pose = r.rig.start(act ?? '').pose;
+      r.from = t / 1000;
+    }
+
+    const p = at === null ? Math.min(t / 1000 - r.from, r.length) : Number(at);
+    r.pose(p, at === null ? weightAt(p, r.length, false, false) : 1);
+  }
+
   for (const r of rigs) r.tick(t / 1000);
   closeCam.aspect = w / split;
   closeCam.updateProjectionMatrix();
@@ -115,7 +135,7 @@ function frame(t: number): void {
   farCam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(22.5)) * ((h - split) / h)));
   farCam.aspect = w / (h - split);
   farCam.updateProjectionMatrix();
-  label.forEach((d, i) => { d.style.left = `${((i + 0.5) / 4) * 100}%`; d.style.top = '14px'; });
+  label.forEach((d, i) => { d.style.left = `${((i + 0.5) / CLASS_ORDER.length) * 100}%`; d.style.top = '14px'; });
   renderer.setViewport(0, h - split, w, split);
   renderer.setScissor(0, h - split, w, split);
   renderer.render(close, closeCam);

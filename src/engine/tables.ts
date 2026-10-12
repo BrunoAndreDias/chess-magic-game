@@ -33,12 +33,7 @@ export const WET_SHOCK = 1.5;
 /** A hit that leaves a Withered enemy (or a Reaper's target) at this share of max HP or less Downs it (REAP). */
 export const REAP_AT = 0.2;
 
-/** Shared Pain: the share of the blow its holder takes instead. */
-export const SHARE = 0.5;
-
 export const BURN = { turns: 2, dmg: 6 };
-
-export const POISON = { turns: 3, dmg: 6 };
 
 export const WET_TURNS = 2;
 
@@ -48,12 +43,16 @@ export const HASTE_MOVE = 2;
 /** An Undying Gravecaller's move while Downed. */
 export const UNDYING_MOVE = 1;
 
-/** Threads a Weaver holds, and Souls and Harvest's reach for a Gravecaller, before passives and resonances. */
-export const THREADS = 3;
-
+/** Souls and Harvest's reach for a Gravecaller, before passives and resonances. */
 export const SOULS = 3;
 
 export const HARVEST_RANGE = 3;
+
+/** A Marionettist's Doll: its HP, the rounds it takes to reform, how far Strings walks it and how far from its owner it may end. */
+export const DOLL = { hp: 50, reform: 2, walk: 3, leash: 4 };
+
+/** The share of a hit a Mirrored unit turns back on its attacker. */
+export const REFLECT = 0.5;
 
 export const HIGH_GROUND = { range: 1, dmg: 0.15 };
 
@@ -69,6 +68,9 @@ export const pct = (f: number): string => `${Math.round(f * 100)}%`;
 
 /** A share of something as a word where English has one: `half`, `a quarter`; else a percentage. */
 export const part = (f: number): string => (f === 0.5 ? 'half' : f === 0.25 ? 'a quarter' : pct(f));
+
+/** `a quarter` → `A quarter`. */
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 
 /** An area of radius `r` as its side: `1` → `3×3`. */
 const side = (r: number): string => `${2 * r + 1}×${2 * r + 1}`;
@@ -150,7 +152,7 @@ const MAP_TABLE = {
     rule: SPAN_RULE,
     tagline: 'The edges fall away. Only the island lasts.',
     ruleText: `Crumble: at the end of round ${SPAN_FALLS.bridges} the side bridges fall, then the back rows at the end of rounds ${SPAN_FALLS.back.join(' and ')}, and the plateaus at the end of round ${SPAN_FALLS.plateaus}. Anyone standing on a falling tile drops and is Downed, clinging to the nearest solid ground; anyone already Downed there is lost.`,
-    favors: 'Pullers and the patient: Reel and Gravity Well drop enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
+    favors: 'Pullers and the patient: Gravity Well drops enemies off the edge, and a Root or Stun at the right moment leaves them on a tile about to fall.' },
   storm: { id: 'storm', name: 'Storm Court',
     rows: ['............', '..#......#..', '............', '.~~..^...~~.', '.~~.#..#.~~.', '.....~~....+'],
     rule: STORM_RULE,
@@ -162,7 +164,7 @@ const MAP_TABLE = {
     rule: ALTAR_RULE,
     tagline: `Hold the altar. First to ${ALTAR_RULE.goal} favor wins.`,
     ruleText: `Altar: at the end of each round, the party with more characters standing on the Sun Altar gains 1 favor. Ties gain nothing. The first party to ${ALTAR_RULE.goal} favor wins at once.`,
-    favors: 'Tanks and area control: a Meteor on the altar makes holders leave or eat it, Puppet Strings walks them off, and grass on the flanks hides the ambush.' },
+    favors: 'Tanks and area control: a Meteor on the altar makes holders leave or eat it, and grass on the flanks hides the ambush.' },
 } satisfies Record<MapId, MapDef>;
 
 export const MAPS: Readonly<Record<MapId, MapDef>> = MAP_TABLE;
@@ -202,29 +204,34 @@ export interface ClassDef {
 }
 
 export const CLASSES = {
-  astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', hp: 140, move: 3, innate: 'snap',
+  astromancer: { id: 'astromancer', name: 'Astromancer', icon: '☄️', color: '#9a8cff', hp: 155, move: 3, innate: 'snap',
     mechanic: 'Calls: the big spells land at the start of your next turn.',
-    plays: 'The battle mage whose big spells fall from the sky, where the enemy will be.', basic: { name: 'Starbolt', range: 4, dmg: 10 },
+    plays: 'The battle mage whose big spells fall from the sky, where the enemy will be.', basic: { name: 'Starbolt', range: 4, dmg: 12 },
     skills: ['meteor', 'thunderhead', 'gravitywell', 'frostbolt', 'firebolt', 'prison', 'recall'], defaults: ['meteor', 'frostbolt', 'gravitywell'],
     tree: ['a_fire', 'a_range', 'a_burn', 'a_twin', 'a_frost', 'a_prison'] },
-  weaver: { id: 'weaver', name: 'Weaver', icon: '🕸️', color: '#d06a9a', hp: 170, move: 3, innate: 'tether',
-    mechanic: `Threads: tie up to ${THREADS} units, then pull, leash or share damage along them.`,
-    plays: 'A spider-kin who ties the battlefield together with silk.', basic: { name: 'Fang', range: 1, dmg: 14 },
-    skills: ['reel', 'web', 'cocoon', 'venombite', 'puppet', 'sharedpain', 'skitter'], defaults: ['reel', 'web', 'venombite'],
-    tree: ['w_hp', 'w_leash', 'w_thread', 'w_fate', 'w_poison', 'w_fang'] },
   gravecaller: { id: 'gravecaller', name: 'Gravecaller', icon: '💀', color: '#9fe0b8', hp: 160, move: 3, innate: 'harvest',
     mechanic: 'Souls: hard hits and Downs drop Souls; gather them and spend them on Rites.',
     plays: 'A bone priest who ferries souls, raising the fallen and reaping the dying.', basic: { name: 'Bone Lash', range: 2, dmg: 12 },
     skills: ['lastrites', 'bonewall', 'wither', 'soulbolt', 'soulburst', 'siphon', 'equalize'], defaults: ['soulbolt', 'lastrites', 'siphon'],
     tree: ['g_bolt', 'g_reach', 'g_burst', 'g_reap', 'g_hp', 'g_cap'] },
-  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', hp: 175, move: 3, innate: 'toll',
+  bellringer: { id: 'bellringer', name: 'Bellringer', icon: '🔔', color: '#e0b04a', hp: 155, move: 3, innate: 'toll',
     mechanic: 'Toll: move a unit’s turn in this round’s queue.',
     plays: 'A monk with a great bronze bell on its back, who calls the hour.', basic: { name: 'Clapper', range: 1, dmg: 15 },
     skills: ['knell', 'hush', 'peal', 'encore', 'overture', 'hourglass', 'bellguard'], defaults: ['knell', 'hush', 'peal'],
     tree: ['b_knell', 'b_last', 'b_peal', 'b_final', 'b_hp', 'b_clapper'] },
+  marionettist: { id: 'marionettist', name: 'Marionettist', icon: '🪆', color: '#d9a066', hp: 165, move: 3, innate: 'strings',
+    mechanic: 'The Doll: a second body on the board that you walk, swap with and fight through.',
+    plays: 'A tall masked puppeteer whose wooden Doll stands where it is needed.', basic: { name: 'Wire Lash', range: 2, dmg: 14 },
+    skills: ['switch', 'dance', 'tangle', 'razorwire', 'splinter', 'standin', 'rebuild'], defaults: ['switch', 'tangle', 'razorwire'],
+    tree: ['p_lash', 'p_wire', 'p_splinter', 'p_ventriloquist', 'p_doll', 'p_hp'] },
+  mirrormime: { id: 'mirrormime', name: 'Mirrormime', icon: '🪞', color: '#c8d4ff', hp: 135, move: 3, innate: 'reflect',
+    mechanic: 'Reflection: turn hits back on whoever threw them.',
+    plays: 'A harlequin mime with a mirrorball, who hands every blow back.', basic: { name: 'Glint', range: 3, dmg: 10 },
+    skills: ['glasswall', 'ricochet', 'retort', 'mock', 'mirrorball', 'shatter', 'reversal'], defaults: ['glasswall', 'ricochet', 'mock'],
+    tree: ['m_hp', 'm_reach', 'm_shield', 'm_quick', 'm_rico', 'm_retort'] },
 } satisfies Record<ClassId, ClassDef>;
 
-export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'weaver', 'gravecaller', 'bellringer'];
+export const CLASS_ORDER: readonly ClassId[] = ['astromancer', 'gravecaller', 'bellringer', 'marionettist', 'mirrormime'];
 
 // ---------- passive trees: 3 paths of 4 (three nodes, then a keystone). A node needs the one before it ----------
 export interface NodeDef { id: NodeId; name: string; key?: true; text: string; mods: Mods }
@@ -235,10 +242,12 @@ export interface BranchDef { name: string; role: Role; color: string; nodes: rea
 export const NODE_N = {
   a_zero: { turns: 2 },
   a_benev: { heal: 0.25 },
-  w_fate: { shield: 10, leash: 2, dmg: 12 },
-  w_feast: { dmg: 12 },
-  g_ferry: { range: 2, hp: 0.6 },
-  b_accel: { shield: 15 },
+  g_ferry: { range: 3, hp: 0.7 },
+  b_accel: { shield: 10 },
+  p_tangled: { taken: 0.5 },
+  p_ventriloquist: { range: 1 },
+  p_understudy: { share: 0.25, shield: 15 },
+  m_hall: { flash: 8, radius: 2 },
 };
 
 /** A node whose text is written from its own mods, so the number shown is the number applied. */
@@ -255,15 +264,15 @@ const cd = (n: number): string => `cooldown −${n}`;
 const TREE_TABLE = {
   astromancer: [
     { name: 'Rime', role: 'tank', color: '#7fd8ff', nodes: [
-      node({ id: 'a_frost', name: 'Hoarfrost', mods: { frostDmg: 0.2 }, text: m => `Frost +${pct(m.frostDmg)} damage.` }),
+      node({ id: 'a_frost', name: 'Hoarfrost', mods: { frostDmg: 0.3 }, text: m => `Frost +${pct(m.frostDmg)} damage.` }),
       node({ id: 'a_prison', name: 'Cold Cell', mods: { prisonCd: 1 }, text: m => `Glacial Prison ${cd(m.prisonCd)}.` }),
       node({ id: 'a_wet', name: 'Sleet', mods: { callWet: 1 }, text: () => 'Your Calls make everyone they hit Wet.' }),
       node({ id: 'a_zero', name: 'Absolute Zero', key: true, mods: { absZero: 1 },
         text: () => `Units Rooted or Encased when your Call lands are Stunned by it, and Glacial Prison holds an enemy ${NODE_N.a_zero.turns} turns.` })] },
     { name: 'Pyre', role: 'damage', color: '#ff6a2b', nodes: [
-      node({ id: 'a_fire', name: 'Kindling', mods: { fireDmg: 0.2 }, text: m => `Fire +${pct(m.fireDmg)} damage.` }),
+      node({ id: 'a_fire', name: 'Kindling', mods: { fireDmg: 0.3 }, text: m => `Fire +${pct(m.fireDmg)} damage.` }),
       node({ id: 'a_range', name: 'Far Sight', mods: { callRange: 1 }, text: m => `Call range +${m.callRange}.` }),
-      node({ id: 'a_burn', name: 'Searing', mods: { burnDmg: 3 }, text: m => `Burning deals +${m.burnDmg} a turn.` }),
+      node({ id: 'a_burn', name: 'Searing', mods: { burnDmg: 4 }, text: m => `Burning deals +${m.burnDmg} a turn.` }),
       node({ id: 'a_twin', name: 'Twin Stars', key: true, mods: { twinStars: 1 }, text: m => `You can hold ${1 + m.twinStars} Calls at once.` })] },
     { name: 'Orrery', role: 'support', color: '#ffe08a', nodes: [
       node({ id: 'a_recall', name: 'Long Orbit', mods: { recallRange: 2 }, text: m => `Recall range +${m.recallRange}.` }),
@@ -271,30 +280,11 @@ const TREE_TABLE = {
       node({ id: 'a_cleanse', name: 'Clean Return', mods: { recallCleanse: 1 }, text: () => 'Recall also cleanses debuffs.' }),
       node({ id: 'a_benev', name: 'Benevolent Heavens', key: true, mods: { benevolent: 1 },
         text: () => `Your Calls heal allies in their area for ${part(NODE_N.a_benev.heal)} of what they’d deal, instead of hurting them.` })] }],
-  weaver: [
-    { name: 'Matriarch', role: 'tank', color: '#d06a9a', nodes: [
-      node({ id: 'w_hp', name: 'Chitin', mods: { hp: 30 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'w_leash', name: 'Short Leash', mods: { leashDmg: 0.2 }, text: m => `Enemies you hold deal ${pct(m.leashDmg)} less damage to everyone but you.` }),
-      node({ id: 'w_thread', name: 'Many Hands', mods: { threads: 1 }, text: m => `+${m.threads} Thread.` }),
-      node({ id: 'w_fate', name: 'Web of Fate', key: true, mods: { webOfFate: 1 },
-        text: () => `Start each turn with a ${NODE_N.w_fate.shield} shield per Thread you hold. An enemy you hold that ends its turn more than ${NODE_N.w_fate.leash} from you is pulled back to ${NODE_N.w_fate.leash} and takes ${NODE_N.w_fate.dmg}.` })] },
-    { name: 'Widow', role: 'damage', color: '#8fe36b', nodes: [
-      node({ id: 'w_poison', name: 'Virulence', mods: { poisonDmg: 3 }, text: m => `Poison +${m.poisonDmg} a turn.` }),
-      node({ id: 'w_fang', name: 'Long Fangs', mods: { basicDmg: 10 }, text: m => `Fang +${m.basicDmg} damage.` }),
-      node({ id: 'w_bite', name: 'Drink Deep', mods: { biteHeal: 8 }, text: m => `Venom Bite heals you ${m.biteHeal}.` }),
-      node({ id: 'w_feast', name: 'Feast', key: true, mods: { feast: 1 },
-        text: () => `Reel pulls enemies all the way to you, and you bite each one that arrives next to you for ${NODE_N.w_feast.dmg} and Poison.` })] },
-    { name: 'Spinner', role: 'support', color: '#b8e0ff', nodes: [
-      node({ id: 'w_cocoon', name: 'Quick Silk', mods: { cocoonCd: 1 }, text: m => `Cocoon ${cd(m.cocoonCd)}.` }),
-      node({ id: 'w_reach', name: 'Long Line', mods: { threadRange: 2, hp: 20 }, text: m => `Tether range +${m.threadRange} and +${m.hp} max HP.` }),
-      node({ id: 'w_silk', name: 'Strong Silk', mods: { webTurns: 2 }, text: m => `Webs last ${m.webTurns} rounds longer.` }),
-      node({ id: 'w_spare', name: 'Fate Weaver', key: true, mods: { fateWeaver: 1 },
-        text: () => 'The first time you or an ally you hold would be Downed, it is Encased at 1 HP instead.' })] }],
   gravecaller: [
     { name: 'Lich', role: 'tank', color: '#9fe0b8', nodes: [
-      node({ id: 'g_hp', name: 'Grave Flesh', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_hp', name: 'Grave Flesh', mods: { hp: 15 }, text: m => `+${m.hp} max HP.` }),
       node({ id: 'g_cap', name: 'Deep Pockets', mods: { soulCap: 1 }, text: m => `Hold ${m.soulCap} more Soul.` }),
-      node({ id: 'g_ward', name: 'Soul Ward', mods: { soulShield: 6 }, text: m => `Start your turn with a ${m.soulShield} shield for each Soul you hold.` }),
+      node({ id: 'g_ward', name: 'Soul Ward', mods: { soulShield: 3 }, text: m => `Start your turn with a ${m.soulShield} shield for each Soul you hold.` }),
       node({ id: 'g_undying', name: 'Undying', key: true, mods: { undying: 1 },
         text: () => `While Downed you still take turns: move ${UNDYING_MOVE}, then one skill but not your basic. Each Downed turn spends a held Soul instead of bleeding; with none, you bleed as normal.` })] },
     { name: 'Reaper', role: 'damage', color: '#c06aff', nodes: [
@@ -304,18 +294,18 @@ const TREE_TABLE = {
       node({ id: 'g_reap', name: 'Reap', key: true, mods: { reap: 1 },
         text: () => `Enemies a hit of yours leaves at ${pct(REAP_AT)} HP or less are Downed at once (REAP), and every Down you cause hands you its Soul directly.` })] },
     { name: 'Psychopomp', role: 'support', color: '#fff3b0', nodes: [
-      node({ id: 'g_rites', name: 'Far Call', mods: { riteRange: 2 }, text: m => `Last Rites range +${m.riteRange}.` }),
-      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 20 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
+      node({ id: 'g_rites', name: 'Far Call', mods: { riteRange: 3 }, text: m => `Last Rites range +${m.riteRange}.` }),
+      node({ id: 'g_hp2', name: 'Pale Robes', mods: { hp: 40 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'g_shield', name: 'Safe Passage', mods: { riteShield: 30 }, text: m => `Allies you stand up get a ${m.riteShield} shield.` }),
       node({ id: 'g_ferry', name: 'Ferryman', key: true, mods: { ferryman: 1 },
         text: () => `Downed allies within ${NODE_N.g_ferry.range} of you don’t bleed, and anyone in your party who stands an ally up (Help Up or Last Rites) brings it back at ${pct(NODE_N.g_ferry.hp)} HP.` })] }],
   bellringer: [
     { name: 'Carillon', role: 'tank', color: '#e0b04a', nodes: [
-      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 30 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'b_clapper', name: 'Heavy Clapper', mods: { basicDmg: 6 }, text: m => `Clapper +${m.basicDmg} damage.` }),
-      node({ id: 'b_guard', name: 'Thick Bell', mods: { guardShield: 15 }, text: m => `Bell Guard +${m.guardShield} shield.` }),
-      node({ id: 'b_thee', name: 'Toll for Thee', key: true, mods: { tollHush: 1, tollCd: 1 },
-        text: m => `Enemies you Toll are Hushed on their moved turn, and Toll’s ${cd(m.tollCd)}.` })] },
+      node({ id: 'b_hp', name: 'Bronze Frame', mods: { hp: 10 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_clapper', name: 'Heavy Clapper', mods: { basicDmg: 4 }, text: m => `Clapper +${m.basicDmg} damage.` }),
+      node({ id: 'b_guard', name: 'Thick Bell', mods: { guardShield: 10 }, text: m => `Bell Guard +${m.guardShield} shield.` }),
+      node({ id: 'b_thee', name: 'Toll for Thee', key: true, mods: { tollHush: 1 },
+        text: () => 'Enemies you Toll are Hushed on their moved turn.' })] },
     { name: 'Herald', role: 'damage', color: '#ff8a4a', nodes: [
       node({ id: 'b_knell', name: 'Deep Knell', mods: { knellDmg: 6 }, text: m => `Knell +${m.knellDmg} damage.` }),
       node({ id: 'b_last', name: 'Last Word', mods: { lastDmg: 0.2 }, text: m => `+${pct(m.lastDmg)} damage when you’re the last of your party to act this round.` }),
@@ -325,9 +315,47 @@ const TREE_TABLE = {
     { name: 'Conductor', role: 'support', color: '#8fd1ff', nodes: [
       node({ id: 'b_reach', name: 'Far Toll', mods: { tollRange: 2 }, text: m => `Toll range +${m.tollRange}.` }),
       node({ id: 'b_encore', name: 'Swift Encore', mods: { encoreCd: 1 }, text: m => `Encore ${cd(m.encoreCd)}.` }),
-      node({ id: 'b_hp2', name: 'Steady Hands', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
-      node({ id: 'b_accel', name: 'Accelerando', key: true, mods: { accel: 1, tollCd: 1 },
-        text: m => `Allies you Toll get +${HASTE_MOVE} move and a ${NODE_N.b_accel.shield} shield on that turn, and Toll’s ${cd(m.tollCd)}.` })] }],
+      node({ id: 'b_hp2', name: 'Steady Hands', mods: { hp: 10 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'b_accel', name: 'Accelerando', key: true, mods: { accel: 1 },
+        text: () => `Allies you Toll get +${HASTE_MOVE} move and a ${NODE_N.b_accel.shield} shield on that turn.` })] }],
+  marionettist: [
+    { name: 'Heartwood', role: 'tank', color: '#c08a4a', nodes: [
+      node({ id: 'p_doll', name: 'Oak Limbs', mods: { dollHp: 40 }, text: m => `Your Doll +${m.dollHp} max HP.` }),
+      node({ id: 'p_hp', name: 'Stagehand', mods: { hp: 35 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'p_reform', name: 'Spare Parts', mods: { dollReform: 1, dollHp: 10 }, text: m => `Your Doll reforms ${m.dollReform} round sooner and gets +${m.dollHp} max HP.` }),
+      node({ id: 'p_tangled', name: 'Tangled Strings', key: true, mods: { tangled: 1 },
+        text: () => `Enemies that hit your Doll are Rooted, and it takes ${part(NODE_N.p_tangled.taken)} damage.` })] },
+    { name: 'Ventriloquy', role: 'damage', color: '#ff7a5a', nodes: [
+      node({ id: 'p_lash', name: 'Barbed Wire', mods: { basicDmg: 6 }, text: m => `Wire Lash +${m.basicDmg} damage.` }),
+      node({ id: 'p_wire', name: 'Piano Wire', mods: { wireDmg: 8 }, text: m => `Razor Wire +${m.wireDmg} damage.` }),
+      node({ id: 'p_splinter', name: 'Brittle Pine', mods: { splinterDmg: 6 }, text: m => `Splinter +${m.splinterDmg} damage.` }),
+      node({ id: 'p_ventriloquist', name: 'Ventriloquist', key: true, mods: { ventriloquist: 1 },
+        text: () => `You can cast your basic and your skills from your Doll’s tile, as if you stood there, and Wire Lash gets +${NODE_N.p_ventriloquist.range} range.` })] },
+    { name: 'Stagecraft', role: 'support', color: '#ffd38a', nodes: [
+      node({ id: 'p_switch', name: 'Long Strings', mods: { switchRange: 2 }, text: m => `Switch range +${m.switchRange}.` }),
+      node({ id: 'p_hp2', name: 'Velvet Coat', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'p_standin', name: 'Quick Change', mods: { standinCd: 1 }, text: m => `Stand-In ${cd(m.standinCd)}.` }),
+      node({ id: 'p_understudy', name: 'Understudy', key: true, mods: { understudy: 1 },
+        text: () => `${cap(part(NODE_N.p_understudy.share))} of every enemy hit on an ally next to your Doll goes to the Doll instead, and allies you Switch get a ${NODE_N.p_understudy.shield} shield.` })] }],
+  mirrormime: [
+    { name: 'Quicksilver', role: 'tank', color: '#b8c8e8', nodes: [
+      node({ id: 'm_hp', name: 'Silvered Skin', mods: { hp: 25 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'm_reach', name: 'Long Glance', mods: { reflectRange: 2 }, text: m => `Reflect range +${m.reflectRange}.` }),
+      node({ id: 'm_shield', name: 'Backing Glass', mods: { mirrorShield: 10 }, text: m => `Whoever you Mirror also gets a ${m.mirrorShield} shield.` }),
+      node({ id: 'm_quick', name: 'Quicksilver', key: true, mods: { quicksilver: 1 },
+        text: () => `Units you Mirror turn back ${part(REFLECT)} of every enemy hit until their next turn, not just the first.` })] },
+    { name: 'Hall of Mirrors', role: 'damage', color: '#e08aff', nodes: [
+      node({ id: 'm_rico', name: 'Bank Shot', mods: { ricochetDmg: 4 }, text: m => `Ricochet +${m.ricochetDmg} damage.` }),
+      node({ id: 'm_retort', name: 'Sharp Tongue', mods: { retortDmg: 4 }, text: m => `Retort +${m.retortDmg} damage.` }),
+      node({ id: 'm_shatter', name: 'Thin Glass', mods: { shatterDmg: 6 }, text: m => `Shatter +${m.shatterDmg} damage.` }),
+      node({ id: 'm_hall', name: 'Hall of Mirrors', key: true, mods: { hallMirrors: 1 },
+        text: () => `A hit your Mirror turns back comes back whole, and your Reflect flashes: ${NODE_N.m_hall.flash} to every enemy within ${NODE_N.m_hall.radius} of whoever you Mirror.` })] },
+    { name: 'Smoke and Mirrors', role: 'support', color: '#9fe8d8', nodes: [
+      node({ id: 'm_reversal', name: 'Sleight', mods: { reversalRange: 2 }, text: m => `Reversal range +${m.reversalRange}.` }),
+      node({ id: 'm_hp2', name: 'Greasepaint', mods: { hp: 20 }, text: m => `+${m.hp} max HP.` }),
+      node({ id: 'm_ball', name: 'Spotlight', mods: { ballCd: 1 }, text: m => `Mirrorball ${cd(m.ballCd)}.` }),
+      node({ id: 'm_smoke', name: 'Smoke and Mirrors', key: true, mods: { smokeMirrors: 1, reflectCd: 1 },
+        text: m => `Units you Mirror also turn back every debuff an enemy puts on them until their next turn, and Reflect’s ${cd(m.reflectCd)}.` })] }],
 } satisfies Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>;
 
 export const TREES: Readonly<Record<ClassId, readonly [BranchDef, BranchDef, BranchDef]>> = TREE_TABLE;
@@ -351,27 +379,35 @@ export interface PairDef { id: PairId; a: ClassId; b: ClassId; name: string; tex
 
 /** The resonances' numbers: the engine reads them here, the pair texts quote them. */
 export const PAIR_N = {
-  startether: { turns: 2 },
   deathknell: { bleed: 2 },
   conjunction: { dmg: 0.25 },
-  greatweb: { threads: 1, webTurns: 1 },
   charnel: { soulTurns: 2, souls: 1 },
   pealofbells: { range: 1, cd: 1 },
+  bonepuppet: { reform: 1 },
+  clockwork: { hp: 20, walk: 1 },
+  commedia: { share: 0.5 },
+  troupe: { hp: 15, reform: 1 },
+  infinitymirror: { range: 1, cd: 1 },
 };
 
 const PN = PAIR_N;
 
 const PAIR_TABLE = [
-  { id: 'startether', a: 'astromancer', b: 'weaver', name: 'Star-Tether', text: `An enemy held by your Weaver when your Call hits it is Exposed for ${PN.startether.turns} turns.` },
   { id: 'seconddawn', a: 'astromancer', b: 'gravecaller', name: 'Second Dawn', text: 'A Recall that lands on a Downed ally stands it back up at the HP it had when you cast.' },
   { id: 'appointedhour', a: 'astromancer', b: 'bellringer', name: 'Appointed Hour', text: 'An enemy Tolled while standing in one of your pending Calls’ areas is Rooted.' },
-  { id: 'soulsilk', a: 'weaver', b: 'gravecaller', name: 'Soul Silk', text: 'Last Rites and Siphon reach any ally your Weaver holds, at any range.' },
-  { id: 'clockworksilk', a: 'weaver', b: 'bellringer', name: 'Clockwork Silk', text: 'Toll reaches any unit your Weaver holds, at any range.' },
   { id: 'deathknell', a: 'gravecaller', b: 'bellringer', name: 'Death Knell', text: `Downed enemies lose ${PN.deathknell.bleed} bleed a turn instead of 1.` },
+  { id: 'fatedstrings', a: 'astromancer', b: 'marionettist', name: 'Fated Strings', text: 'An enemy your Dance leaves standing in one of your pending Calls’ areas is Rooted.' },
+  { id: 'bonepuppet', a: 'gravecaller', b: 'marionettist', name: 'Bone Puppet', text: `Your Doll drops a Soul when it breaks, and reforms ${PN.bonepuppet.reform} round sooner.` },
+  { id: 'clockwork', a: 'bellringer', b: 'marionettist', name: 'Clockwork Doll', text: `Your Doll gets +${PN.clockwork.hp} max HP, and Strings walks it ${PN.clockwork.walk} tile farther.` },
+  { id: 'commedia', a: 'marionettist', b: 'mirrormime', name: 'Commedia', text: `A hit on your Doll turns ${part(PN.commedia.share)} of it back on the attacker.` },
+  { id: 'prism', a: 'astromancer', b: 'mirrormime', name: 'Prism', text: 'Your Calls pass through Mirrored allies without hurting them.' },
+  { id: 'blackmirror', a: 'gravecaller', b: 'mirrormime', name: 'Black Mirror', text: 'A hit a Mirror turns back drops a Soul on the attacker’s tile.' },
+  { id: 'echochamber', a: 'bellringer', b: 'mirrormime', name: 'Echo Chamber', text: 'An enemy whose hit a Mirror turns back is Hushed.' },
   { id: 'conjunction', a: 'astromancer', b: 'astromancer', name: 'Conjunction', text: `A Call that lands in a round where another of your Calls already landed deals +${pct(PN.conjunction.dmg)}.` },
-  { id: 'greatweb', a: 'weaver', b: 'weaver', name: 'Great Web', text: `+${PN.greatweb.threads} Thread each, and your webs last ${PN.greatweb.webTurns} round longer.` },
   { id: 'charnel', a: 'gravecaller', b: 'gravecaller', name: 'Charnel House', text: `Souls last ${PN.charnel.soulTurns} rounds longer, and each Gravecaller holds ${PN.charnel.souls} more.` },
   { id: 'pealofbells', a: 'bellringer', b: 'bellringer', name: 'Peal of Bells', text: `Each Bellringer’s Toll gets +${PN.pealofbells.range} range and −${PN.pealofbells.cd} cooldown. A unit still can’t be Tolled twice in a round.` },
+  { id: 'troupe', a: 'marionettist', b: 'marionettist', name: 'Troupe', text: `Each Doll gets +${PN.troupe.hp} max HP and reforms ${PN.troupe.reform} round sooner.` },
+  { id: 'infinitymirror', a: 'mirrormime', b: 'mirrormime', name: 'Infinity Mirror', text: `Each Mirrormime’s Reflect gets +${PN.infinitymirror.range} range and −${PN.infinitymirror.cd} cooldown.` },
 ] satisfies readonly PairDef[];
 
 export const PAIRS: readonly PairDef[] = PAIR_TABLE;
@@ -387,21 +423,20 @@ export const COVERAGE = {
 // ---------- statuses: durations count the owner's turns and tick down at the end of each of them ----------
 export interface StatusDef { name: string; icon: string; color: string; bad?: true; text: string }
 
-const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
-
 const STATUS_TABLE = {
   stun: { name: 'Stunned', icon: '💫', color: '#ffd36b', bad: true, text: 'Loses its next turn.' },
   root: { name: 'Rooted', icon: '🌿', color: '#8fe36b', bad: true, text: 'Can’t move on its next turn.' },
   wet: { name: 'Wet', icon: '💧', color: '#4fb3ff', bad: true, text: `Thunderhead Conducts (×${WET_SHOCK}), Frostbolt Freezes (stun). Can’t burn.` },
-  burn: { name: 'Burning', icon: '🔥', color: '#ff7a3a', bad: true, text: 'Takes fire damage at the start of its turn. Breaks Threads.' },
-  poison: { name: 'Poisoned', icon: '☠️', color: '#8fe36b', bad: true, text: 'Takes poison damage at the start of its turn.' },
+  burn: { name: 'Burning', icon: '🔥', color: '#ff7a3a', bad: true, text: 'Takes fire damage at the start of its turn.' },
   expose: { name: 'Exposed', icon: '🩸', color: '#ff8a8a', bad: true, text: `Takes +${pct(EXPOSE)} damage.` },
   encased: { name: 'Encased', icon: '🧊', color: '#b8e8ff', text: 'Skips its turn, can’t be damaged or moved.' },
-  share: { name: 'Shared Pain', icon: '🕸️', color: '#d06a9a', text: `${cap(part(SHARE))} the damage to the allies it holds comes to it instead.` },
   wither: { name: 'Withered', icon: '🥀', color: '#b89a6a', bad: true, text: `Can’t be healed or shielded. A hit that leaves it at ${pct(REAP_AT)} HP or less Downs it (REAP).` },
   hush: { name: 'Hushed', icon: '🔇', color: '#c8b4ff', bad: true, text: 'Can move and use its basic attack, nothing else. Free skills included.' },
   guard: { name: 'Bell Guard', icon: '🛎️', color: '#e0b04a', text: 'Until its next turn, enemies that hit it are Hushed.' },
   haste: { name: 'Quickened', icon: '💨', color: '#8fd1ff', text: `+${HASTE_MOVE} move on its next turn.` },
+  mirror: { name: 'Mirrored', icon: '🪞', color: '#c8d4ff', text: `Until its next turn, ${part(REFLECT)} of the next enemy hit on it goes back to the attacker instead.` },
+  mock: { name: 'Mocked', icon: '🤡', color: '#ff9ad0', bad: true, text: 'Its skills that target a unit can only target the Mirrormime that Mocked it.' },
+  standin: { name: 'Stand-In', icon: '🪆', color: '#d9a066', text: 'Until its next turn, hits on allies next to its Doll go to the Doll instead.' },
 } satisfies Record<StatusKey, StatusDef>;
 
 export const STATUS: Readonly<Record<StatusKey, StatusDef>> = STATUS_TABLE;
@@ -438,11 +473,6 @@ export const SKILL_N = {
   frostbolt: { dmg: 12, iceTurns: 3 },
   firebolt: { dmg: 14, combust: 12, combustMult: 3 },
   prison: { range: 3, turns: 1 },
-  reel: { pull: 2 },
-  web: { radius: 1, turns: 3 },
-  cocoon: { range: 1, shield: 40, turns: 1 },
-  venombite: { dmg: 12, shatterMult: 2 },
-  puppet: { steps: 2 },
   lastrites: { range: 3, hp: 0.4 },
   bonewall: { turns: 2 },
   wither: { turns: 2 },
@@ -454,7 +484,20 @@ export const SKILL_N = {
   knell: { dmg: 12, lateMult: 1.5 },
   peal: { radius: 2, dmg: 10, perActed: 3 },
   encore: { range: 3 },
-  bellguard: { shield: 25 },
+  bellguard: { shield: 20 },
+  switch: { range: 3 },
+  dance: { steps: 2 },
+  tangle: { dmg: 10 },
+  razorwire: { dmg: 24, reach: 6 },
+  splinter: { dmg: 26 },
+  rebuild: { shield: 15 },
+  glasswall: { turns: 2 },
+  reflect: { range: 3 },
+  ricochet: { dmg: 12, bounce: 8, reach: 2 },
+  retort: { dmg: 10, took: 0.5 },
+  mirrorball: { radius: 2, dmg: 8 },
+  shatter: { dmg: 16 },
+  reversal: { range: 3, reach: 3 },
   helpup: { hp: 0.3 },
 };
 
@@ -464,7 +507,7 @@ const SKILL_TABLE = {
   snap: { name: 'Snap', icon: '✨', target: 'self', cd: 3, free: true, innate: true, cls: 'astromancer', color: '#9a8cff',
     text: `Free. Your oldest pending Call lands right now, at ${part(K.snap.power)} power.` },
   meteor: { name: 'Meteor', icon: '☄️', target: 'tile', range: 6, cd: 3, aoe: 1, call: true, map: true, cls: 'astromancer', color: '#ff6a2b', sets: ['Burning'],
-    text: `Call. ${K.meteor.center} at the center, ${K.meteor.edge} around, and Burning. Ignites grass, bursts braziers, burns webs.` },
+    text: `Call. ${K.meteor.center} at the center, ${K.meteor.edge} around, and Burning. Ignites grass, bursts braziers.` },
   thunderhead: { name: 'Thunderhead', icon: '⛈️', target: 'tile', range: 5, cd: 2, aoe: K.thunderhead.radius, call: true, cls: 'astromancer', color: '#c9a7ff', pays: [`Wet → CONDUCT ×${WET_SHOCK}`],
     text: `Call. ${K.thunderhead.dmg} shock to everyone in a ${side(K.thunderhead.radius)} area. Wet: CONDUCT, ×${WET_SHOCK}.` },
   gravitywell: { name: 'Gravity Well', icon: '🌀', target: 'tile', range: 5, cd: 3, aoe: K.gravitywell.radius, call: true, map: true, cls: 'astromancer', color: '#7a6aff', sets: ['Slam → Stun', 'Abyss → Downed'],
@@ -478,29 +521,12 @@ const SKILL_TABLE = {
   recall: { name: 'Recall', icon: '⏪', target: 'ally', range: 4, cd: 3, call: true, cls: 'astromancer', color: '#ffe08a',
     text: 'Call. When it lands, the ally snaps back to where it stood when you cast, if that’s free, and gets back the HP it lost since.' },
 
-  tether: { name: 'Tether', icon: '🧵', target: 'any', range: 4, los: true, cd: 2, free: true, innate: true, cls: 'weaver', color: '#d06a9a',
-    text: `Free. Tie a Thread to any other unit you can see. An enemy can’t end a move farther from you than it was. You hold ${THREADS}; one more replaces the oldest.` },
-  reel: { name: 'Reel', icon: '🎣', target: 'self', cd: 2, cls: 'weaver', sets: ['Slam → Stun', 'Abyss → Downed'],
-    text: `Pull everyone you hold ${K.reel.pull} toward you. An enemy pulled into a wall or unit: SLAM; into a chasm: ABYSS. Allies stop short.` },
-  web: { name: 'Web', icon: '🕸️', target: 'tile', range: 4, cd: 3, aoe: K.web.radius, map: true, cls: 'weaver', sets: ['Rooted'],
-    text: `Webs on a ${side(K.web.radius)} area for ${K.web.turns} rounds. Stepping onto a web stops you and Roots you. Fire burns webs.` },
-  cocoon: { name: 'Cocoon', icon: '🥚', target: 'any', range: K.cocoon.range, cd: 3, cls: 'weaver',
-    text: `Range ${K.cocoon.range}, or anyone you hold. An ally gets a ${K.cocoon.shield} shield; a Downed ally or an enemy is Encased for ${K.cocoon.turns} turn.` },
-  venombite: { name: 'Venom Bite', icon: '🕷️', target: 'enemy', range: 1, cd: 2, cls: 'weaver', color: '#8fe36b', sets: ['Poisoned'], pays: [`Rooted / Stunned → SHATTER ×${K.venombite.shatterMult}`],
-    text: `${K.venombite.dmg} and Poisoned (${POISON.dmg} a turn for ${POISON.turns} turns). On a Rooted or Stunned target: SHATTER, ×${K.venombite.shatterMult}.` },
-  puppet: { name: 'Puppet Strings', icon: '🪢', target: 'tile', cd: 3, map: true, cls: 'weaver',
-    text: `An enemy you hold walks to an empty tile within ${K.puppet.steps} steps of it: into the storm, off the altar, onto a web.` },
-  sharedpain: { name: 'Shared Pain', icon: '💞', target: 'self', cd: 3, cls: 'weaver',
-    text: `Until your next turn, ${part(SHARE)} the damage allies you hold would take hits you instead.` },
-  skitter: { name: 'Skitter', icon: '🦗', target: 'any', range: 5, cd: 3, free: true, cls: 'weaver',
-    text: 'Free. Leap next to a unit you hold.' },
-
   harvest: { name: 'Harvest', icon: '🌾', target: 'self', cd: 2, free: true, innate: true, cls: 'gravecaller', color: '#9fe0b8',
     text: `Free. Gather every Soul within ${HARVEST_RANGE}. You also gather a Soul by ending a move on it. You hold ${SOULS}.` },
   lastrites: { name: 'Last Rites', icon: '🕯️', target: 'downed', range: K.lastrites.range, cd: 3, rite: true, cls: 'gravecaller', color: '#fff3b0',
     text: `Rite. A Downed ally within ${K.lastrites.range} stands up at ${pct(K.lastrites.hp)} HP, paid from your own HP (never your last).` },
   bonewall: { name: 'Bone Wall', icon: '🦴', target: 'tile', range: 3, cd: 2, empty: true, map: true, rite: true, cls: 'gravecaller', color: '#e8e2d0',
-    text: `Rite. A wall of 3 tiles across your line, for ${K.bonewall.turns} rounds. It blocks moves and sight, and breaks Threads. Tiles with units are skipped.` },
+    text: `Rite. A wall of 3 tiles across your line, for ${K.bonewall.turns} rounds. It blocks moves and sight. Tiles with units are skipped.` },
   wither: { name: 'Wither', icon: '🥀', target: 'enemy', range: 3, cd: 3, rite: true, cls: 'gravecaller', color: '#b89a6a', sets: ['Withered → REAP'],
     text: `Rite. Withered for ${K.wither.turns} turns: no healing or shields, and a hit that leaves it at ${pct(REAP_AT)} HP or less Downs it (REAP).` },
   soulbolt: { name: 'Soul Bolt', icon: '👻', target: 'enemy', range: 4, los: true, cd: 2, cls: 'gravecaller', color: '#9fe0b8',
@@ -525,17 +551,52 @@ const SKILL_TABLE = {
   overture: { name: 'Overture', icon: '🎼', target: 'self', cd: 4, free: true, cls: 'bellringer', color: '#8fd1ff',
     text: 'Free. Every ally that hasn’t acted this round moves to right after you, in its current order. Not a Toll.' },
   hourglass: { name: 'Hourglass', icon: '⏳', target: 'any', range: 3, cd: 3, cls: 'bellringer',
-    text: 'Its timed statuses run out now. An enemy takes its remaining Burn and Poison at once and loses its shield; an ally only loses its debuffs.' },
+    text: 'Its timed statuses run out now. An enemy takes its remaining Burn at once and loses its shield; an ally only loses its debuffs.' },
   bellguard: { name: 'Bell Guard', icon: '🛎️', target: 'self', cd: 3, cls: 'bellringer', color: '#e0b04a',
     text: `A ${K.bellguard.shield} shield. Until your next turn, enemies that hit you are Hushed.` },
+
+  strings: { name: 'Strings', icon: '🧵', target: 'tile', cd: 1, free: true, innate: true, cls: 'marionettist', color: '#d9a066',
+    text: `Free, once a turn. Your Doll walks up to ${DOLL.walk} tiles, ending within ${DOLL.leash} of you.` },
+  switch: { name: 'Switch', icon: '🔀', target: 'ally', range: K.switch.range, cd: 3, free: true, cls: 'marionettist', color: '#ffd38a',
+    text: 'Free. You, or an ally in range, trade places with your Doll.' },
+  dance: { name: 'Dance', icon: '💃', target: 'any', range: 4, cd: 3, cls: 'marionettist', color: '#ff9a6a',
+    text: `Another unit takes up to ${K.dance.steps} steps toward your Doll, stopping at anything in the way.` },
+  tangle: { name: 'Tangle', icon: '🕸️', target: 'self', cd: 3, cls: 'marionettist', color: '#c08a4a', sets: ['Rooted'],
+    text: `Every enemy next to your Doll takes ${K.tangle.dmg} and is Rooted.` },
+  razorwire: { name: 'Razor Wire', icon: '〰️', target: 'self', cd: 2, cls: 'marionettist', color: '#ff7a5a',
+    text: `Every enemy on the line between you and your Doll (up to ${K.razorwire.reach} apart) takes ${K.razorwire.dmg}.` },
+  splinter: { name: 'Splinter', icon: '💥', target: 'self', cd: 3, cls: 'marionettist', color: '#ff9a3a',
+    text: `Your Doll bursts: ${K.splinter.dmg} to every enemy next to it. It breaks.` },
+  standin: { name: 'Stand-In', icon: '🪆', target: 'self', cd: 3, cls: 'marionettist', color: '#d9a066',
+    text: 'Until your next turn, hits on allies next to your Doll go to the Doll instead.' },
+  rebuild: { name: 'Rebuild', icon: '🔨', target: 'self', cd: 4, cls: 'marionettist', color: '#ffd38a',
+    text: `A broken Doll reforms next to you now; a standing one mends to full and gets a ${K.rebuild.shield} shield.` },
+
+  reflect: { name: 'Reflect', icon: '🪞', target: 'ally', range: K.reflect.range, cd: 3, free: true, innate: true, cls: 'mirrormime', color: '#c8d4ff',
+    text: `Free. You or an ally is Mirrored until its next turn: ${part(REFLECT)} of the next enemy hit on it goes back to the attacker instead.` },
+  glasswall: { name: 'Invisible Wall', icon: '🧱', target: 'tile', range: 3, cd: 3, empty: true, map: true, cls: 'mirrormime', color: '#d8f0ff',
+    text: `3 tiles of glass across your line, for ${K.glasswall.turns} rounds. They block moves, not sight, and an enemy’s shot aimed through them hits the shooter.` },
+  ricochet: { name: 'Ricochet', icon: '🎱', target: 'enemy', range: 4, los: true, cd: 2, cls: 'mirrormime', color: '#e08aff',
+    text: `${K.ricochet.dmg}, then it bounces to the nearest other enemy within ${K.ricochet.reach} for ${K.ricochet.bounce}.` },
+  retort: { name: 'Retort', icon: '💬', target: 'enemy', range: 3, los: true, cd: 2, cls: 'mirrormime', color: '#ff8ab0',
+    text: `${K.retort.dmg}, plus ${part(K.retort.took)} the HP you lost since your last turn.` },
+  mock: { name: 'Mock', icon: '🤡', target: 'enemy', range: 3, cd: 3, cls: 'mirrormime', color: '#ff9ad0', sets: ['Mocked'],
+    text: 'Mocked for its next turn: its skills that target a unit can only target you.' },
+  mirrorball: { name: 'Mirrorball', icon: '🪩', target: 'self', aoe: K.mirrorball.radius, cd: 4, cls: 'mirrormime', color: '#f0e0ff', sets: ['Mirrored'],
+    text: `Every ally within ${K.mirrorball.radius} (you too) is Mirrored, and every enemy within ${K.mirrorball.radius} takes ${K.mirrorball.dmg}.` },
+  shatter: { name: 'Shatter', icon: '🔪', target: 'self', cd: 2, cls: 'mirrormime', color: '#d8f0ff',
+    text: `All your glass shatters: ${K.shatter.dmg} to every enemy next to it, once each.` },
+  reversal: { name: 'Reversal', icon: '🔄', target: 'ally', range: K.reversal.range, cd: 3, cls: 'mirrormime', color: '#9fe8d8',
+    text: `An ally’s debuffs go to the nearest enemy within ${K.reversal.reach} of it, with the turns they had left.` },
 
   helpup: { name: 'Help Up', icon: '🤝', target: 'downed', range: 1, cd: 0, color: '#fff3b0', generic: true,
     text: `Pull a Downed ally next to you back up at ${pct(K.helpup.hp)} HP, paid from your own HP (never your last).` },
 
   basic_astromancer: basicSkill('astromancer'),
-  basic_weaver: basicSkill('weaver'),
   basic_gravecaller: basicSkill('gravecaller'),
   basic_bellringer: basicSkill('bellringer'),
+  basic_marionettist: basicSkill('marionettist'),
+  basic_mirrormime: basicSkill('mirrormime'),
 } satisfies Record<SkillId, SkillDef>;
 
 export const SKILLS: Readonly<Record<SkillId, SkillDef>> = SKILL_TABLE;
@@ -545,6 +606,6 @@ export function isCall(id: SkillId): id is CallSkill { return !!SKILLS[id].call;
 export const COMBO_INFO = {
   SLAM: 'Forced into an obstacle: stunned.', ABYSS: 'Forced into a chasm or pit: Downed at its edge.', FREEZE: 'Frostbolt on a Wet enemy: stunned.',
   CONDUCT: `Thunderhead on a Wet enemy: ×${WET_SHOCK}.`, COMBUST: `Firebolt on a Burning enemy: the whole burn at once, ×${K.firebolt.combustMult}.`,
-  SHATTER: `Venom Bite on a Stunned or Rooted enemy: ×${K.venombite.shatterMult}.`, EXECUTE: 'Any hit on a Downed enemy finishes it.', IGNITE: 'Fire on a brazier: it bursts into flames.',
+  EXECUTE: 'Any hit on a Downed enemy finishes it.', IGNITE: 'Fire on a brazier: it bursts into flames.',
   REAP: `A hit leaves a Withered enemy (or a Reaper’s target) at ${pct(REAP_AT)} HP or less: Downed at once.`,
 } satisfies Record<ComboName, string>;

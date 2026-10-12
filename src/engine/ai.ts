@@ -1,6 +1,6 @@
 import {
-  actionsOf, canDeploy, canUse, castTargets, cheb, cloneState, current, getUnit, idx, inb, isAlive, isDowned, los, reachable, soulCap, soulsInReach,
-  standing, terrAt,
+  actionsOf, canDeploy, canUse, castTargets, cheb, cloneState, current, dollOf, getUnit, idx, inb, isAlive, isDoll, isDowned, lineTiles, los, reachable, soulCap,
+  soulsInReach, standing, terrAt,
 } from './board';
 import type { Target } from './board';
 import { landCall, performCast, performMove } from './combat';
@@ -9,21 +9,20 @@ import { endActivation } from './turns';
 import { DIR8, MAPS, N, SKILLS } from './tables';
 import { callTiles } from './combat';
 import type { Rng } from './rng';
-import type { BattleState, Call, CallSkill, ClassId, Command, MemberBuild, Pos, SkillId, StatusKey, Team, Unit, UnitId } from './types';
+import type { BattleState, Call, CallSkill, ClassId, ClassSkillId, Command, MemberBuild, Pos, SkillId, StatusKey, Team, Unit, UnitId } from './types';
 
 function depthOf(team: Team, z: number): number { return team === 0 ? z : N - 1 - z; }
 
 /** `ignoreMap` plays as if the map had no rule, so the sim can measure what playing around it is worth. */
 export interface AiOpts { ignoreMap?: boolean }
 
-const DEPLOY_FIRST: Record<ClassId, number> = { weaver: 1, bellringer: 1, gravecaller: 2, astromancer: 3 };
+const DEPLOY_FIRST: Record<ClassId, number> = { bellringer: 1, marionettist: 1, mirrormime: 2, gravecaller: 2, astromancer: 3 };
 
 export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBuild[], rng: Rng, opts: AiOpts = {}): Pos[] {
   const pos: (Pos | null)[] = members.map(() => null), mid = (N - 1) / 2;
-  const order = members.map((_m, i) => i).sort((a, b) => DEPLOY_FIRST[members[a]?.cls ?? 'weaver'] - DEPLOY_FIRST[members[b]?.cls ?? 'weaver']);
+  const order = members.map((_m, i) => i).sort((a, b) => DEPLOY_FIRST[members[a]?.cls ?? 'bellringer'] - DEPLOY_FIRST[members[b]?.cls ?? 'bellringer']);
 
   for (const i of order) {
-    const cls = members[i]?.cls;
     let best: Pos | null = null, bs = -1e9;
 
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
@@ -31,8 +30,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
       const d = depthOf(team, z), t = s.terr[idx(x, z)];
       let sc = rng() * 1.2 - Math.abs(x - mid) * 0.15;
 
-      if (cls === 'weaver') sc += d * 0.8;
-      else sc += (t === '^' ? 4 : 0) + (d === 1 ? 1 : 0);
+      sc += (t === '^' ? 4 : 0) + (d === 1 ? 1 : 0);
 
       if (t === '~') sc -= 3;
 
@@ -55,7 +53,7 @@ export function aiDeploy(s: BattleState, team: Team, members: readonly MemberBui
   return pos.map(p => { if (!p) throw new Error(`team ${team}: no deploy tile left`); return p; });
 }
 
-const ROLE_BAND: Record<ClassId, readonly [number, number]> = { weaver: [1, 2], bellringer: [1, 2], gravecaller: [2, 3], astromancer: [3, 5] };
+const ROLE_BAND: Record<ClassId, readonly [number, number]> = { bellringer: [1, 2], marionettist: [2, 3], mirrormime: [2, 3], gravecaller: [2, 3], astromancer: [3, 5] };
 
 /** What standing in a pending Call's area is likely to cost, in evalDelta's HP-like units. */
 const CALL_DANGER: Record<CallSkill, number> = { meteor: 22, thunderhead: 16, gravitywell: 6, recall: 0 };
@@ -67,7 +65,10 @@ function altarUrgency(s: BattleState): number {
   return r.kind === 'altar' ? Math.max(s.favor[0], s.favor[1]) / r.goal : 0;
 }
 
-function onAltar(s: BattleState, u: Unit): boolean { return standing(u) && s.terr[idx(u.x, u.z)] === 'A'; }
+function onAltar(s: BattleState, u: Unit): boolean { return standing(u) && !isDoll(u) && s.terr[idx(u.x, u.z)] === 'A'; }
+
+/** The characters of the party opposing `team` still standing; Dolls left out. */
+function foes(s: BattleState, team: Team): Unit[] { return s.units.filter(o => o.team !== team && standing(o) && !isDoll(o)); }
 
 /** What the map rule will cost `u` at the end of this round, in evalDelta's HP-like units. */
 function hazardCost(s: BattleState, u: Unit): number {
@@ -103,7 +104,7 @@ function inCall(c: Call, x: number, z: number): boolean {
 }
 
 export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: AiOpts = {}): number {
-  const en = s.units.filter(o => o.team !== u.team && standing(o));
+  const en = foes(s, u.team);
 
   if (!en.length) return 0;
   let sc = 0, dmin = 99;
@@ -129,8 +130,6 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
 
   if (f?.fire) sc -= 14;
 
-  if (f?.web && u.cls !== 'weaver') sc -= 3;
-
   if (t === '~' && s.units.some(e => e.team !== u.team && standing(e) && e.cls === 'astromancer')) sc -= 3;
 
   if (t === '^' && u.cls === 'astromancer') sc += 3;
@@ -151,24 +150,51 @@ export function tileScore(s: BattleState, u: Unit, x: number, z: number, opts: A
   const rites = u.skills.includes('lastrites') && u.souls > 0 && (u.cd.lastrites ?? 0) <= 1;
 
   for (const a of s.units) {
-    if (a.team !== u.team || !isAlive(a) || a.id === u.id) continue;
+    if (a.team !== u.team || !isAlive(a) || a.id === u.id || isDoll(a)) continue;
     const d = cheb(a.x, a.z, x, z);
 
     if (isDowned(a)) sc += d <= 1 ? 6 : rites && d <= 3 + (u.mods.riteRange || 0) ? 4 : -d * 0.8;
-    else if (u.cls === 'weaver') sc += d <= 2 ? 1 : -(d - 2) * 0.4;
     else if (d > 5) sc -= 0.4;
   }
 
   return sc;
 }
 
-const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['poison', 8], ['wither', 8]];
+const ENEMY_GAIN: readonly [StatusKey, number][] = [['stun', 16], ['encased', 16], ['root', 7], ['expose', 6], ['wet', 3], ['burn', 6], ['wither', 8], ['mock', 7]];
 
-const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'poison', 'expose', 'wither', 'hush'];
+const ALLY_CURED: readonly StatusKey[] = ['stun', 'root', 'burn', 'expose', 'wither', 'hush', 'mock'];
 
-const ALLY_HURT: readonly [StatusKey, number][] = [['stun', 13], ['root', 5], ['expose', 5], ['burn', 5], ['poison', 6], ['wither', 7], ['hush', 6]];
+const ALLY_HURT: readonly [StatusKey, number][] = [['stun', 13], ['root', 5], ['expose', 5], ['burn', 5], ['wither', 7], ['hush', 6], ['mock', 5]];
 
 const ALLY_GAIN: readonly [StatusKey, number][] = [['guard', 6], ['haste', 3]];
+
+/** A Doll on the board, in evalDelta's HP-like units: what breaking one gains and losing one's own costs. */
+const DOLL_VALUE = 20;
+
+/** Where a Doll stands, for its own party: next to enemies its Tangle or Splinter can catch, guarding a wounded ally, with enemies on the wire to its Marionettist. */
+function dollScore(s: BattleState, d: Unit): number {
+  const owner = getUnit(s, d.owner);
+
+  if (!owner || !standing(owner) || !standing(d)) return 0;
+  const has = (id: ClassSkillId) => owner.skills.includes(id) && (owner.cd[id] ?? 0) <= 1;
+  const en = foes(s, d.team);
+  const near = en.filter(e => cheb(e.x, e.z, d.x, d.z) <= 1).length;
+  let v = near * (has('tangle') || has('splinter') ? 3 : 1.2);
+
+  if (has('razorwire') && cheb(d.x, d.z, owner.x, owner.z) <= 6) {
+    const line = lineTiles(owner.x, owner.z, d.x, d.z);
+    v += 3 * en.filter(e => line.some(p => p.x === e.x && p.z === e.z)).length;
+  }
+
+  for (const a of s.units) {
+    if (a.team !== d.team || isDoll(a) || !standing(a) || cheb(a.x, a.z, d.x, d.z) > 1) continue;
+    v += a.hp < a.maxHp * 0.6 ? 2 : 0.8;
+  }
+
+  for (const c of s.calls) if (c.team !== d.team && inCall(c, d.x, d.z)) v -= CALL_DANGER[c.skill] * 0.5;
+
+  return v;
+}
 
 /** A held Soul, in evalDelta's HP-like units: what a Harvest gains and a Rite spends. */
 const SOUL_VALUE = 4;
@@ -258,6 +284,17 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
 
     if (!b) continue;
 
+    if (isDoll(a)) {
+      const sign = a.team === team ? 1 : -1;
+
+      if (isAlive(b) !== isAlive(a)) v += sign * (isAlive(a) ? DOLL_VALUE : -DOLL_VALUE);
+
+      if (isAlive(a) && isAlive(b)) v -= sign * 0.4 * (b.hp - a.hp);
+
+      if (a.team === team) v += dollScore(s1, a) - dollScore(s0, b);
+      continue;
+    }
+
     if (a.team !== team) {
       if (isAlive(b) && !isAlive(a)) v += isDowned(b) ? 55 : 120;
       else if (standing(b) && isDowned(a)) v += 80;
@@ -273,24 +310,34 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
 
       if (a.st.hush && !b.st.hush) v += hushValue(a);
 
+      if (a.st.mock && !b.st.mock) v += getUnit(s1, a.st.mock.by)?.st.mirror ? 6 : 0;
+
       if (a.x !== b.x || a.z !== b.z) v += 2;
     } else {
       if (isAlive(b) && !isAlive(a)) v -= 120; else if (standing(b) && isDowned(a)) v -= 90; else if (isDowned(b) && standing(a)) v += 85;
 
-      if (a.st.encased && !b.st.encased) v += isDowned(a) ? 30 : a.hp / a.maxHp < 0.35 ? 12 : -8;
+      if (a.st.encased && !b.st.encased) v += a.hp / a.maxHp < 0.35 ? 12 : -8;
       // A full hand gathers nothing more, so spending from it costs little.
       v += (a.souls - b.souls) * (a.souls < b.souls && b.souls >= soulCap(s0, b) ? 1 : SOUL_VALUE);
 
       if (!standing(a)) continue;
 
       for (const [k, w] of ALLY_GAIN) if (a.st[k] && !b.st[k]) v += w;
+
+      // A Mirror is worth more on whoever the enemy will want to hit: the wounded, or the one with enemies in its face.
+      if (a.st.mirror && !b.st.mirror) v += 3 + (a.hp < a.maxHp * 0.5 ? 4 : 0) + 1.5 * foes(s1, team).filter(e => cheb(e.x, e.z, a.x, a.z) <= 3).length;
+
+      if (a.st.standin && !b.st.standin) {
+        const d = dollOf(s1, a);
+
+        if (d && standing(d)) v += 3 * s1.units.filter(o => o.team === team && o !== a && !isDoll(o) && standing(o) && cheb(o.x, o.z, d.x, d.z) <= 1).length;
+      }
+
       const d = b.hp - a.hp;
       v += d > 0 ? -d * 1.1 : -d * (b.hp / b.maxHp < 0.5 ? 1.3 : 0.9);
       const sg = a.shield - b.shield;
 
       if (sg > 0) v += sg * 0.45;
-
-      if (a.st.share && !b.st.share) v += 4 * s1.threads.filter(t => t.by === a.id && getUnit(s1, t.to)?.team === team).length - 2;
 
       for (const k of ALLY_CURED) if (b.st[k] && !a.st[k]) v += 6;
 
@@ -298,19 +345,15 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
     }
   }
 
-  v += threadDelta(s0, s1, team) + queueDelta(s0, s1, team);
-  const en = s1.units.filter(o => o.team !== team && standing(o));
-  const near = (x: number, z: number, r: number) => en.some(e => cheb(e.x, e.z, x, z) <= r);
-  let webs = 0;
+  v += queueDelta(s0, s1, team);
+  const en = foes(s1, team);
   const walled = new Set<Unit>();
   const hurt = s1.units.filter(a => a.team === team && standing(a) && a.hp < a.maxHp * 0.6);
   s1.fx.forEach((f, k) => {
     if (!f) return;
     const f0 = s0.fx[k], x = k % N, z = (k / N) | 0;
 
-    if (f.web && !f0?.web && webs < 6 && near(x, z, 1)) { v += 1; webs++; }
-
-    if (!f.bone || f0?.bone) return;
+    if (!(f.bone && !f0?.bone) && !(f.glass && !f0?.glass)) return;
 
     // A Bone Wall earns its Soul by standing in an enemy's face, more so in front of a wounded ally.
     for (const e of en) if (cheb(e.x, e.z, x, z) <= 1) walled.add(e);
@@ -332,21 +375,6 @@ function evalDelta(s0: BattleState, s1: BattleState, team: Team, opts: AiOpts, f
 
     if (by && standing(by)) v -= CALL_DISCOUNT * callValue(s0, call, team, opts);
   }
-
-  return v;
-}
-
-/** Threads tied by `team`'s Weavers: a new one on an enemy +6, on an ally +2; losing one −4. */
-function threadDelta(s0: BattleState, s1: BattleState, team: Team): number {
-  let v = 0;
-  const ours = (s: BattleState, by: UnitId) => getUnit(s, by)?.team === team;
-
-  for (const t of s1.threads) {
-    if (!ours(s1, t.by) || s0.threads.some(o => o.by === t.by && o.to === t.to)) continue;
-    v += getUnit(s1, t.to)?.team === team ? 2 : 6;
-  }
-
-  for (const t of s0.threads) if (ours(s0, t.by) && !s1.threads.some(o => o.by === t.by && o.to === t.to)) v -= 4;
 
   return v;
 }
@@ -375,9 +403,9 @@ function aiTileWorth(s: BattleState, u: Unit, id: SkillId, t: Pos): boolean {
   const foe: Team = u.team === 0 ? 1 : 0;
 
   switch (id) {
-    case 'puppet': return true;
     case 'meteor': return near(foe, 1) || terrAt(s, t.x, t.z) === 'B';
-    case 'gravitywell': case 'web': case 'bonewall': return near(foe, 2);
+    case 'gravitywell': case 'bonewall': case 'glasswall': return near(foe, 2);
+    case 'strings': return near(foe, 1) || near(u.team, 1);
     default: return near(foe, 1);
   }
 }
@@ -420,7 +448,8 @@ function aiPlan(s: BattleState, rng: Rng, opts: AiOpts): Plan | null {
 
         if (cc && standing(cc) && (cc.x !== cu.x || cc.z !== cu.z)) v += tileScore(c, cc, cc.x, cc.z, opts) - tileScore(sm, cu, cu.x, cu.z, opts);
 
-        if (sk.free) v -= 3;
+        // A free skill must earn its place, except Strings: walking the Doll costs nothing but the turn's attention.
+        if (sk.free && id !== 'strings') v -= 3;
 
         if (v > bcs) { bcs = v; bc = { skill: id, x: t.x, z: t.z }; }
       });

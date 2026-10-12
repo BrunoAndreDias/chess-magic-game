@@ -8,7 +8,7 @@ test('the Astromancer arpeggiates up from its root by semitones and the Bellring
 });
 
 test('a note carries a closing lowpass only when its part has one', () => {
-  expect(score('weaver')[0]).toEqual({ at: 0, hz: 196, dur: 0.9, gain: 0.2, wave: 'sawtooth', lp: [4200, 260] });
+  expect(score('gravecaller')[3]).toEqual({ at: 0.32, hz: 147, dur: 1.8, gain: 0.12, wave: 'triangle', lp: [900, 200] });
   expect(score('gravecaller')[0]).toEqual({ at: 0, hz: 98, dur: 2.4, gain: 0.34, wave: 'sine' });
 });
 

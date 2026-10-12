@@ -39,3 +39,6 @@ Preconditions:
 - Chasm tiles (`o`) appear in tile-target lists, but the pointer falls through them: no preview, no cast.
 - A unit with nothing left to do ends its turn by itself ~450 ms later, so a late `Space` ends the next unit's turn. Check who is acting first.
 - `#endturn` is disabled during AI turns and while events animate; hotkeys are ignored while focus is in an input or select.
+- The Marionettist's Strings and the Mirrormime's Invisible Wall aim at tiles: `L.castTargets` lists where the Doll can walk or the glass can stand. Switch, Tangle, Razor Wire, Splinter and Stand-In need the Doll standing (`#actions` reads `Doll broken` otherwise).
+- The AI won't shoot through enemy glass or hit a Mirrored unit unless it pays; to see a bounce or a turned-back hit, make Red Human too (`.pk-ctrl[data-team="1"]`) and play both sides.
+- With follow on, the camera can leave a target tile under a panel; `clickTile` then throws. Pick another target or `Escape`.

@@ -1,4 +1,4 @@
-import { BLEED, COMBO_INFO, COVERAGE, MAPS, PAIRS, SHARE, SKILLS, STATUS, callTiles, getUnit, part, unitAt } from '../engine/index';
+import { BLEED, COMBO_INFO, COVERAGE, MAPS, PAIRS, SKILLS, STATUS, callTiles, getUnit, part, unitAt } from '../engine/index';
 import type { BattleEvent, BattleState, CallSkill, DamageKind, OverReason, Team, TerrainChange, Unit, UnitId } from '../engine/index';
 import { TEAMS, TEAM_NAME } from './theme';
 
@@ -17,7 +17,7 @@ function teamOf(s: BattleState, id: UnitId): Tone {
 function toneOf(t: Team): Tone { return t === 0 ? 't0' : 't1'; }
 
 const DAMAGE_WORD: Record<DamageKind, string> = {
-  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', poison: ' poison', burn: ' burn', dark: '', slam: ' slam', share: '', storm: ' lightning', drain: ' drain',
+  phys: '', fire: ' fire', frost: ' frost', shock: ' shock', burn: ' burn', dark: '', slam: ' slam', storm: ' lightning', drain: ' drain', mirror: ' reflected',
 };
 
 export const REASON: Record<OverReason, string> = {
@@ -65,12 +65,9 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
 
       if (e.kind === 'dark') return { tone: teamOf(s, e.id), text: `The dark drains ${e.amount} HP from ${who}.` };
 
-      if (e.kind === 'share') return { tone: teamOf(s, e.id), text: `${who} takes ${e.amount} through Shared Pain${blocked}.` };
-
       return { tone: teamOf(s, e.id), text: `${who} takes ${e.amount}${DAMAGE_WORD[e.kind]} damage${blocked}.` };
     }
 
-    case 'shared': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} takes ${part(SHARE)} the blow for ${name(s, e.id)}.` };
     case 'heal': return e.amount > 0 ? { tone: teamOf(s, e.id), text: `${name(s, e.id)} heals ${e.amount}.` } : null;
     case 'shield': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} gains a ${e.amount} shield.` };
     case 'status': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is ${STATUS[e.key].name}.` };
@@ -94,12 +91,16 @@ export function describe(e: BattleEvent, s: BattleState): Line | null {
     case 'call': return { tone: toneOf(e.team), text: `${SKILLS[e.skill].name} is called: it lands at the start of ${name(s, e.id)}'s next turn.` };
     case 'land': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s ${SKILLS[e.skill].name} lands${e.power < 1 ? ` at ${part(e.power)} power` : ''}!` };
     case 'fizzle': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s Call fizzles.` };
-    case 'thread': return { tone: teamOf(s, e.by), text: `${name(s, e.by)} ties a Thread to ${name(s, e.to)}.` };
-    case 'snap': return { tone: teamOf(s, e.by), text: `${name(s, e.by)}'s Thread to ${name(s, e.to)} breaks.` };
     case 'encased': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} is Encased.` };
     case 'soul': return null;
     case 'gather': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} gathers ${e.from.length === 1 ? 'a Soul' : `${e.from.length} Souls`}.` };
     case 'spend': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} spends a Soul.` };
+    case 'reflect': return { tone: teamOf(s, e.id), text: e.amount > 0 ? `${name(s, e.id)}'s Mirror turns ${e.amount} back on ${name(s, e.to)}.` : `${name(s, e.id)}'s Mirror turns the debuff back on ${name(s, e.to)}.` };
+    case 'bounce': return { tone: teamOf(s, e.id), text: `${name(s, e.id)}'s shot bounces off the glass and comes back!` };
+    case 'standin': return { tone: teamOf(s, e.to), text: `${name(s, e.to)} takes the hit for ${name(s, e.from)}.` };
+    case 'break': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} breaks. It reforms in round ${e.reform}.` };
+    case 'reform': return { tone: teamOf(s, e.id), text: `${name(s, e.id)} reforms.` };
+    case 'shatter': return { tone: 'sys', text: `The glass shatters: ${e.tiles.length} tile${e.tiles.length === 1 ? '' : 's'}.` };
     case 'over': return { tone: 'sys', text: `${winnerTitle(e.winner)}. ${REASON[e.reason]}` };
   }
 }
@@ -109,8 +110,8 @@ const DEATH_WORD = { bled: 'bleeds out', finished: 'is finished off', fell: 'is 
 const TERRAIN_LINE: Readonly<Record<TerrainChange, string>> = {
   ice: 'The water freezes into ice.',
   smoke: 'Smoke fills the air.',
-  web: 'Webs cover the ground.',
   bone: 'A Bone Wall rises.',
+  glass: 'An Invisible Wall goes up.',
 };
 
 function bonusNames(s: BattleState, t: Team): string[] {
@@ -146,11 +147,14 @@ export function previewLines(events: readonly BattleEvent[], s: BattleState): Li
       case 'revive': out.push({ tone: 'sys', text: `${name(s, e.id)} gets back up` }); break;
       case 'fall': out.push({ tone: 'sys', text: `${name(s, e.id)} falls into the chasm` }); break;
       case 'encased': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: Encased` }); break;
-      case 'thread': out.push({ tone: teamOf(s, e.to), text: `${name(s, e.to)}: tied by a Thread` }); break;
-      case 'snap': out.push({ tone: teamOf(s, e.by), text: `Thread to ${name(s, e.to)} breaks` }); break;
       case 'soul': out.push({ tone: 'sys', text: 'A Soul drops' }); break;
       case 'gather': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: +${e.from.length} Soul${e.from.length === 1 ? '' : 's'}` }); break;
       case 'spend': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)}: spends a Soul` }); break;
+      case 'reflect': out.push({ tone: teamOf(s, e.id), text: `🪞 ${name(s, e.id)} turns it back on ${name(s, e.to)}` }); break;
+      case 'bounce': out.push({ tone: 'combo', text: '⚠ Bounces off the glass back at you' }); break;
+      case 'standin': out.push({ tone: teamOf(s, e.to), text: `🪆 ${name(s, e.to)} takes it for ${name(s, e.from)}` }); break;
+      case 'break': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)} breaks` }); break;
+      case 'reform': out.push({ tone: teamOf(s, e.id), text: `${name(s, e.id)} reforms` }); break;
       case 'queue': out.push({ tone: 'sys', text: `Order: ${e.queue.map(t => `${name(s, t.id)}${t.extra ? '+' : ''}`).join(' → ')}` }); break;
       default: break;
     }
