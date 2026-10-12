@@ -33,15 +33,17 @@ for (const line of readFileSync(file, 'utf8').split('\n')) {
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
+const games = (n: number) => `${n} game${n === 1 ? '' : 's'}`;
+
 function report(s: Summary): string {
-  const out = [`${s.games} games${malformed ? `, ${malformed} malformed lines skipped` : ''}`, ''];
+  const out = [`${games(s.games)}${malformed ? `, ${malformed} malformed line${malformed === 1 ? '' : 's'} skipped` : ''}`, ''];
 
   for (const id of MAP_ORDER) {
     const m = s.maps[id];
 
     if (!m) continue;
     const reasons = Object.entries(m.reasons).map(([k, n]) => `${k} ${n}`).join(', ');
-    out.push(`${MAPS[id].name}: ${m.games} games, Blue ${m.blue} / Red ${m.red} / draw ${m.draws}, ${reasons}, avg ${m.avgRounds.toFixed(1)} rounds`);
+    out.push(`${MAPS[id].name}: ${games(m.games)}, Blue ${m.blue} / Red ${m.red} / draw ${m.draws}, ${reasons}, avg ${m.avgRounds.toFixed(1)} rounds`);
   }
 
   out.push('', s.human.games ? `Player's side vs AI: ${s.human.wins}/${s.human.games} won (${pct(s.human.rate)})` : 'Player vs AI games: none', '', 'Class: characters fielded, win share');
