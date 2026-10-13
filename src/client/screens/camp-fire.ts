@@ -110,9 +110,9 @@ void main() {
 export interface Fire {
   /** The ring of stones and the logs, for the shadow-casting stone mesh. */
   stones: THREE.BufferGeometry[];
-  /** The coals, the glow and the light, which light the camp from its first frame. */
+  /** The glow and the light, which light the camp from its first frame. */
   glow: THREE.Object3D[];
-  /** Flame tongues, embers and smoke, which hide behind the front figure at rest and can arrive a few frames late. */
+  /** Coals, flame tongues, embers and smoke, which hide behind the front figure at rest and can arrive a few frames late. */
   flames: THREE.Object3D[];
   step(time: number, mood: Mood, cls: THREE.Color): void;
 }
@@ -166,8 +166,8 @@ export function buildFire(a: Air, at: THREE.Vector3, rnd: () => number): Fire {
 
   return {
     stones,
-    glow: [coals, halo, pool, light],
-    flames: [flames, embers, smoke],
+    glow: [halo, pool, light],
+    flames: [coals, flames, embers, smoke],
     step(time, mood, cls) {
       const flicker = 0.85 + 0.12 * Math.sin(time * 9) + 0.07 * Math.sin(time * 23), dim = 1 - 0.75 * mood.dark;
       light.intensity = 7 * dim * flicker * (1 + 0.4 * mood.fire);

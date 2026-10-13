@@ -51,11 +51,12 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
   const grain = stoneTexture(rnd), stone = owns(new THREE.MeshStandardMaterial({ map: grain, vertexColors: true, roughness: 0.95 }), grain);
   const near = new THREE.Mesh(merged([...ground.near, ...pit.stones]), stone);
   near.castShadow = near.receiveShadow = true;
-  scene.add(hemi, moon, moon.target, spot, spot.target, near, ...ground.objects, ...pit.glow);
+  scene.add(hemi, moon, moon.target, spot, spot.target, near, ground.earth, ...pit.glow);
 
-  // The flames, the sky and the land past the stones are built in a task after the camp first draws, so the frame that
-  // mounts the screen does not pay for them, and they join the scene once their shaders compile off the main thread with
-  // the renderer and camera that first drew `near`. A camp disposed meanwhile has lost `near`, and frees them instead.
+  // The sky and the land past the stones are built in a task after the camp first draws, so the frame that mounts the
+  // screen does not pay for them. They, the runes and the fire's flames join the scene once their shaders compile off the
+  // main thread with the renderer and camera that first drew `near`. A camp disposed meanwhile has lost `near`, and frees
+  // them instead.
   let view: { renderer: THREE.WebGLRenderer; camera: THREE.Camera } | null = null;
   near.onBeforeRender = (renderer, _scene, camera) => { view ??= { renderer, camera }; };
 
@@ -69,7 +70,7 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
     }
 
     const r = seeded(23), wilds = buildWilds(a, fire, r), later = new THREE.Group();
-    later.add(new THREE.Mesh(merged(wilds.far), stone), ...buildSky(a, horizon, r), ...wilds.objects, ...pit.flames);
+    later.add(new THREE.Mesh(merged(wilds.far), stone), ground.runes, ...buildSky(a, horizon, r), ...wilds.objects, ...pit.flames);
     void view.renderer.compileAsync(later, view.camera, scene).then(() => (near.parent ? scene.add(later) : disposeTree(later)));
   };
 
@@ -93,7 +94,7 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
       fog.color.copy(horizon).multiplyScalar(1 - 0.95 * mood.dark);
       fog.far = THREE.MathUtils.lerp(40, 12, mood.dark);
       const rune = THREE.MathUtils.lerp(0.45 * (1 - 0.8 * mood.dark), 1.7, mood.fire) * (0.85 + 0.15 * Math.sin(time * 1.7));
-      ground.runes.color.copy(cls).multiplyScalar(rune);
+      ground.runes.material.color.copy(cls).multiplyScalar(rune);
       pit.step(time, mood, cls);
     },
   };

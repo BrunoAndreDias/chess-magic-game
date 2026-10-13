@@ -218,19 +218,19 @@ function gate(rnd: () => number, c: THREE.Vector3, deg: number, r: number): THRE
 export interface Ground {
   /** The hearth and the stone ring, which the fire throws shadows from. */
   near: THREE.BufferGeometry[];
-  objects: THREE.Object3D[];
-  /** The runes, whose colour `Camp.step` drives. */
-  runes: THREE.MeshBasicMaterial;
+  earth: THREE.Mesh;
+  /** The runes on the stones, whose colour `Camp.step` drives. */
+  runes: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
 }
 
 /** The ground the camp stands on, the hearth round the fire and the ring of standing stones with their runes. */
 export function buildGround(c: THREE.Vector3, dirt: THREE.Texture, rnd: () => number): Ground {
-  const ground = new THREE.Mesh(groundGeometry(c), owns(new THREE.MeshStandardMaterial({ map: dirt, vertexColors: true, roughness: 1 }), dirt));
-  ground.receiveShadow = true;
+  const earth = new THREE.Mesh(groundGeometry(c), owns(new THREE.MeshStandardMaterial({ map: dirt, vertexColors: true, roughness: 1 }), dirt));
+  earth.receiveShadow = true;
   const { stones, runes } = ring(rnd, c), runeTex = runeTexture(rnd);
   const runeMat = owns(new THREE.MeshBasicMaterial({ map: runeTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), runeTex);
 
-  return { near: [...hearth(rnd, c), ...stones], objects: [ground, new THREE.Mesh(merged(runes), runeMat)], runes: runeMat };
+  return { near: [...hearth(rnd, c), ...stones], earth, runes: new THREE.Mesh(merged(runes), runeMat) };
 }
 
 export interface Wilds {
