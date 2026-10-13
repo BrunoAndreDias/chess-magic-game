@@ -5,48 +5,48 @@
   "runs": 3,
   "maps": {
     "span": {
-      "fps": 119.61,
-      "workP50": 1.2,
-      "workP95": 1.6,
-      "gapP95": 9.1,
-      "janks": 1,
-      "calls": 479,
-      "tris": 507429,
-      "programs": 24,
+      "fps": 120,
+      "workP50": 1.7,
+      "workP95": 2.3,
+      "gapP95": 9.9,
+      "janks": 0,
+      "calls": 467,
+      "tris": 508593,
+      "programs": 25,
       "textures": 31,
-      "geometries": 302
+      "geometries": 301
     },
     "storm": {
-      "fps": 114.9,
-      "workP50": 1.3,
-      "workP95": 2.3,
-      "gapP95": 9.3,
-      "janks": 1,
-      "calls": 682,
-      "tris": 563400,
+      "fps": 120,
+      "workP50": 1.7,
+      "workP95": 2.2,
+      "gapP95": 10,
+      "janks": 0,
+      "calls": 686,
+      "tris": 563606,
       "programs": 27,
       "textures": 32,
-      "geometries": 402
+      "geometries": 372
     },
     "altar": {
-      "fps": 92.5,
-      "workP50": 1.3,
-      "workP95": 1.9,
-      "gapP95": 17,
-      "janks": 8,
-      "calls": 408,
-      "tris": 634846,
+      "fps": 120,
+      "workP50": 1.1,
+      "workP95": 1.6,
+      "gapP95": 9,
+      "janks": 0,
+      "calls": 402,
+      "tris": 636016,
       "programs": 25,
       "textures": 32,
-      "geometries": 283
+      "geometries": 267
     },
     "flow": {
-      "mapWorst": 184,
-      "mapJanks": 7,
-      "picksWorst": 225,
-      "picksJanks": 95,
-      "battleWorst": 158,
-      "battleJanks": 7
+      "mapWorst": 93,
+      "mapJanks": 2,
+      "picksWorst": 100,
+      "picksJanks": 1,
+      "battleWorst": 25,
+      "battleJanks": 0
     }
   }
 }
