@@ -8,7 +8,7 @@ import type { Draft, Member } from '../draft';
 import { ruleLine } from '../rules';
 import { isMuted, playLock, setMuted } from '../sound';
 import { TEAMS, TEAM_COLOR, TEAM_NAME, TEAM_TEXT } from '../theme';
-import { BEAT_SEC } from './beat';
+import { LOCK_IN } from './lockin';
 import { Lineup } from './lineup';
 import { bonusChips, buildEditor, loadout, roleLabel } from './loadout';
 import type { Loadout } from './loadout';
@@ -124,7 +124,7 @@ export function mountPicks(ctx: Ctx, draft: Draft): Mounted {
       if (cmd.team === draft.sel.team) {
         draft.sel = { team: cmd.team, slot: cmd.member };
         lineup.lockIn(cmd.member);
-        holding = setTimeout(() => { holding = null; if (disposed) return; draft.sel = { team: cmd.team, slot: firstOpen(cmd.team) }; follow(); render(); driveAi(); }, BEAT_SEC * 1000);
+        holding = setTimeout(() => { holding = null; if (disposed) return; draft.sel = { team: cmd.team, slot: firstOpen(cmd.team) }; follow(); render(); driveAi(); }, LOCK_IN[cmd.cls].sec * 1000);
       }
     }
 

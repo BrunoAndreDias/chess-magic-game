@@ -1,20 +1,22 @@
 import * as THREE from 'three';
-import type { Team } from '../../engine/index';
+import type { ClassId, Team } from '../../engine/index';
 import type { Pose as ClipPose, Rig } from '../board/acts';
+import { Fx } from '../board/fx';
 import { buildModel, warmFigures } from '../board/models';
 import { disposeTree, glow, hex } from '../board/art';
+import { Tweens } from '../board/tween';
 import { CREST } from '../crest';
 import type { Draft } from '../draft';
-import { BEAT_SEC, castAt, lockBeat } from './beat';
-import type { Beat } from './beat';
-import { buildCamp, CALM } from './camp';
+import { buildCamp } from './camp';
 import type { Camp } from './camp';
+import { clipAt, due, FRONT, HOME, LOCK_IN, REST } from './lockin';
+import type { Body, Moment, LockCtx } from './lockin';
 
 /** Where a party member stands: index 0 is the front spot for the selected one, then back-right, back-left. */
 interface Station { x: number; z: number; scale: number; turn: number }
 
 const STATIONS: readonly Station[] = [
-  { x: 0, z: 1.5, scale: 1.3, turn: 0 },
+  { ...FRONT, turn: 0 },
   { x: 1.75, z: -0.7, scale: 0.95, turn: -0.45 },
   { x: -1.75, z: -0.7, scale: 0.95, turn: 0.45 },
 ];
@@ -26,14 +28,7 @@ const SLOT_OF = new WeakMap<THREE.Object3D, number>();
 
 const FIRE = new THREE.Vector3(0, 0, 0.2);
 
-const FRONT = STATIONS[0]!;
-
-/** The resting camera, and where the lock-in beat pushes it: close on the front figure, looking up at it. */
-const CAM = { from: new THREE.Vector3(0, 3.1, 7.6), at: new THREE.Vector3(0, 0.85, 0.2) };
-
-const PUSH = { from: new THREE.Vector3(-0.5, 1.7, 5.4), at: new THREE.Vector3(0.15, 1.3, FRONT.z) };
-
-const LOOK = new THREE.Vector3();
+const HOME_FROM = new THREE.Vector3(...HOME.from), HOME_AT = new THREE.Vector3(...HOME.at), SHOT = new THREE.Vector3(), LOOK = new THREE.Vector3();
 
 /** Seconds for the class aura to warm to full after the front figure changes. */
 const WARM_SEC = 0.9;
@@ -41,34 +36,23 @@ const WARM_SEC = 0.9;
 interface Pose { x: number; z: number; scale: number; turn: number }
 
 interface Figure {
-  key: string; root: THREE.Group; body: THREE.Group; rig: Rig; from: Pose; to: Station; t: number; ph: number; locked: boolean;
-  /** The lock-in beat's hold on the figure's `cast` clip, from its first frame until the beat moves on. */
-  cast: ClipPose | null;
+  key: string; cls: ClassId; root: THREE.Group; body: THREE.Group; height: number; rig: Rig; from: Pose; to: Station; t: number; ph: number; locked: boolean;
+  /** The lock-in clip the figure shows, from its first frame until the lock-in moves on. */
+  act: { name: string; pose: ClipPose } | null;
 }
 
 /** The class-glow light set around the front figure: a rim behind it, a pool under it, and the lock-in burst. */
-interface Aura { rim: THREE.PointLight; pool: THREE.Sprite; flash: THREE.PointLight; burst: THREE.Sprite; ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; key: string; warm: number }
+interface Aura { rim: THREE.PointLight; pool: THREE.Sprite; flash: THREE.PointLight; burst: THREE.Sprite; key: string; warm: number }
 
-/**
- * The figure's "chosen" motion `bt` seconds into the lock-in beat, applied over its resting pose each frame: its `cast`
- * clip, or the beat's procedural hop for a figure without one. Reduced motion leaves a clip figure in its idle.
- */
-function chosenMotion(f: Figure, b: Beat, bt: number, reduced: boolean): void {
-  const clip = f.rig.acts.get('cast');
+/** The running lock-in: whose, since when on the wall clock, and how many of its cues have played. */
+interface Beat { slot: number; team: Team; cls: ClassId; start: number; fired: number }
 
-  if (!clip) {
-    f.root.position.y += b.lift;
-    f.root.rotation.y += b.spin;
-    f.body.scale.y *= b.squash;
-
-    return;
-  }
-
-  const at = castAt(bt, clip, reduced);
-
-  if (!at) return;
-  f.cast ??= f.rig.start('cast').pose;
-  f.cast(at.time, at.weight);
+/** Puts the lock-in's body offset over the figure's resting pose for this frame. */
+function offset(f: Figure, b: Body): void {
+  f.root.position.y += b.y;
+  f.root.rotation.y += b.spin;
+  f.root.rotation.z = b.roll;
+  f.body.scale.set(b.sx, f.body.scale.y * b.sy, b.sz);
 }
 
 const ease = (t: number): number => 1 - (1 - t) ** 3;
@@ -83,9 +67,12 @@ export class Lineup {
   readonly #figs: (Figure | null)[] = [null, null, null];
   readonly #camp: Camp;
   readonly #aura: Aura;
+  readonly #tweens = new Tweens();
+  readonly #fx = new Fx(this.#scene, this.#tweens);
   readonly #still = window.matchMedia('(prefers-reduced-motion: reduce)');
-  /** The running lock-in beat, timed on the wall clock so it ends with the draft's hold even when frames are slow. */
-  #beat: { slot: number; start: number } | null = null;
+  /** The running lock-in, timed on the wall clock so it ends with the draft's hold even when frames are slow. */
+  #beat: Beat | null = null;
+  #team: Team = 0;
   readonly #ray = new THREE.Raycaster();
   readonly #resize: ResizeObserver;
   readonly #off: (() => void)[] = [];
@@ -101,8 +88,8 @@ export class Lineup {
     this.#renderer = r;
     this.#camp = buildCamp(this.#scene, FIRE, FRONT);
     this.#aura = this.#buildAura();
-    this.#camera.position.copy(CAM.from);
-    this.#camera.lookAt(CAM.at);
+    this.#camera.position.copy(HOME_FROM);
+    this.#camera.lookAt(HOME_AT);
 
     this.#resize = new ResizeObserver(() => this.#fit());
     this.#resize.observe(canvas);
@@ -114,7 +101,19 @@ export class Lineup {
     canvas.addEventListener('click', click);
     this.#off.push(() => canvas.removeEventListener('pointermove', move), () => canvas.removeEventListener('click', click));
     this.#raf = requestAnimationFrame(this.#frame);
-    void warmFigures(r, this.#camera, this.#scene);
+    void warmFigures(r, this.#camera, this.#scene).then(() => this.#warmCues());
+  }
+
+  /** Compiles what every lock-in's cues draw, so the first lock does not stall on new shaders. */
+  async #warmCues(): Promise<void> {
+    const r = this.#renderer, g = new THREE.Group(), tweens = new Tweens(), at = new THREE.Vector3();
+
+    if (r.getContext().isContextLost()) return;
+    const ctx: LockCtx = { fx: new Fx(g, tweens), feet: at, ties: () => [at.clone()], t: () => 0 };
+
+    for (const lock of Object.values(LOCK_IN)) for (const cue of lock.cues) cue.play(ctx);
+    await r.compileAsync(g, this.#camera, this.#scene);
+    tweens.flush();
   }
 
   #buildAura(): Aura {
@@ -126,23 +125,33 @@ export class Lineup {
     pool.position.set(FRONT.x, 0.04, FRONT.z);
     const burst = glow(0xffffff, 1, 0);
     burst.position.set(FRONT.x, 1.1, FRONT.z + 0.2);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(FRONT.x, 0.03, FRONT.z);
-    this.#scene.add(rim, flash, pool, burst, ring);
+    this.#scene.add(rim, flash, pool, burst);
 
-    return { rim, pool, flash, burst, ring, key: '', warm: 0 };
+    return { rim, pool, flash, burst, key: '', warm: 0 };
   }
 
-  /** Plays the lock-in beat on the member in `slot`: the camera pushes in, the class glow bursts and the figure does its chosen motion. */
+  /** Plays the class's lock-in on the member in `slot`, from the top even when one is already running. */
   lockIn(slot: number): void {
-    this.#beat = { slot, start: performance.now() };
+    const f = this.#figs[slot];
+
+    this.#settle();
+
+    if (f) this.#beat = { slot, team: this.#team, cls: f.cls, start: performance.now(), fired: 0 };
+  }
+
+  /** Ends the running lock-in: its effects go, and its figure returns to idle on the next frame. */
+  #settle(): void {
+    this.#beat = null;
+    this.#tweens.flush();
   }
 
   /** Brings the scene in line with the draft: rebuilds members whose class or team changed and walks everyone to their spot. `locked` is per slot of the shown team. */
   sync(draft: Draft, locked: readonly boolean[]): void {
     const team: Team = draft.sel.team;
     const front = draft.teams[team][draft.sel.slot];
+    this.#team = team;
+
+    if (this.#beat && (this.#beat.team !== team || this.#beat.slot !== draft.sel.slot)) this.#settle();
 
     if (front) this.#tint(`${team}:${draft.sel.slot}:${front.cls}`, CREST[front.cls].glow);
     draft.teams[team].forEach((m, slot) => {
@@ -152,12 +161,12 @@ export class Lineup {
       if (f && f.key !== key) { disposeTree(f.root); f = null; }
 
       if (!f) {
-        const { body, rig } = buildModel(m.cls, team), root = new THREE.Group();
+        const { body, height, rig } = buildModel(m.cls, team), root = new THREE.Group();
         root.add(body);
         root.traverse(o => { SLOT_OF.set(o, slot); });
         this.#scene.add(root);
         const prev = this.#figs[slot];
-        f = { key, root, body, rig, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false, cast: null };
+        f = { key, cls: m.cls, root, body, height, rig, from: prev ? pose(prev) : { ...to }, to, t: prev ? 0 : 1, ph: slot * 2.1, locked: locked[slot] ?? false, act: null };
         this.#figs[slot] = f;
 
         return;
@@ -182,22 +191,30 @@ export class Lineup {
     a.flash.color.setHex(c);
     a.pool.material.color.setHex(c);
     a.burst.material.color.setHex(c);
-    a.ring.material.color.setHex(c);
     this.#camp.tint(c);
   }
 
-  #stepAura(dt: number, time: number, bt: number, b: Beat): void {
+  #stepAura(dt: number, time: number, flare: number): void {
     const a = this.#aura, still = this.#still.matches;
     a.warm = Math.min(1, a.warm + dt / WARM_SEC);
     const w = a.warm * a.warm * (3 - 2 * a.warm), breathe = still ? 1 : 0.9 + 0.1 * Math.sin(time * 1.3);
-    a.rim.intensity = (9 + 14 * b.flare) * w * breathe;
-    a.pool.material.opacity = (0.2 + 0.35 * b.flare) * w;
-    a.flash.intensity = 26 * b.flare;
-    const grow = Math.min(1, Math.max(0, bt) / 0.9);
-    a.burst.material.opacity = 0.95 * b.flare;
-    a.burst.scale.setScalar(1 + 3.5 * grow);
-    a.ring.material.opacity = b.flare > 0 && !still ? 0.9 * (1 - grow) : 0;
-    a.ring.scale.setScalar(0.3 + 2.4 * (1 - (1 - grow) ** 2));
+    a.rim.intensity = (9 + 14 * flare) * w * breathe;
+    a.pool.material.opacity = (0.2 + 0.35 * flare) * w;
+    a.flash.intensity = 16 * flare;
+    a.burst.material.opacity = 0.55 * flare;
+    a.burst.scale.setScalar(1.2 + 2 * flare);
+  }
+
+  /** What a cue of the running lock-in may touch: the front figure's feet, head and hands, and the lock-in's clock. */
+  #cueCtx(f: Figure, b: Beat): LockCtx {
+    const ties = [new THREE.Vector3(0, f.height, 0), new THREE.Vector3(0.3, f.height * 0.6, 0), new THREE.Vector3(-0.3, f.height * 0.6, 0)];
+
+    return {
+      fx: this.#fx,
+      feet: new THREE.Vector3(FRONT.x, 0, FRONT.z),
+      ties: () => { f.body.updateWorldMatrix(true, false); return ties.map(p => f.body.localToWorld(p.clone())); },
+      t: () => (performance.now() - b.start) / 1000,
+    };
   }
 
   #hit(ev: PointerEvent): number | null {
@@ -213,7 +230,7 @@ export class Lineup {
 
     if (!w || !hh) return;
     this.#renderer.setSize(w, hh, false);
-    const c = this.#camera, aspect = w / hh, halfWidth = 2.85, dist = CAM.from.length();
+    const c = this.#camera, aspect = w / hh, halfWidth = 2.85, dist = HOME_FROM.length();
     c.aspect = aspect;
     c.fov = Math.max(34, THREE.MathUtils.radToDeg(2 * Math.atan(halfWidth / (dist * aspect))));
     c.updateProjectionMatrix();
@@ -236,39 +253,52 @@ export class Lineup {
 
   readonly #frame = (now: number): void => {
     this.#raf = requestAnimationFrame(this.#frame);
-    const dt = Math.min(0.05, (now - this.#last) / 1000);
+    const wall = Math.max(0, (now - this.#last) / 1000), dt = Math.min(0.05, wall);
     this.#last = now;
     const time = (this.#time += dt), still = this.#still.matches;
-    const beat = this.#beat, bt = beat ? (now - beat.start) / 1000 : -1, b = lockBeat(bt, still);
 
-    if (bt >= BEAT_SEC) this.#beat = null;
+    if (this.#beat && (now - this.#beat.start) / 1000 >= LOCK_IN[this.#beat.cls].sec) this.#settle();
+    const beat = this.#beat, bt = beat ? (now - beat.start) / 1000 : -1, lock = beat ? LOCK_IN[beat.cls] : null;
+    const front = beat ? this.#figs[beat.slot] ?? null : null, m: Moment = lock ? lock.moment(bt, still) : REST;
 
-    for (const [slot, f] of this.#figs.entries()) {
+    if (beat && lock && front && !still) for (const cue of due(lock.cues, beat.fired, bt)) { beat.fired++; cue.play(this.#cueCtx(front, beat)); }
+
+    // Effects run on the wall clock too, so they keep pace with the lock-in's moments when frames are slow.
+    this.#tweens.update(wall);
+
+    for (const f of this.#figs) {
       if (!f) continue;
       f.t = Math.min(1, f.t + dt / SWAP_SEC);
       const k = ease(f.t), r = f.root;
       r.position.set(lerp(f.from.x, f.to.x, k), Math.sin(f.t * Math.PI) * 0.12, lerp(f.from.z, f.to.z, k));
       r.scale.setScalar(lerp(f.from.scale, f.to.scale, k));
-      r.rotation.y = lerp(f.from.turn, f.to.turn, k);
+      r.rotation.set(0, lerp(f.from.turn, f.to.turn, k), 0);
       f.body.position.y = Math.sin(time * 1.6 + f.ph) * 0.02;
-      f.body.scale.y = 1 + Math.sin(time * 1.6 + f.ph + 0.8) * 0.012;
+      f.body.scale.set(1, 1 + Math.sin(time * 1.6 + f.ph + 0.8) * 0.012, 1);
 
-      if (f.to === FRONT && f.t >= 1 && !f.locked && !still) r.rotation.y += 0.32 * Math.sin(time * 0.55 + f.ph);
+      if (f.to === STATIONS[0] && f.t >= 1 && !f.locked && !still) r.rotation.y += 0.32 * Math.sin(time * 0.55 + f.ph);
+      const at = lock && f === front ? clipAt(lock, bt, f.rig.acts, still) : null;
 
-      if (beat?.slot === slot) chosenMotion(f, b, bt, still);
-      else if (f.cast) {
-        f.cast(0, 0);
-        f.cast = null;
+      if (f === front) offset(f, m.body);
+
+      if (at) {
+        if (f.act?.name !== at.name) f.act = { name: at.name, pose: f.rig.start(at.name).pose };
+        f.act.pose(at.time, at.weight);
+      } else if (f.act) {
+        f.act.pose(0, 0);
+        f.act = null;
       }
 
       f.rig.tick(time);
     }
 
-    this.#stepAura(dt, time, bt, b);
-    this.#camera.position.lerpVectors(CAM.from, PUSH.from, b.push);
-    this.#camera.lookAt(LOOK.lerpVectors(CAM.at, PUSH.at, b.push));
-    this.plates.style.opacity = String(1 - 0.9 * b.push);
-    this.#camp.step(time, CALM);
+    this.#stepAura(dt, time, m.flare);
+    const c = this.#camera, shake = 0.25 * m.shake;
+    c.position.lerpVectors(HOME_FROM, SHOT.set(...m.cam.from), m.cam.k);
+    c.position.add(SHOT.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(shake));
+    c.lookAt(LOOK.lerpVectors(HOME_AT, SHOT.set(...m.cam.at), m.cam.k));
+    this.plates.style.opacity = String(1 - 0.9 * m.cam.k);
+    this.#camp.step(time, m.mood);
     this.#place();
     this.#renderer.render(this.#scene, this.#camera);
   };
@@ -276,6 +306,7 @@ export class Lineup {
   dispose(): void {
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
+    this.#settle();
 
     for (const off of this.#off) off();
 
