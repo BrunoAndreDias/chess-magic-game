@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import type { Team } from '../../engine/index';
 import type { Pose as ClipPose, Rig } from '../board/acts';
 import { buildModel, warmFigures } from '../board/models';
-import { disposeTree, glow, hex, mat, mesh, seeded } from '../board/art';
+import { disposeTree, glow, hex } from '../board/art';
 import { CREST } from '../crest';
 import type { Draft } from '../draft';
 import { BEAT_SEC, castAt, lockBeat } from './beat';
 import type { Beat } from './beat';
+import { buildCamp, CALM } from './camp';
+import type { Camp } from './camp';
 
 /** Where a party member stands: index 0 is the front spot for the selected one, then back-right, back-left. */
 interface Station { x: number; z: number; scale: number; turn: number }
@@ -37,8 +39,6 @@ const LOOK = new THREE.Vector3();
 const WARM_SEC = 0.9;
 
 interface Pose { x: number; z: number; scale: number; turn: number }
-
-interface Fire { light: THREE.PointLight; flames: THREE.Object3D[]; sprite: THREE.Sprite }
 
 interface Figure {
   key: string; root: THREE.Group; body: THREE.Group; rig: Rig; from: Pose; to: Station; t: number; ph: number; locked: boolean;
@@ -81,7 +81,7 @@ export class Lineup {
   readonly #scene = new THREE.Scene();
   readonly #camera = new THREE.PerspectiveCamera(36, 1, 0.1, 60);
   readonly #figs: (Figure | null)[] = [null, null, null];
-  readonly #fire: Fire;
+  readonly #camp: Camp;
   readonly #aura: Aura;
   readonly #still = window.matchMedia('(prefers-reduced-motion: reduce)');
   /** The running lock-in beat, timed on the wall clock so it ends with the draft's hold even when frames are slow. */
@@ -99,20 +99,7 @@ export class Lineup {
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFShadowMap;
     this.#renderer = r;
-    const s = this.#scene;
-    s.background = new THREE.Color(0x07060a);
-    s.fog = new THREE.Fog(0x07060a, 7, 15);
-    s.add(new THREE.HemisphereLight(0x6a7aa8, 0x120c10, 0.28 * Math.PI));
-
-    const spot = new THREE.SpotLight(0xffd29a, 40, 14, 0.4, 0.55, 1.6);
-    spot.position.set(0.6, 6.5, 5.2);
-    spot.target.position.set(STATIONS[0]!.x, 0.8, STATIONS[0]!.z);
-    spot.castShadow = true;
-    spot.shadow.mapSize.set(1024, 1024);
-    spot.shadow.bias = -0.0008;
-    s.add(spot, spot.target);
-
-    this.#fire = this.#buildCamp();
+    this.#camp = buildCamp(this.#scene, FIRE, FRONT);
     this.#aura = this.#buildAura();
     this.#camera.position.copy(CAM.from);
     this.#camera.lookAt(CAM.at);
@@ -127,57 +114,7 @@ export class Lineup {
     canvas.addEventListener('click', click);
     this.#off.push(() => canvas.removeEventListener('pointermove', move), () => canvas.removeEventListener('click', click));
     this.#raf = requestAnimationFrame(this.#frame);
-    void warmFigures(r, this.#camera, s);
-  }
-
-  #buildCamp(): Fire {
-    const s = this.#scene, rnd = seeded(11);
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(16, 48), mat(0x17120f, { roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    s.add(ground);
-    const stone = mat(0x3b3540), log = mat(0x4a2f1a), ember = mat(0xff7a2a, { emissive: new THREE.Color(0xff5a1a), emissiveIntensity: 1.4 });
-
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2, b = mesh(new THREE.DodecahedronGeometry(0.13 + rnd() * 0.05, 0), stone, FIRE.x + Math.cos(a) * 0.45, 0.06, FIRE.z + Math.sin(a) * 0.45);
-      b.rotation.set(rnd() * 3, rnd() * 3, 0);
-      b.castShadow = b.receiveShadow = true;
-      s.add(b);
-    }
-
-    for (let i = 0; i < 3; i++) {
-      const l = mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.62, 6), log, FIRE.x, 0.1, FIRE.z);
-      l.rotation.set(Math.PI / 2 - 0.35, (i / 3) * Math.PI * 2, 0, 'YXZ');
-      s.add(l);
-    }
-
-    s.add(mesh(new THREE.SphereGeometry(0.14, 8, 6), ember, FIRE.x, 0.06, FIRE.z));
-    const flames: THREE.Object3D[] = [];
-
-    for (const [c, sz, y] of [[0xff5a1a, 0.17, 0.26], [0xffa040, 0.11, 0.3], [0xffe08a, 0.06, 0.26]] as const) {
-      const f = mesh(new THREE.ConeGeometry(sz, sz * 3.4, 7), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }), FIRE.x, y, FIRE.z);
-      flames.push(f);
-      s.add(f);
-    }
-
-    for (let i = 0; i < 14; i++) {
-      const a = rnd() * Math.PI * 2, d = 4.2 + rnd() * 3.5, b = mesh(new THREE.DodecahedronGeometry(0.25 + rnd() * 0.5, 0), stone, Math.cos(a) * d, 0.05, Math.sin(a) * d - 1.5);
-      b.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
-      b.receiveShadow = true;
-      s.add(b);
-    }
-
-    const sprite = glow(0xff8a3a, 2.2, 0.75);
-    sprite.position.set(FIRE.x, 0.45, FIRE.z);
-    const pool = glow(0xff6a20, 5, 0.18);
-    pool.position.set(FIRE.x, 0.05, FIRE.z);
-    const light = new THREE.PointLight(0xff8a3a, 7, 9, 1.6);
-    light.position.set(FIRE.x, 0.7, FIRE.z);
-    light.castShadow = true;
-    light.shadow.mapSize.set(512, 512);
-    s.add(sprite, pool, light);
-
-    return { light, flames, sprite };
+    void warmFigures(r, this.#camera, this.#scene);
   }
 
   #buildAura(): Aura {
@@ -246,6 +183,7 @@ export class Lineup {
     a.pool.material.color.setHex(c);
     a.burst.material.color.setHex(c);
     a.ring.material.color.setHex(c);
+    this.#camp.tint(c);
   }
 
   #stepAura(dt: number, time: number, bt: number, b: Beat): void {
@@ -330,10 +268,7 @@ export class Lineup {
     this.#camera.position.lerpVectors(CAM.from, PUSH.from, b.push);
     this.#camera.lookAt(LOOK.lerpVectors(CAM.at, PUSH.at, b.push));
     this.plates.style.opacity = String(1 - 0.9 * b.push);
-    const fl = this.#fire;
-    fl.light.intensity = 7 * (0.85 + 0.12 * Math.sin(time * 9) + 0.07 * Math.sin(time * 23));
-    fl.sprite.scale.setScalar(2.1 + 0.18 * Math.sin(time * 11));
-    fl.flames.forEach((f, i) => { f.scale.set(1, 1 + 0.18 * Math.sin(time * (8 + i * 3) + i), 1); f.rotation.y = time * (0.6 + i * 0.4); });
+    this.#camp.step(time, CALM);
     this.#place();
     this.#renderer.render(this.#scene, this.#camera);
   };
