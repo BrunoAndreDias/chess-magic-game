@@ -412,6 +412,14 @@ export class Terrain {
   get picks(): THREE.Object3D[] { return this.#tiles.map(t => t.pick); }
 
   load(s: BattleState): void {
+    // The map, picks, scout and battle screens each load the same map, and building its stone takes about 45 ms.
+    if (this.#look.biome === BIOMES[s.map] && this.#tiles.length && this.#tiles.every(t => t.origin === (s.terr[idx(t.x, t.z)] ?? '.'))) {
+      this.rebase(s, this.#tiles.filter(t => t.loose || t.group.position.y !== 0));
+      this.sync(s);
+
+      return;
+    }
+
     this.#clear();
     this.#look = makeLook(BIOMES[s.map], s);
 
