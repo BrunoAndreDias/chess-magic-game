@@ -22,8 +22,11 @@ export class Match {
   readonly #seed: number;
   readonly #commands: Command[] = [];
   readonly #listeners = new Set<MatchListener>();
+  readonly #pace: ((next: () => void) => void) | null;
 
-  constructor(setup: BattleSetup, seats: Seats, seed: number) {
+  /** With `pace`, each AI turn after the first runs when `pace` calls it back, so a browser can play a run of AI turns without freezing a frame; without it they run back to back. */
+  constructor(setup: BattleSetup, seats: Seats, seed: number, pace?: (next: () => void) => void) {
+    this.#pace = pace ?? null;
     this.#rng = mulberry32(seed);
     this.#seats = seats;
     this.#setup = setup;
@@ -99,6 +102,8 @@ export class Match {
       if (!u || this.#seat(u.team, u.slot).kind !== 'ai') return;
 
       for (const cmd of aiTurn(s, this.#rng)) this.#must(cmd);
+
+      if (this.#pace) { this.#pace(() => this.#drive()); return; }
     }
   }
   #must(cmd: Command): void {

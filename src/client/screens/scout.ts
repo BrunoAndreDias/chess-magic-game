@@ -56,7 +56,7 @@ export function mountScout(ctx: Ctx, draft: Draft): Mounted {
 
   function begin(): void {
     clearInterval(tick);
-    const match = new Match(battleSetup(draft, [picks[0], picks[1]]), seats(draft), ctx.seed);
+    const match = new Match(battleSetup(draft, [picks[0], picks[1]]), seats(draft), ctx.seed, next => setTimeout(next));
     let saved = false;
     match.subscribe((_, state) => {
       if (saved || state.phase.kind !== 'over') return;

@@ -51,4 +51,18 @@ describe('Match', () => {
     expect(b).toEqual(a);
     expect(c.state).not.toEqual(a.state);
   });
+
+  test('a paced match plays one AI turn per callback and ends where the unpaced one does', () => {
+    const later: (() => void)[] = [];
+    const m = new Match(setup, ai, 42, next => later.push(next));
+    m.start();
+    expect(later.length).toBe(1);
+    expect(m.state.phase.kind).toBe('act');
+
+    for (let next = later.shift(); next; next = later.shift()) next();
+    const unpaced = new Match(setup, ai, 42);
+    unpaced.start();
+    expect(m.state.phase.kind).toBe('over');
+    expect(m.state).toEqual(unpaced.state);
+  });
 });
