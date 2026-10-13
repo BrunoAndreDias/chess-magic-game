@@ -29,6 +29,28 @@ const spirit = (m: THREE.MeshStandardMaterial): THREE.MeshBasicMaterial => new T
   name: 'spirit', map: m.map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false,
 });
 
+/** Figure colour maps whose sRGB bytes upload as RGBA8; see {@link decodeSrgb}. */
+const RAW_SRGB = new WeakSet<THREE.Texture>();
+
+/**
+ * Chrome on Metal uploads a 2048px map into an sRGB texture in about 26 ms and into RGBA8 in about 3 ms, and every WebGL
+ * context uploads each figure's maps again. So figure colour maps upload their sRGB bytes as RGBA8 and the shader decodes
+ * them, the way three decodes video. `copy` resets a standard material's defines, so every clone needs this again.
+ */
+function decodeSrgb(m: THREE.Material): void {
+  if (!(m instanceof THREE.MeshStandardMaterial || m instanceof THREE.MeshBasicMaterial)) return;
+
+  const raw = (t: THREE.Texture | null): boolean => {
+    if (t?.colorSpace === THREE.SRGBColorSpace) { t.colorSpace = THREE.NoColorSpace; RAW_SRGB.add(t); }
+
+    return !!t && RAW_SRGB.has(t);
+  };
+
+  if (raw(m.map)) m.defines = { ...m.defines, DECODE_VIDEO_TEXTURE: '' };
+
+  if (m instanceof THREE.MeshStandardMaterial && raw(m.emissiveMap)) m.defines = { ...m.defines, DECODE_VIDEO_TEXTURE_EMISSIVE: '' };
+}
+
 /** Fetches every class figure once; call before the first `buildModel`. */
 export async function loadFigures(): Promise<void> {
   const loader = new GLTFLoader();
@@ -49,7 +71,7 @@ export async function loadFigures(): Promise<void> {
         o.castShadow = false;
       }
 
-      for (const x of [o.material].flat()) keep(x);
+      for (const x of [o.material].flat()) { keep(x); decodeSrgb(x); }
     });
     // GLTFLoader drops animation extras; an action clip's `strike` lives there (art/figures/common.py).
     g.animations.forEach((clip, i) => { Object.assign(clip.userData, g.parser.json.animations?.[i]?.extras); });
@@ -69,6 +91,7 @@ function dress(body: THREE.Object3D, team: Team): Map<THREE.Material, THREE.Mesh
 
     if (c) return c;
     c = m.clone();
+    decodeSrgb(c);
 
     if (m.name === 'team') {
       c.color.setHex(TEAM_HEX[team]);
@@ -139,6 +162,7 @@ export function buildDoll(team: Team): Figure {
     main = first instanceof THREE.Mesh && first.material instanceof THREE.MeshStandardMaterial ? first.material.clone() : new THREE.MeshStandardMaterial();
 
     if (first instanceof THREE.Mesh) first.material = main;
+    decodeSrgb(main);
   }
 
   body.traverse(o => { if (o instanceof THREE.Mesh) o.castShadow = true; });
