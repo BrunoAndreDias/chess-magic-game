@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Biome } from '../biome';
 import { keep } from './art';
+import { roundedBox } from './rounded';
 
 /**
  * The procedural board kit: painted canvas textures, bevelled and jittered stone, grass blades, rocks and foliage, all built at load time
@@ -283,7 +283,7 @@ export function jitter(g: THREE.BufferGeometry, amp: number, seed: number): THRE
 
 /** A bevelled stone block centred on the origin. Its uvs land in one quadrant of the stone atlas at one of four turns. */
 export function block(w: number, h: number, d: number, rnd: () => number, bevel = 0.06, amp = 0.025): THREE.BufferGeometry {
-  const g = jitter(prep(new RoundedBoxGeometry(w, h, d, 1, Math.min(bevel, w / 2, h / 2, d / 2))), amp, Math.floor(rnd() * 1000));
+  const g = jitter(roundedBox(w, h, d, Math.min(bevel, w / 2, h / 2, d / 2)), amp, Math.floor(rnd() * 1000));
   const uv = g.attributes.uv!, q = Math.floor(rnd() * 4), turn = Math.floor(rnd() * 4), ox = (q % 2) * 0.5, oy = Math.floor(q / 2) * 0.5;
 
   for (let i = 0; i < uv.count; i++) {
