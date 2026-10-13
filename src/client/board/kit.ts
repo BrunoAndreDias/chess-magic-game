@@ -246,13 +246,15 @@ const _p = new THREE.Vector3(), _n = new THREE.Vector3(), _c = new THREE.Color()
 
 /** Multiply each vertex colour by the colour `f` returns for its position and normal. */
 export function paint(g: THREE.BufferGeometry, f: (p: THREE.Vector3, n: THREE.Vector3) => THREE.Color): THREE.BufferGeometry {
-  const pos = g.attributes.position!, nor = g.attributes.normal!, col = g.attributes.color!;
+  const pos = g.attributes.position!.array, nor = g.attributes.normal!.array, col = g.attributes.color!.array;
 
-  for (let i = 0; i < pos.count; i++) {
-    _p.fromBufferAttribute(pos, i);
-    _n.fromBufferAttribute(nor, i);
+  for (let i = 0; i < pos.length; i += 3) {
+    _p.set(pos[i]!, pos[i + 1]!, pos[i + 2]!);
+    _n.set(nor[i]!, nor[i + 1]!, nor[i + 2]!);
     const k = f(_p, _n);
-    col.setXYZ(i, col.getX(i) * k.r, col.getY(i) * k.g, col.getZ(i) * k.b);
+    col[i] = col[i]! * k.r;
+    col[i + 1] = col[i + 1]! * k.g;
+    col[i + 2] = col[i + 2]! * k.b;
   }
 
   return g;
@@ -271,11 +273,13 @@ export function tint(g: THREE.BufferGeometry, hex: number): THREE.BufferGeometry
 
 /** Moves every vertex by `amp` of noise keyed on its position, so seams shared by duplicate vertices stay closed. */
 export function jitter(g: THREE.BufferGeometry, amp: number, seed: number): THREE.BufferGeometry {
-  const pos = g.attributes.position!;
+  const pos = g.attributes.position!.array;
 
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), qx = Math.round(x * 500), qy = Math.round(y * 500), qz = Math.round(z * 500);
-    pos.setXYZ(i, x + (hash3(qx, qy, qz + seed) - 0.5) * amp, y + (hash3(qy, qz, qx + seed) - 0.5) * amp, z + (hash3(qz, qx, qy + seed) - 0.5) * amp);
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = pos[i]!, y = pos[i + 1]!, z = pos[i + 2]!, qx = Math.round(x * 500), qy = Math.round(y * 500), qz = Math.round(z * 500);
+    pos[i] = x + (hash3(qx, qy, qz + seed) - 0.5) * amp;
+    pos[i + 1] = y + (hash3(qy, qz, qx + seed) - 0.5) * amp;
+    pos[i + 2] = z + (hash3(qz, qx, qy + seed) - 0.5) * amp;
   }
 
   return g;
@@ -316,32 +320,43 @@ export function paintBlock(g: THREE.BufferGeometry, top: number, floor: number, 
 
 /** Thin tapered blade cards, darker at the root and sun-bleached at the tip. `spot` places each blade in the owner's space. */
 export function blades(rnd: () => number, n: number, spot: () => [number, number, number], h: readonly [number, number], root: number, tip: number): THREE.BufferGeometry {
-  const pos: number[] = [], sway: number[] = [], col: number[] = [];
-  const r = new THREE.Color(root), t = new THREE.Color(tip), mid = new THREE.Color();
+  const pos = new Float32Array(n * 27), nor = new Float32Array(n * 27), sway = new Float32Array(n * 9), col = new Float32Array(n * 27);
+  const r = new THREE.Color(root), t = new THREE.Color(tip), tone = [new THREE.Color(), new THREE.Color(), new THREE.Color()];
+  const ks = [0, 0, 0.5, 0.5, 1], TRI = [0, 1, 2, 1, 3, 2, 2, 3, 4], ring = new Float64Array(15);
 
   for (let i = 0; i < n; i++) {
     const [x, y, z] = spot(), len = h[0] + rnd() * (h[1] - h[0]), w = 0.035 + rnd() * 0.03, a = rnd() * Math.PI;
     const ca = Math.cos(a) * w, sa = Math.sin(a) * w, lean = (rnd() - 0.5) * 0.5, lx = Math.cos(a + 1.57) * lean * len, lz = Math.sin(a + 1.57) * lean * len;
     const hue = (rnd() - 0.5) * 0.05, light = (rnd() - 0.5) * 0.12;
-    const P = (k: number, side: number): [number, number, number] => [x + ca * side * (1 - k) + lx * k * k, y + len * k, z + sa * side * (1 - k) + lz * k * k];
-    const ring: [number, number, number][] = [P(0, -1), P(0, 1), P(0.5, -1), P(0.5, 1), P(1, 0)];
-    const ks = [0, 0, 0.5, 0.5, 1];
 
-    for (const [a0, b0, c0] of [[0, 1, 2], [1, 3, 2], [2, 3, 4]] as const) for (const v of [a0, b0, c0]) {
-      pos.push(...ring[v]!);
-      const k = ks[v]!;
-      sway.push(k);
-      mid.copy(r).lerp(t, k).offsetHSL(hue, 0, light);
-      col.push(mid.r, mid.g, mid.b);
+    for (let v = 0; v < 5; v++) {
+      const k = ks[v]!, side = v < 4 ? (v % 2 ? 1 : -1) : 0;
+      ring[v * 3] = x + ca * side * (1 - k) + lx * k * k;
+      ring[v * 3 + 1] = y + len * k;
+      ring[v * 3 + 2] = z + sa * side * (1 - k) + lz * k * k;
+    }
+
+    for (let j = 0; j < 3; j++) tone[j]!.copy(r).lerp(t, j / 2).offsetHSL(hue, 0, light);
+
+    for (let q = 0; q < 9; q++) {
+      const v = TRI[q]!, o = (i * 9 + q) * 3, c = tone[ks[v]! * 2]!;
+      pos[o] = ring[v * 3]!;
+      pos[o + 1] = ring[v * 3 + 1]!;
+      pos[o + 2] = ring[v * 3 + 2]!;
+      nor[o + 1] = 1;
+      sway[i * 9 + q] = ks[v]!;
+      col[o] = c.r;
+      col[o + 1] = c.g;
+      col[o + 2] = c.b;
     }
   }
 
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(Array.from({ length: pos.length }, (_, i) => (i % 3 === 1 ? 1 : 0)), 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('sway', new THREE.Float32BufferAttribute(sway, 1));
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 18), 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('sway', new THREE.BufferAttribute(sway, 1));
 
   return g;
 }
@@ -374,16 +389,18 @@ export function bush(rnd: () => number, size: number, hex: number): THREE.Buffer
   const g = mergeGeometries(balls)!;
 
   for (const b of balls) b.dispose();
-  const pos = g.attributes.position!, nor = g.attributes.normal!, c = new THREE.Vector3();
+  const pos = g.attributes.position!.array, nor = g.attributes.normal!.array, c = new THREE.Vector3(), core = new THREE.Vector3(0, size * 0.4, 0);
 
-  for (let i = 0; i < pos.count; i++) {
-    c.fromBufferAttribute(pos, i).sub(new THREE.Vector3(0, size * 0.4, 0)).normalize();
-    nor.setXYZ(i, c.x, c.y, c.z);
+  for (let i = 0; i < pos.length; i += 3) {
+    c.set(pos[i]!, pos[i + 1]!, pos[i + 2]!).sub(core).normalize();
+    nor[i] = c.x;
+    nor[i + 1] = c.y;
+    nor[i + 2] = c.z;
   }
 
-  const base = new THREE.Color(hex), lit = base.clone().offsetHSL(0.04, 0.05, 0.12);
+  const base = new THREE.Color(hex), lit = base.clone().offsetHSL(0.04, 0.05, 0.12), out = new THREE.Color();
 
-  return paint(g, (p, n) => base.clone().lerp(lit, Math.max(0, n.y) * 0.8).multiplyScalar(0.55 + 0.45 * Math.min(1, p.y / (size * 1.2))));
+  return paint(g, (p, n) => out.copy(base).lerp(lit, Math.max(0, n.y) * 0.8).multiplyScalar(0.55 + 0.45 * Math.min(1, p.y / (size * 1.2))));
 }
 
 /** A tapered n-sided shaft, like an obelisk or a column, standing on y = 0. */
