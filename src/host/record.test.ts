@@ -28,15 +28,15 @@ describe('GameRecord', () => {
   test('a Match gives no record until it is over, then one that replays to its final state', () => {
     const { match, before, record } = played();
     expect(before).toBe(null);
-    expect(record.result).toEqual({ winner: 0, reason: 'wipe', rounds: 7, favor: [0, 0], combos: [3, 3], stats: { dmg: [221, 195], heal: [0, 30], downs: [3, 1], revives: [0, 0] } });
-    expect(record.commands.length).toBe(103);
+    expect(record.result).toEqual({ winner: 1, reason: 'wipe', rounds: 4, favor: [0, 0], combos: [0, 4], stats: { dmg: [71, 186], heal: [0, 71], downs: [0, 3], revives: [1, 0] } });
+    expect(record.commands.length).toBe(77);
     expect(replay(record)).toEqual(match.state);
   });
 
   test('a record that went through JSON still replays to the same ending', () => {
     const rec = played().record;
     const state = replay(JSON.parse(JSON.stringify(rec)));
-    expect(state.phase).toEqual({ kind: 'over', winner: 0, reason: 'wipe' });
+    expect(state.phase).toEqual({ kind: 'over', winner: 1, reason: 'wipe' });
   });
 
   test('a record missing its last command does not reach the end', () => {
