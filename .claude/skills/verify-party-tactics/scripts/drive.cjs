@@ -2,7 +2,7 @@
 // One verification run: start our own Vite server, open headless Chromium on it, run a steps file, save evidence, tear both down.
 // Usage: drive.cjs <steps.cjs> [query]     e.g. drive.cjs examples/picks-to-scout.cjs "?map=storm&seed=7"
 // Env: PORT (default 5288), EVIDENCE (default $TMPDIR/verify-party-tactics/<stamp>-<steps name>), CHROME, HEADED=1.
-// The steps file exports `async (ctx) => summaryString`; ctx is documented in SKILL.md under "Drive".
+// The steps file exports `async (ctx) => summaryString`, optionally with a `.before(ctx)` run ahead of the first load; ctx is documented in SKILL.md under "Drive".
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -19,6 +19,8 @@ const stepsPath = path.resolve(stepsArg);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const EVIDENCE = path.resolve(process.env.EVIDENCE || path.join(os.tmpdir(), 'verify-party-tactics', `${stamp}-${path.basename(stepsPath, '.cjs')}`));
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// __party.phase() says 'map' before any screen mounts, so a phase counts only once its screen's root is in the DOM.
+const ROOT_OF = { map: '#mapview', picks: '#picks', scout: '#scout', battle: '#initbar', result: '#res-title' };
 
 // Runs in the page: what a player could read and press right now, as a few lines of text. `*` = .on.
 function dumpScreen() {
@@ -47,6 +49,10 @@ function dumpScreen() {
   if (chips.length) lines.push(`queue: ${chips.map(c => (c.classList.contains('now') ? '>' : '') + text(c)).join(' · ')}`);
   const wait = document.querySelector('#actions .wait');
   if (seen(wait)) lines.push(`actions: ${text(wait)}`);
+  const banner = document.querySelector('#banner.show');
+  if (banner) lines.push(`banner: ${cut(text(banner), 120)}`);
+  const perf = document.querySelector('#perfhud');
+  if (perf && text(perf)) lines.push(`perf: ${text(perf)}`);
   return lines.join('\n');
 }
 
@@ -63,7 +69,7 @@ function dumpScreen() {
 
   const browser = await chromium.launch({ executablePath: CHROME, headless: !process.env.HEADED, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const errors = [], consoleLines = [], steps = [];
+  const errors = [], consoleLines = [], steps = [], expected = [];
   page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
   page.on('console', m => { consoleLines.push(`[${m.type()}] ${m.text()}`); if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 
@@ -79,13 +85,14 @@ function dumpScreen() {
       return jpg;
     },
     dump: () => page.evaluate(dumpScreen),
-    phase: () => page.evaluate(() => window.__party.phase()),
-    state: () => page.evaluate(() => window.__party.state()),
+    // null off the game page (gallery.html, or a throw in main.ts before __party is set).
+    phase: () => page.evaluate(() => (window.__party ? window.__party.phase() : null)),
+    state: () => page.evaluate(() => (window.__party ? window.__party.state() : null)),
     engine: (fn, arg) => page.evaluate(async ([src, a]) => { const L = await import('/src/engine/index.ts'); return new Function('L', 's', 'a', `return (${src})(L, s, a)`)(L, window.__party.state(), a); }, [fn.toString(), arg]),
     until: async (pred, ms = 20000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await pred()) return true; await wait(100); } return false; },
     untilPhase: async (want, ms = 20000) => {
       const end = Date.now() + ms;
-      while (Date.now() < end) { if ((await ctx.phase()) === want) return; await wait(100); }
+      while (Date.now() < end) { if ((await ctx.phase()) === want && (await page.$(ROOT_OF[want]))) return; await wait(100); }
       throw new Error(`phase never became ${want} (is ${await ctx.phase()})`);
     },
     // The camera eases toward whoever acts, so read a tile's screen point only once it stops moving.
@@ -108,12 +115,19 @@ function dumpScreen() {
       return xy;
     },
     clickTile: async t => { const xy = await ctx.hoverTile(t); await page.mouse.click(xy.x, xy.y); await wait(250); },
+    // Errors matching re don't fail the run; the run fails if none ever comes. For proving an error path.
+    expectError: re => { expected.push({ re, seen: 0 }); },
+    // The battles the dev server recorded during this run, parsed from <evidence>/games.jsonl.
+    games: () => { try { return fs.readFileSync(process.env.GAMES_FILE, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch { return []; } },
   };
 
   let summary, failed = false;
   try {
+    const run = require(stepsPath);
+    // `run.before(ctx)` runs ahead of the first load: page.addInitScript, page.emulateMedia, page.clock.install.
+    if (run.before) await run.before(ctx);
     await page.goto(url);
-    summary = await require(stepsPath)(ctx);
+    summary = await run(ctx);
   } catch (err) {
     failed = true;
     summary = err.stack || String(err);
@@ -121,9 +135,13 @@ function dumpScreen() {
   }
   const overlay = await page.evaluate(() => { const b = document.querySelector('#errbox'); return b && !b.classList.contains('hidden') ? b.textContent : ''; }).catch(() => '');
   if (overlay) errors.push(`overlay: ${overlay}`);
+  for (const x of expected) {
+    for (let i = errors.length - 1; i >= 0; i--) if (x.re.test(errors[i])) { errors.splice(i, 1); x.seen++; }
+    if (!x.seen) errors.push(`expected error ${x.re} never came`);
+  }
   const pass = !failed && errors.length === 0;
   fs.writeFileSync(path.join(EVIDENCE, 'console.log'), consoleLines.join('\n'));
-  fs.writeFileSync(path.join(EVIDENCE, 'result.json'), JSON.stringify({ pass, steps: path.relative(ROOT, stepsPath), url, summary, log: steps, errors }, null, 2));
+  fs.writeFileSync(path.join(EVIDENCE, 'result.json'), JSON.stringify({ pass, steps: path.relative(ROOT, stepsPath), url, summary, log: steps, errors, expected: expected.map(x => ({ re: String(x.re), seen: x.seen })) }, null, 2));
   console.log(`${pass ? 'PASS' : 'FAIL'}: ${summary}; errors ${errors.length}`);
   for (const e of errors.slice(0, 20)) console.log(`  ${e}`);
   console.log(`evidence: ${EVIDENCE}`);

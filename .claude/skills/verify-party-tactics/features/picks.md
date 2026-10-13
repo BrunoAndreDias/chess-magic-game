@@ -1,52 +1,46 @@
-# Picks
+# Picks: the draft
 
-One screen drafts the parties. The starter, drawn before it (`#pk-coin`), opens and closes every round of the battle. Six steps follow the round's turn order (`#pk-track`); the team on the clock locks one hero into that turn in its current class. AI teams lock by themselves ~500 ms after their step comes up. Skills, passives, name and Human/AI stay editable for every hero throughout; only the class is fixed by the lock. The sheet shows the build as a strip; the full editor opens in a modal. When all six are locked, a 45 s final clock (`FINAL_SEC`) runs for last build edits, then scout opens with each party in lock order; `Scout the battlefield →` goes early.
+One screen drafts the turn order. The starter, drawn before it (`#pk-coin`), opens and closes every round of the battle. Six seats follow the round's turn order (`#pk-track`: Opener, Turn 2 to 5, Closer); the team on the clock locks one hero into that turn in its current class. AI teams lock by themselves 500 ms after their seat comes up. Every lock flips its seat in with the class splash and plays the class's lock sound; a lock by the team you are viewing also plays that class's lock-in scene on the lineup. Once all six are locked, a 45 s final clock runs for last build edits, then scout opens with each party in lock order; `Scout the battlefield →` goes early. The loadout editing on the same screen is in [loadout.md](./loadout.md).
 
 ## Sub-features
 
-- `picks-clock` `#pk-track .pk-seat`: `.locked` seats name hero and class, the `.now` seat says whose pick it is; `#pk-cta` asks the question and holds `#pk-lock` when it is your pick.
-- `picks-lock` `#pk-lock` (or `Enter` with no button focused) locks the selected open hero; its plate shows `🔒 <seat>`. The class's lock-in follows (`LOCK_IN` in `src/client/screens/lockin.ts`): `#pk-cta.sealed` reads `Locked in · <seat>`, the lineup plays that class's own short scene (Astromancer falling star, Gravecaller down and rise, Bellringer three tolls, Marionettist hauled on strings, Mirrormime shattering glass) while the plates fade, the seat flips in (`.pk-seat.fresh`) with its splash (`.pk-seat .art`) and the class's lock sound plays. After the lock-in's `sec` (2 to 2.2 s) the selection moves to the next open hero and AI teams resume; selecting another hero first ends it at once.
-- `picks-select` selects a hero by plate, by clicking its figure on the lineup canvas, `ArrowLeft`/`ArrowRight` or `1`–`3`.
-- `picks-class` an open hero's `.ccard[data-cls]` (a splash card, `.on` and `aria-pressed` for the current class; `ArrowUp`/`ArrowDown` cycle it) changes its class and resets its build to the recommended one; a locked hero shows `#ed-cls` instead.
+- `picks-clock` `#pk-track .pk-seat`: `.locked` seats name hero (`.nm`) and class (`.cl`), the `.now` seat reads `Your pick` or `Picking…`, the rest are `.wait`. `#pk-cta` is `.mine` (your pick, holding `#pk-lock` "Lock in <name> · <Class>") or `.wait` (`Red party (AI) is picking…`).
+- `picks-lock` `#pk-lock`, or `Enter` with no button focused, locks the selected open hero; its plate gains `.locked`. The seat lands `.locked.fresh` with its `.art` splash (`/splash/<class>.webp`).
+- `picks-lockin` after your own lock, `#pk-cta.sealed` reads `Locked in · <seat>` (`.ey`), `<name>, the <Class>` (`h2`) and the class quote (`.sub`); the lineup plays the class's scene (Astromancer falling star, Gravecaller down and rise, Bellringer three tolls, Marionettist hauled on strings, Mirrormime shattering glass, `LOCK_IN` in `src/client/screens/lockin.ts`) while `.su-plates` fades to `0.1`. After the scene's `sec` (2 to 2.2 s) the selection moves to the next open hero and AI teams resume; selecting another hero ends it at once. The sixth lock skips `.sealed` and goes straight to the final clock while its scene plays.
+- `picks-select` selects a hero by plate, by clicking its figure on the lineup, `ArrowLeft`/`ArrowRight` (wrapping) or `1`–`3`.
 - `picks-hero` `#pk-hero` on the lineup presents the selected hero's class: order and land, name, line, and role, range, HP and domain chips.
-- `picks-sound` `#pk-sound` (or `M`) mutes the lock sounds; `aria-pressed` is `true` while sound is on, and the choice survives a reload in `localStorage`.
-- `picks-build` `#ed-build` on the sheet: the basic `.slot.basic`, the innate `.slot.innate`, the 2 picked skills `.slot[data-skill]` in pick order and the class's ultimate `.slot.ult`, each with its battle key (`kbd` 1 to 5), then `#ed-emblem`, the keystone path's emblem (keystone name, else the path with most points; role; one pip per point). A slot, the emblem or `#ed-open` opens `#pk-build` (role `dialog`, title `#pk-build-t` "<name> · <class>"); `#pk-build-done`, `Escape` or a backdrop click closes it. While it is open, picks hotkeys other than `Escape` do nothing (`Enter` does not lock), and edits re-render it in place.
-- `picks-skills` (in the modal) toggles `#ed-skills .skc` (2 of the class's 4); a third pick drops the oldest. The innate (`.skc.innate`) and the ultimate (`.skc.ult`, `ULTIMATE` badge) are always on and can't be toggled.
-- `picks-tree` (in the modal) takes and refunds `.treewrap .node`; `.tree .pts b` shows points left. `#ed-rec` (Reset build) restores the recommended build.
-- `picks-final` the sixth lock turns `#pk-cta` into `.final` ("Final builds"), with `#pk-final` counting down from `0:45` and a draining bar; the last 10 s add `.urgent`. At `0:00` the screen goes to scout with the current builds (an open modal goes with it).
-- `picks-control` `#ed-name` renames; `#ed-ctrl` sets one hero Human/AI; `.pk-ctrl[data-team]` sets a whole team, until that team's first lock.
-- `picks-bonus` `.su-bonus .bchip` lists every pair resonance and Role Coverage, unearned ones `.off`.
-- `picks-random` `#su-random` rerolls the skills and passives of the shown team (not classes).
-- `picks-tabs` once the draft is complete, `.su-tab[data-team]` switches the shown team.
-- `picks-go` `#su-timer` picks the scout timer; `#pk-go`, enabled only when all six are locked, opens scout before the final clock ends.
+- `picks-sound` `#pk-sound` (or `M`) mutes the lock sounds; `aria-pressed` is `true` while sound is on, and the choice survives a reload in `localStorage['party-tactics.muted']`. Sounds stay silent until the page's first click or key.
+- `picks-final` the sixth lock turns `#pk-cta` into `.final` (`Final builds` / `Lock your skills and passives`), with `#pk-final` counting down from `0:45` and a draining bar; `.urgent` from `0:10`. At `0:00` the screen goes to scout with the current builds (an open modal goes with it).
+- `picks-control` `#ed-ctrl` sets one hero Human/AI; `.pk-ctrl[data-team]` sets a whole team, disabled after that team's first lock. A team with no Human left locks by itself.
+- `picks-tabs` once the draft is complete, `.su-tab[data-team]` switches the shown team; during the draft the view stays on a Human team.
+- `picks-go` `#su-timer` picks the scout timer (20 s, 30 s, 45 s, No timer; default 30 s); `#pk-go`, enabled only when all six are locked, opens scout before the final clock ends.
 
 ## How to get to it (user POV)
 
 - `#mp-go` on the map screen.
-- `⟲ Party` (`#btn-setup`) in battle.
+- `⟲ Party` (`#btn-setup`) in battle: same starter and map, every lock cleared, builds kept.
 - Change parties (`#res-party`) on the result screen; it draws a new starter.
 
 ## Driving it with drive.cjs
 
 Preconditions:
 
-- Query `"?map=storm&seed=7"`; `untilPhase('map')`, click `#mp-go`, `untilPhase('picks')`, wait ~800 ms. `dump()` shows `on clock: step 0, team 0`.
+- Query `"?map=storm&seed=7"`; `untilPhase('map')`, click `#mp-go`, `untilPhase('picks')`, wait ~800 ms. `dump()` shows `on clock: step 0, team 0`; `#pk-coin h2` is `Blue party opens and closes every round`.
 
-- **Edit.** Click `#su-teams .pslot[data-team="0"][data-slot="0"]`, then `#picks .ccard[data-cls="bellringer"]`: the plate's `.c` reads `🔔 Bellringer · …`. Click `#ed-open`: 2 `.skc.on:not(.innate):not(.ult)`. Click an `.skc` without `.on`: still 2, the new one among them. Click `.treewrap .node.on.live` then `.node.live:not(.on)`: `.pts b` goes 0 → 1 → 0. Click `#pk-build-done`: `#ed-build .slot:not(.innate):not(.basic):not(.ult)` lists the new picks in order. `page.fill('#ed-name', 'Vex')`.
 - **Lock.** Three times: `until` `#pk-lock` is enabled, click it. Red's locks land in between.
-- **Complete.** `until` `#pk-go` is enabled; every `#pk-track .pk-seat` is `.locked` and the seats read Blue, Red, Blue, Red, Red, Blue with seed 7 (`Vex` first).
-- **Final.** `#pk-final` reads `0:45` or `0:44`. To run it out, `page.clock.install()` before the map screen; once `#pk-go` is enabled, `page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))`, then `page.clock.fastForward(46000)`, `untilPhase('scout')` and `page.clock.resume()`.
-- **Go.** `page.selectOption('#su-timer', '0')`, click `#pk-go`, `untilPhase('scout')`: `#sc-timer` reads `∞` and `#sc-units .du` lists Blue in lock order, `Vex 🔔 Bellringer · on floor` first.
-- Done: `examples/picks-to-scout.cjs` passes and covers clock, lock, select, class, build, skills, tree, control (name) and go.
+- **Complete.** `until` `#pk-go` is enabled; every seat is `.locked`, names in the order Blue, Red, Blue, Red, Red, Blue. With seed 7 and Blue's first hero made `Vex` the Bellringer (as in the examples) they read `Vex/Bellringer, Morvath/Marionettist, Seren/Astromancer, Ysolde/Astromancer, Grix/Gravecaller, Kip/Bellringer`.
+- **Lock-in.** `page.clock.install()` in `.before`; before a lock `page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))`, click `#pk-lock`, `page.clock.runFor(1200)`: `#pk-cta.sealed`, `.ey` `Locked in · Opener`, `h2` `<name>, the <Class>`, `.su-plates` opacity `0.1`. Shot. `runFor(1000)` more: the CTA is `.wait` and seat 1 picking or locked.
+- **Final.** After the sixth lock `#pk-final` reads `0:45` under a paused clock (`0:44` running). `page.clock.fastForward(35000)`: `0:10` and `.urgent`. `fastForward(11000)`, `page.clock.resume()`, `untilPhase('scout')`.
+- **Go.** `page.selectOption('#su-timer', '0')`, click `#pk-go`, `untilPhase('scout')`: `#sc-timer` reads `∞` and `#sc-units .du` lists Blue in lock order.
+- Done: `examples/picks-to-scout.cjs` passes (clock, lock, control by name, go) and `examples/lock-in.cjs` passes (lock-in, sixth lock, final clock).
 
 ## Gotchas
 
-- Set class first: a class change resets that hero's skills and tree.
-- `#ed-skills .skc`, `.treewrap .node`, `.tree .pts b` and `#ed-rec` exist only while the modal is open: click `#ed-open` first. The class cards sit behind the backdrop then, so close it before changing class.
-- The final clock runs in real time during slow swiftshader shots, so pause the page clock before reading it. Jump with `fastForward`, not `runFor`: `runFor` renders every frame it skips, and a 36 s jump takes minutes while real time runs the clock out.
+- A screenshot takes seconds under swiftshader, longer than a whole lock-in. Film it under a paused page clock, stepping with `runFor`, and `resume()` after. Jump the final clock with `fastForward`, not `runFor`: `runFor` renders every frame it skips.
+- `.fresh` stays on every landed seat; don't wait for it to clear.
 - `#pk-lock` is absent while another team is on the clock and disabled when the selected hero is already locked; wait on it rather than clicking blind.
+- `Enter` right after closing the build modal re-opens it: closing focuses `#ed-open`. Click a non-button (`#picks h1`) first, or use `#pk-lock`.
 - Making a Red hero Human makes Red a Human team: it then locks by hand and deploys on scout too.
-- `#su-random`, the Change parties starter and New battlefield use `Math.random`; assert shape (2 picks, `.pts b` is `0`), not values.
 - `state()` is null on picks; read the DOM.
-- A screenshot takes seconds under swiftshader, longer than a whole lock-in. To film it, `page.clock.install()` before the map screen, `page.clock.pauseAt(...)` before the lock, then `page.clock.runFor(ms)` between shots, and `page.clock.resume()` after.
-- `page.emulateMedia({ reducedMotion: 'reduce' })` gives the reduced-motion lock-in: no camera move, body motion, clip, shake or effects; only the flare and the camp's light change. `page.setViewportSize` checks the narrow layout.
+- `page.emulateMedia({ reducedMotion: 'reduce' })` (in `.before`) gives the reduced-motion lock-in: no camera move, body motion, clip, shake or effects, and the plates don't fade. `page.setViewportSize` checks the narrow layout.
+- Known product bug (2026-10-13): an AI lock doesn't update that hero's class on the sheet. After the draft, Red's tab plates read the default classes (`🔔 Bellringer` for Morvath, who locked Marionettist); scout and battle use the locked class. Don't take Red's plates as the truth.
