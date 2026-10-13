@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { glow, mat, mesh, seeded } from '../board/art';
 import { air, dirtTexture, merged, owns, stoneTexture } from './camp-art';
 import { buildGround, buildWilds } from './camp-ground';
+import { MOON_DIR, buildSky } from './camp-sky';
 
 /** What a lock-in asks of the camp at one moment. Both at 0 is the camp at rest. */
 export interface Mood {
-  /** How far night closes in on the front figure: at 1 the fog goes black and the fire burns low. */
+  /** How far night closes in on the front figure: at 1 the sky, moon and fog go black and the fire burns low. */
   dark: number;
   /** How far the fire burns in the front figure's class glow instead of its own orange, 0 to 1. */
   fire: number;
@@ -37,6 +38,8 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
   scene.background = fog.color;
 
   const hemi = new THREE.HemisphereLight(0x5a6a98, 0x140e0c, 0.22 * Math.PI);
+  const moon = new THREE.DirectionalLight(0x9db0e8, 0.9);
+  moon.position.copy(MOON_DIR).multiplyScalar(20);
 
   const spot = new THREE.SpotLight(0xffd29a, 40, 14, 0.4, 0.55, 1.6);
   spot.position.set(0.6, 6.5, 5.2);
@@ -49,7 +52,7 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
   const grain = stoneTexture(rnd), stone = owns(new THREE.MeshStandardMaterial({ map: grain, vertexColors: true, roughness: 0.95 }), grain);
   const near = new THREE.Mesh(merged(ground.near), stone);
   near.castShadow = near.receiveShadow = true;
-  scene.add(hemi, spot, spot.target, near, ...ground.objects);
+  scene.add(hemi, moon, moon.target, spot, spot.target, near, ...ground.objects);
 
   const rock = mat(0x3b3540), log = mat(0x4a2f1a), ember = mat(EMBER, { emissive: new THREE.Color(0xff5a1a), emissiveIntensity: 1.4 });
 
@@ -86,9 +89,9 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
   light.shadow.mapSize.set(512, 512);
   scene.add(sprite, pool, light);
 
-  // The land past the stones is built in a task after the camp first draws, so the frame that mounts the screen does not
-  // pay for it, and it joins the scene once its shaders compile off the main thread with the renderer and camera that
-  // first drew `near`. A camp disposed meanwhile has lost `near` and skips it.
+  // The sky and the land past the stones are built in a task after the camp first draws, so the frame that mounts the
+  // screen does not pay for them, and they join the scene once their shaders compile off the main thread with the
+  // renderer and camera that first drew `near`. A camp disposed meanwhile has lost `near` and skips them.
   let view: { renderer: THREE.WebGLRenderer; camera: THREE.Camera } | null = null;
   near.onBeforeRender = (renderer, _scene, camera) => { view ??= { renderer, camera }; };
 
@@ -101,14 +104,14 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
       return;
     }
 
-    const wilds = buildWilds(a, fire, seeded(23)), later = new THREE.Group();
-    later.add(new THREE.Mesh(merged(wilds.far), stone), ...wilds.objects);
+    const r = seeded(23), wilds = buildWilds(a, fire, r), later = new THREE.Group();
+    later.add(new THREE.Mesh(merged(wilds.far), stone), ...buildSky(a, horizon, r), ...wilds.objects);
     void view.renderer.compileAsync(later, view.camera, scene).then(() => { if (near.parent) scene.add(later); });
   };
 
   requestAnimationFrame(() => setTimeout(arrive));
 
-  const tinted = new THREE.Color(), cls = new THREE.Color(EMBER), hemiK = hemi.intensity, spotK = spot.intensity;
+  const tinted = new THREE.Color(), cls = new THREE.Color(EMBER), hemiK = hemi.intensity, moonK = moon.intensity, spotK = spot.intensity;
 
   return {
     tint(c) { cls.setHex(c); },
@@ -125,6 +128,7 @@ export function buildCamp(scene: THREE.Scene, fire: THREE.Vector3, front: { x: n
       sprite.material.color.copy(light.color);
       sprite.scale.setScalar(2.1 + 0.18 * Math.sin(time * 11));
       hemi.intensity = hemiK * lit;
+      moon.intensity = moonK * lit;
       spot.intensity = spotK * (1 - 0.6 * mood.dark);
       fog.color.copy(horizon).multiplyScalar(1 - 0.95 * mood.dark);
       fog.far = THREE.MathUtils.lerp(40, 12, mood.dark);
