@@ -58,6 +58,8 @@ class BoardView implements Board {
   #time = 0;
   readonly #meter = new PerfMeter();
   #sync = false;
+  /** Loads whose new shaders are still compiling off the main thread; the board holds its last frame until they are ready. */
+  #compiling = 0;
   readonly #onVisibility: () => void;
 
   constructor(canvas: HTMLCanvasElement, readonly labels: HTMLElement) {
@@ -117,6 +119,8 @@ class BoardView implements Board {
     this.#map = state.map;
     this.#loaded = state;
     this.#snap(state);
+    this.#compiling++;
+    void this.#stage.renderer.compileAsync(this.#stage.scene, this.#stage.camera).finally(() => { this.#compiling--; });
   }
 
   enter(): Promise<void> {
@@ -285,7 +289,8 @@ class BoardView implements Board {
 
     this.#marks.update(dt);
     this.#overlay.update(dt);
-    st.render(dt);
+
+    if (!this.#compiling) st.render(dt);
 
     if (this.#sync) st.renderer.getContext().finish();
     const { calls, triangles } = st.renderer.info.render;
